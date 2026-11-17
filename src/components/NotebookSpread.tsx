@@ -1806,7 +1806,7 @@ const PatternCatalogPage: React.FC<{
   }) => {
     const pageNum = (spreadNumber - 1) * 2 + (side === 'left' ? 1 : 2);
     return (
-      <div className="relative w-[min(46vw,640px)] h-[min(81vh,780px)] parchment-page parchment-grid overflow-hidden flex flex-col px-6 py-4">
+      <div className="relative notebook-page-maximized parchment-page parchment-grid overflow-hidden flex flex-col px-6 py-4">
         {side === 'left' ? (
           <>
             <CornerCrochetFlower position="top-left" className="absolute top-1 left-1 w-20 h-20 opacity-85" />
@@ -2965,7 +2965,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         onPointerMove={handleCanvasPointerMove}
         onPointerUp={handleCanvasPointerUp}
         onPointerLeave={() => setEraserCursor(null)}
-        className={`relative w-[min(46vw,640px)] h-[min(81vh,780px)] parchment-page ${paperBgClass} overflow-visible ${
+        className={`relative notebook-page-maximized parchment-page ${paperBgClass} overflow-visible ${
           liveTransform ? 'z-30' : ''
         } ${
           activeTool === 'draw' || activeTool === 'eyedropper'

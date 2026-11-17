@@ -246,3 +246,16 @@
   opacity: 0.12;
 }
 
+
+/* Maximize the notebook without stretching its paper proportions. */
+.notebook-page-maximized {
+  width: min(calc((100vw - 56px) / 2), calc((100dvh - 148px) * 0.8205128));
+  height: min(calc((100vw - 56px) * 0.609375), calc(100dvh - 148px));
+  flex-shrink: 0;
+}
+@media (max-width: 700px) {
+  .notebook-page-maximized {
+    width: min(46vw, 640px);
+    height: min(76dvh, 780px);
+  }
+}
