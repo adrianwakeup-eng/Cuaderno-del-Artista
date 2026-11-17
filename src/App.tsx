@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { User } from 'firebase/auth';
 import { CoverScreen } from './components/CoverScreen';
@@ -65,6 +66,7 @@ export default function App() {
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [savedToast, setSavedToast] = useState<string | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
   const imageUploadRef = useRef<HTMLInputElement>(null);
 
   // Google Drive Auth & Modal state (in-memory token only)
@@ -369,7 +371,7 @@ export default function App() {
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           className="h-screen w-screen flex flex-col overflow-hidden"
         >
-          <TopStudioBar
+          {!focusMode && <TopStudioBar
             activeSection={activeSection}
             patternCount={workspace.patterns.length}
             activeTool={activeTool}
@@ -410,7 +412,18 @@ export default function App() {
             }}
             driveConnected={!driveNeedsAuth && driveUser !== null}
             savedToast={savedToast}
-          />
+          />}
+          {activeSection === 'cuaderno' && (
+            <button
+              type="button"
+              onClick={() => setFocusMode((value) => !value)}
+              aria-label={focusMode ? 'Mostrar herramientas' : 'Modo concentración'}
+              title={focusMode ? 'Mostrar herramientas' : 'Modo concentración'}
+              className="absolute top-3 right-3 z-[70] rounded-lg border border-[#bd9458] bg-[#29170d]/90 p-2 text-[#f8dcaa] shadow-lg hover:bg-[#543016]"
+            >
+              {focusMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+          )}
 
           <div className="flex-1 flex min-h-0 overflow-hidden">
             {/* Main Center Stage */}
