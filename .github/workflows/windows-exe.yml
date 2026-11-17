@@ -1,0 +1,27 @@
+name: Empaquetar Cuaderno del Artista para Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+      - name: Instalar Electron
+        run: npm install --no-save --no-audit --no-fund electron electron-builder
+      - name: Compilar interfaz
+        run: npm run build
+      - name: Generar instalador y portable
+        run: npx electron-builder --win --config electron-builder.json --publish never
+      - name: Guardar ejecutables
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cuaderno-del-Artista-Windows
+          path: release/*.exe
+          if-no-files-found: error
