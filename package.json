@@ -1,7 +1,9 @@
 {
-  "name": "react-example",
+  "name": "cuaderno-del-artista",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Cuaderno del Artista — Estudio interactivo de crochet y El Vestidor Dorado para Windows.",
+  "author": "Cuaderno del Artista",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",

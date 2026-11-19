@@ -1,5 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
-const http = require('http');
+const { app, BrowserWindow, ipcMain, protocol, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -26,8 +25,25 @@ const MIME_TYPES = {
   '.wav': 'audio/wav',
 };
 
+const APP_SCHEME = 'app';
+const APP_HOST = 'cuaderno-del-artista';
+
+// Register custom privileged scheme BEFORE app.whenReady()
+// Gives a fixed secure origin (IndexedDB/localStorage persist forever) with zero file:// bugs and zero firewall popups.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
+
 let mainWindow = null;
-let staticServer = null;
 
 // Prevent multiple instances on Windows when clicking desktop shortcut again
 const gotLock = app.requestSingleInstanceLock();
@@ -42,80 +58,86 @@ if (!gotLock) {
   });
 }
 
-function startLocalDistServer(distDir) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      try {
-        const rawUrl = (req.url || '/').split('?')[0];
-        let decodedPath = decodeURIComponent(rawUrl);
-        if (decodedPath === '/' || decodedPath === '') {
-          decodedPath = '/index.html';
-        }
+function resolveIconPath() {
+  const filename = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  const candidates = [
+    path.join(__dirname, filename).replace('app.asar', 'app.asar.unpacked'),
+    path.join(__dirname, filename),
+    path.join(__dirname, '..', 'dist', 'app-icon.ico'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
 
-        const safeRelative = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
-        let targetPath = path.join(distDir, safeRelative);
+function registerAppProtocol() {
+  const distDir = path.resolve(__dirname, '..', 'dist');
 
-        // Ensure path stays strictly inside distDir
-        if (!targetPath.startsWith(distDir)) {
-          res.writeHead(403);
-          res.end('Forbidden');
-          return;
-        }
-
-        const serveFile = (filePath) => {
-          fs.readFile(filePath, (err, content) => {
-            if (err) {
-              res.writeHead(404);
-              res.end('Not found');
-              return;
-            }
-            const ext = path.extname(filePath).toLowerCase();
-            res.writeHead(200, {
-              'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-              'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000',
-            });
-            res.end(content);
-          });
-        };
-
-        fs.stat(targetPath, (err, stats) => {
-          if (!err && stats.isFile()) {
-            serveFile(targetPath);
-          } else {
-            // SPA fallback to index.html
-            serveFile(path.join(distDir, 'index.html'));
-          }
-        });
-      } catch {
-        res.writeHead(500);
-        res.end('Internal server error');
+  protocol.handle(APP_SCHEME, async (request) => {
+    try {
+      const reqUrl = new URL(request.url);
+      let relPath = decodeURIComponent(reqUrl.pathname).replace(/^\/+/, '');
+      if (!relPath) {
+        relPath = 'index.html';
       }
-    });
 
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      resolve({ server, port: address.port });
-    });
+      const targetPath = path.resolve(distDir, relPath);
+      const relativeCheck = path.relative(distDir, targetPath);
+      if (relativeCheck.startsWith('..') || path.isAbsolute(relativeCheck)) {
+        return new Response('Forbidden', { status: 403 });
+      }
+
+      let fileToServe = targetPath;
+      let existsAsFile = false;
+      try {
+        const stat = await fs.promises.stat(targetPath);
+        existsAsFile = stat.isFile();
+      } catch {
+        existsAsFile = false;
+      }
+
+      if (!existsAsFile) {
+        // If URL looks like a static asset with extension, return 404; otherwise SPA fallback to index.html
+        if (path.extname(relPath)) {
+          return new Response('Not Found', { status: 404 });
+        }
+        fileToServe = path.join(distDir, 'index.html');
+      }
+
+      const data = await fs.promises.readFile(fileToServe);
+      const ext = path.extname(fileToServe).toLowerCase();
+      return new Response(data, {
+        status: 200,
+        headers: {
+          'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+          'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000',
+        },
+      });
+    } catch (err) {
+      return new Response(`Error cargando recurso: ${String(err)}`, {
+        status: 500,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
   });
 }
 
 async function createWindow() {
-  const distDir = path.join(__dirname, '..', 'dist');
-  const iconPath = path.join(
-    __dirname,
-    process.platform === 'win32' ? 'icon.ico' : 'icon.png'
-  );
+  const iconPath = resolveIconPath();
 
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 680,
-    frame: false,
+    frame: true,
+    autoHideMenuBar: true,
     show: false,
     backgroundColor: '#1b1109',
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: iconPath,
     title: 'Cuaderno del Artista — Estudio de Crochet',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -125,9 +147,20 @@ async function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-  });
+  // Clean native Windows window without File/Edit/View menu bar
+  mainWindow.setMenu(null);
+
+  let shown = false;
+  const revealWindow = () => {
+    if (!shown && mainWindow && !mainWindow.isDestroyed()) {
+      shown = true;
+      mainWindow.show();
+    }
+  };
+
+  mainWindow.once('ready-to-show', revealWindow);
+  // Guarantee window always becomes visible even if a font request is slow offline
+  setTimeout(revealWindow, 2200);
 
   mainWindow.on('maximize', () => {
     mainWindow?.webContents.send('window:maximized-change', true);
@@ -137,9 +170,9 @@ async function createWindow() {
     mainWindow?.webContents.send('window:maximized-change', false);
   });
 
-  // Open external links in default Windows browser
+  // Open external links safely in default Windows browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://127.0.0.1:') || url.startsWith('http://localhost:')) {
+    if (url.startsWith(`${APP_SCHEME}://`) || url.startsWith('http://localhost:') || url.startsWith('http://127.0.0.1:')) {
       return { action: 'allow' };
     }
     if (url.startsWith('https://') || url.startsWith('http://')) {
@@ -148,22 +181,43 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
-  // Allow F11 fullscreen toggle on Windows
+  // Useful Windows shortcuts: F11 fullscreen, Ctrl+R reload, F12 DevTools
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.key === 'F11' && input.type === 'keyDown') {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F11') {
       event.preventDefault();
       mainWindow?.setFullScreen(!mainWindow.isFullScreen());
+    } else if (input.key === 'F12') {
+      event.preventDefault();
+      mainWindow?.webContents.toggleDevTools();
+    } else if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+      event.preventDefault();
+      mainWindow?.webContents.reload();
     }
   });
 
-  // Dev server override if ELECTRON_START_URL is set; otherwise serve dist/ via local loopback HTTP
+  // Show a readable recovery screen if loading fails
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    revealWindow();
+    const safeDesc = String(errorDescription || 'Error desconocido').replace(/[<>&"]/g, '');
+    mainWindow?.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(
+        `<!doctype html><html lang="es"><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#1b1109;color:#f6e2be;font-family:Segoe UI,sans-serif;text-align:center;padding:24px;">
+          <div style="max-width:460px;background:#2b1509;border:1px solid #c9954c;border-radius:16px;padding:28px;">
+            <h2 style="margin-top:0;color:#ffebc2;">No se pudo cargar Cuaderno del Artista</h2>
+            <p style="font-size:14px;color:#dfc499;">Código ${errorCode}: ${safeDesc}</p>
+            <button onclick="location.href='${APP_SCHEME}://${APP_HOST}/'" style="margin-top:12px;padding:10px 20px;border:none;border-radius:8px;background:#b87b24;color:#fff;font-weight:600;cursor:pointer;">Reintentar</button>
+          </div>
+        </body></html>`
+      )}`
+    );
+  });
+
   const devUrl = process.env.ELECTRON_START_URL;
   if (devUrl) {
     await mainWindow.loadURL(devUrl);
   } else {
-    const started = await startLocalDistServer(distDir);
-    staticServer = started.server;
-    await mainWindow.loadURL(`http://127.0.0.1:${started.port}/`);
+    await mainWindow.loadURL(`${APP_SCHEME}://${APP_HOST}/`);
   }
 }
 
@@ -183,6 +237,7 @@ ipcMain.handle('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
 app.setAppUserModelId('com.cuadernodelartista.crochet');
 
 app.whenReady().then(() => {
+  registerAppProtocol();
   void createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
@@ -190,9 +245,5 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (staticServer) {
-    staticServer.close();
-    staticServer = null;
-  }
   if (process.platform !== 'darwin') app.quit();
 });

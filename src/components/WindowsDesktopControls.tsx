@@ -1,12 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Check,
   Copy,
   Download,
   FileCode2,
-  Maximize2,
-  Minimize2,
-  Minus,
   Monitor,
   Smartphone,
   Sparkles,
@@ -220,79 +217,9 @@ export function downloadWindowsBuilderScript() {
   triggerTextDownload('construir-windows.bat', WINDOWS_ELECTRON_BAT_SCRIPT);
 }
 
-/* ---------- 1. Native Electron Frameless Windows Title Bar ---------- */
+/* ---------- 1. Native Windows Frame Title Bar (handled natively by Electron) ---------- */
 export const ElectronTitleBar: React.FC = () => {
-  const [isElectron, setIsElectron] = useState(false);
-  const [maximized, setMaximized] = useState(false);
-
-  useEffect(() => {
-    const api = window.electronAPI;
-    if (!api) return;
-    setIsElectron(true);
-    void api.isMaximized?.().then((val) => setMaximized(Boolean(val)));
-    const unsubscribe = api.onMaximizedChange?.((val) => setMaximized(Boolean(val)));
-    return () => {
-      unsubscribe?.();
-    };
-  }, []);
-
-  if (!isElectron) return null;
-
-  return (
-    <div
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      className="h-8 w-full shrink-0 select-none flex items-center justify-between pl-3 pr-0 bg-gradient-to-r from-[#1d0e06] via-[#2b1509] to-[#1d0e06] border-b border-[#c9954c]/40 text-[#f6e2be] z-[90]"
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <img
-          src="/icon.svg"
-          alt="Cuaderno del Artista"
-          className="w-4 h-4 rounded-sm shrink-0"
-          draggable={false}
-        />
-        <span className="font-display text-[11px] tracking-wider uppercase text-[#f3d9a8] truncate">
-          Cuaderno del Artista · Estudio de Crochet
-        </span>
-      </div>
-
-      <div
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        className="flex items-center h-full shrink-0"
-      >
-        <button
-          type="button"
-          onClick={() => window.electronAPI?.minimize()}
-          aria-label="Minimizar ventana"
-          title="Minimizar"
-          className="h-full w-11 inline-flex items-center justify-center text-[#e6c996] hover:bg-[#492712] hover:text-white transition-colors cursor-pointer"
-        >
-          <Minus className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => window.electronAPI?.maximize()}
-          aria-label={maximized ? 'Restaurar ventana' : 'Maximizar ventana'}
-          title={maximized ? 'Restaurar' : 'Maximizar'}
-          className="h-full w-11 inline-flex items-center justify-center text-[#e6c996] hover:bg-[#492712] hover:text-white transition-colors cursor-pointer"
-        >
-          {maximized ? (
-            <Minimize2 className="w-3.5 h-3.5" />
-          ) : (
-            <Maximize2 className="w-3.5 h-3.5" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => window.electronAPI?.close()}
-          aria-label="Cerrar aplicación"
-          title="Cerrar"
-          className="h-full w-11 inline-flex items-center justify-center text-[#e6c996] hover:bg-[#b52730] hover:text-white transition-colors cursor-pointer"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
+  return null;
 };
 
 /* ---------- 2. In-App Windows Desktop & PWA Install Button + Modal ---------- */

@@ -1,27 +1,57 @@
 name: Empaquetar Cuaderno del Artista para Windows
+
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, master]
+
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Descargar código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Instalar dependencias
-        run: npm install --no-audit --no-fund
-      - name: Instalar Electron
-        run: npm install --no-save --no-audit --no-fund electron electron-builder
-      - name: Compilar interfaz
+
+      - name: Instalar dependencias del proyecto
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Instalar Electron y electron-builder
+        run: npm install --save-dev --legacy-peer-deps --no-audit --no-fund electron electron-builder
+
+      - name: Compilar aplicación web
         run: npm run build
-      - name: Generar instalador y portable
+
+      - name: Generar instalador y portable para Windows (.exe)
         run: npx electron-builder --win --config electron-builder.json --publish never
-      - name: Guardar ejecutables
+
+      - name: Verificar ejecutables generados
+        shell: pwsh
+        run: Get-ChildItem -Path release -Filter *.exe
+
+      - name: Subir ejecutables como Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Cuaderno-del-Artista-Windows
+          name: Cuaderno-del-Artista-Windows-EXE
           path: release/*.exe
           if-no-files-found: error
+
+      - name: Publicar ejecutables directos en GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest
+          name: Cuaderno del Artista para Windows (.exe)
+          body: |
+            ### Descarga directa para Windows 10 / 11 (64 bits)
+            - **Cuaderno-del-Artista-Instalador-*.exe** — Instalador clásico en español con icono en el Escritorio y Menú Inicio.
+            - **Cuaderno-del-Artista-Portable-*.exe** — Ejecutable portable listo para abrir sin instalar.
+          files: |
+            release/*.exe
+          make_latest: true

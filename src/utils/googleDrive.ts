@@ -25,8 +25,15 @@ export const GOOGLE_DRIVE_SCOPES: string[] = [
   'https://www.googleapis.com/auth/drive.scripts',
 ];
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
+let app: ReturnType<typeof initializeApp> | null = null;
+let auth: ReturnType<typeof getAuth> | null = null;
+
+try {
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  auth = getAuth(app);
+} catch (err) {
+  console.warn('Google Drive / Firebase Auth desactivado en modo escritorio sin conexión:', err);
+}
 
 const provider = new GoogleAuthProvider();
 for (const scope of GOOGLE_DRIVE_SCOPES) {
@@ -41,22 +48,34 @@ export const initDriveAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
-  return onAuthStateChanged(auth, (user: User | null) => {
-    if (user && cachedAccessToken) {
-      onAuthSuccess?.(user, cachedAccessToken);
-    } else if (!isSigningIn) {
-      if (!user) {
-        cachedAccessToken = null;
+  if (!auth) {
+    onAuthFailure?.();
+    return () => {};
+  }
+  try {
+    return onAuthStateChanged(auth, (user: User | null) => {
+      if (user && cachedAccessToken) {
+        onAuthSuccess?.(user, cachedAccessToken);
+      } else if (!isSigningIn) {
+        if (!user) {
+          cachedAccessToken = null;
+        }
+        onAuthFailure?.();
       }
-      onAuthFailure?.();
-    }
-  });
+    });
+  } catch {
+    onAuthFailure?.();
+    return () => {};
+  }
 };
 
 export const signInWithGoogleDrive = async (): Promise<{
   user: User;
   accessToken: string;
 }> => {
+  if (!auth) {
+    throw new Error('Google Drive requiere conexión a internet y acceso web autorizado.');
+  }
   try {
     isSigningIn = true;
     const result = await signInWithPopup(auth, provider);
@@ -79,7 +98,9 @@ export const clearDriveAccessToken = (): void => {
 
 export const signOutGoogleDrive = async (): Promise<void> => {
   cachedAccessToken = null;
-  await auth.signOut();
+  if (auth) {
+    await auth.signOut();
+  }
 };
 
 export interface DriveFileItem {

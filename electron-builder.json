@@ -2,6 +2,10 @@
   "appId": "com.cuadernodelartista.crochet",
   "productName": "Cuaderno del Artista",
   "asar": true,
+  "asarUnpack": [
+    "electron/icon.ico",
+    "electron/icon.png"
+  ],
   "directories": {
     "output": "release"
   },

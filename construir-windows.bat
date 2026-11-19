@@ -18,12 +18,12 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo [1/4] Instalando dependencias del proyecto...
-call npm install --no-audit --no-fund
+call npm install --legacy-peer-deps --no-audit --no-fund
 if %ERRORLEVEL% NEQ 0 goto :error
 
 echo.
 echo [2/4] Instalando motor de escritorio Electron para Windows...
-call npm install --no-save --no-audit --no-fund electron electron-builder
+call npm install --no-save --legacy-peer-deps --no-audit --no-fund electron electron-builder
 if %ERRORLEVEL% NEQ 0 goto :error
 
 echo.
