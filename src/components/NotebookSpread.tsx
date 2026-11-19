@@ -6,8 +6,6 @@ import {
   Plus,
   ZoomIn,
   ZoomOut,
-  Maximize2,
-  Grid3X3,
   Trash2,
   RotateCw,
   Eraser,
@@ -21,7 +19,6 @@ import {
   ArrowUpToLine,
   ArrowDownToLine,
   Frame,
-  BookOpenCheck,
   Check,
   Edit3,
   Sparkles,
@@ -32,11 +29,14 @@ import {
   AlignCenter,
   AlignRight,
   Highlighter,
-  RotateCcw,
   PaintBucket,
   Pipette,
   Scissors,
   X,
+  Minimize2,
+  Wand2,
+  Loader2,
+  RotateCcw,
 } from 'lucide-react';
 import type {
   ActiveCanvasTool,
@@ -58,13 +58,25 @@ import {
   CrochetStickerSvg,
 } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
+import { CrochetMandalaSvg } from './CrochetMandalaSvg';
+import { CROCHET_MANDALAS } from '../data/crochetMandalas';
+import { MANDALA_GALLERY_PHOTOS } from '../data/mandalaGalleryPhotos';
+import { MannequinSvg } from './MannequinSvg';
+import { CrochetWardrobe3D } from './CrochetWardrobe3D';
 import { ImageCropModal } from './ImageCropModal';
+import { audioEngine } from '../utils/audioEngine';
+import { extractFigureMatting } from '../utils/aiImageMatting';
+import type { LayerAction, LayerVisibility, StackableLayerId } from './RightToolPanels';
 
 interface NotebookSpreadProps {
   spreads: SpreadType[];
   patterns: CrochetPattern[];
   currentSpreadIndex: number;
   onChangeSpreadIndex: (index: number) => void;
+  notebookMode?: 'book' | 'mandalas';
+  onChangeNotebookMode?: (mode: 'book' | 'mandalas') => void;
+  mandalaSpreadIndex?: number;
+  onChangeMandalaSpreadIndex?: (index: number) => void;
   onAddSpread: () => void;
   onUpdateSpread: (spread: SpreadType) => void;
   activeTool: ActiveCanvasTool;
@@ -75,9 +87,43 @@ interface NotebookSpreadProps {
   selectedFont: FontChoice;
   copiedPattern: CopiedPatternData | null;
   onCopyPattern: (pat: CopiedPatternData) => void;
-  onPastePatternOnSpread: (spreadId: string, side?: 'left' | 'right') => void;
+  onPastePatternOnSpread: (
+    spreadId: string,
+    side?: 'left' | 'right',
+    patternOverride?: CopiedPatternData
+  ) => void;
   onPlayPageFlip: () => void;
+  onEnterDressingRoom?: () => void;
   onNotify?: (msg: string) => void;
+  dockedMode?: boolean;
+  focusMode?: boolean;
+  onToggleFocusMode?: () => void;
+  layerVisibility?: LayerVisibility;
+  layerOrder?: StackableLayerId[];
+  onStepLayerOrder?: (layer: StackableLayerId, dir: 'up' | 'down') => void;
+  layerActionSignal?: { id: number; action: LayerAction } | null;
+  cyclePaperSignal?: number;
+  turnPageSignal?: { id: number; dir: 'prev' | 'next' } | null;
+  toggleOverviewSignal?: number;
+  rotateAllSignal?: {
+    id: number;
+    mode: 'set' | 'delta' | 'reset';
+    value: number;
+  } | null;
+  zoom?: number;
+  onChangeZoom?: (zoom: number) => void;
+  onSpreadMetaChange?: (meta: {
+    isCatalog: boolean;
+    paperStyle: PaperStyle;
+    hasSelected: boolean;
+    hasDrawings: boolean;
+    hasElements: boolean;
+    title: string;
+    totalBookSpreads: number;
+    catalogCount: number;
+    showOverview: boolean;
+    allRotateAngle: number;
+  }) => void;
 }
 
 const FONT_CLASS_MAP: Record<FontChoice, string> = {
@@ -98,6 +144,7 @@ const DEFAULT_FILTERS: ImageFilters = {
 const PAGE_W = 460;
 const PAGE_H = 600;
 const PATTERNS_PER_CATALOG_PAGE = 4; // 4 left + 4 right = 8 patterns per spread
+const MANDALAS_PER_PAGE = 6; // 6 left + 6 right = 12 mandalas per spread
 
 interface CatalogSpreadDef {
   id: string;
@@ -111,6 +158,10 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   patterns,
   currentSpreadIndex,
   onChangeSpreadIndex,
+  notebookMode = 'book',
+  onChangeNotebookMode,
+  mandalaSpreadIndex = 0,
+  onChangeMandalaSpreadIndex,
   onAddSpread,
   onUpdateSpread,
   activeTool,
@@ -123,7 +174,22 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   onCopyPattern,
   onPastePatternOnSpread,
   onPlayPageFlip,
+  onEnterDressingRoom,
   onNotify,
+  dockedMode = false,
+  focusMode = false,
+  onToggleFocusMode,
+  layerVisibility = { notes: true, drawing: true, images: true, background: true },
+  layerOrder = ['notes', 'drawing', 'images'],
+  onStepLayerOrder,
+  layerActionSignal = null,
+  cyclePaperSignal = 0,
+  turnPageSignal = null,
+  toggleOverviewSignal = 0,
+  rotateAllSignal = null,
+  zoom: controlledZoom,
+  onChangeZoom,
+  onSpreadMetaChange,
 }) => {
   // Build the initial Pattern Catalog spreads shown on the FIRST pages of the book
   const catalogSpreads = useMemo<CatalogSpreadDef[]>(() => {
@@ -167,18 +233,73 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     return chunks;
   }, [patterns]);
 
+  const allMandalaItems = useMemo<CopiedPatternData[]>(() => {
+    const photoItems: CopiedPatternData[] = MANDALA_GALLERY_PHOTOS.map((p) => ({
+      id: p.id,
+      stitchKey: 'mandala',
+      name: p.name,
+      abbreviation: p.badge,
+      description: p.category,
+      group: p.category,
+      imagePath: p.imagePath,
+    }));
+    const vectorItems: CopiedPatternData[] = CROCHET_MANDALAS.map((m) => ({
+      id: m.id,
+      stitchKey: 'mandala',
+      name: m.name,
+      abbreviation: `${m.rounds}v · ${m.hookMm}`,
+      description: m.yarnNote,
+      group: 'Mandala Vectorial',
+      mandalaId: m.id,
+    }));
+    return [...photoItems, ...vectorItems];
+  }, []);
+
+  const mandalaSpreads = useMemo<CatalogSpreadDef[]>(() => {
+    const perSpread = MANDALAS_PER_PAGE * 2;
+    const chunks: CatalogSpreadDef[] = [];
+    for (let i = 0; i < allMandalaItems.length; i += perSpread) {
+      const slice = allMandalaItems.slice(i, i + perSpread);
+      const spreadNum = chunks.length + 1;
+      const firstGroup = slice[0]?.group || 'Mandalas';
+      chunks.push({
+        id: `mandala-spread-${spreadNum}`,
+        title: `Mandalas · ${firstGroup} (Pliego ${spreadNum})`,
+        leftItems: slice.slice(0, MANDALAS_PER_PAGE),
+        rightItems: slice.slice(MANDALAS_PER_PAGE, perSpread),
+      });
+    }
+    return chunks;
+  }, [allMandalaItems]);
+
+  const isMandalaMode = notebookMode === 'mandalas';
   const catalogCount = catalogSpreads.length;
   const totalBookSpreads = catalogCount + spreads.length;
   const safeIndex = Math.max(0, Math.min(totalBookSpreads - 1, currentSpreadIndex));
-  const isCatalogSpread = safeIndex < catalogCount;
-  const activeCatalogSpread = isCatalogSpread ? catalogSpreads[safeIndex] : null;
-  const activeUserSpread = !isCatalogSpread
-    ? spreads[safeIndex - catalogCount] ?? spreads[0]
-    : null;
+  const safeMandalaIndex = Math.max(0, Math.min(mandalaSpreads.length - 1, mandalaSpreadIndex));
+  const activeTotalSpreads = isMandalaMode ? mandalaSpreads.length : totalBookSpreads;
+  const activeSafeIndex = isMandalaMode ? safeMandalaIndex : safeIndex;
 
-  const [zoom, setZoom] = useState(100);
+  const isCatalogSpread = !isMandalaMode && safeIndex < catalogCount;
+  const isCatalogView = isMandalaMode || isCatalogSpread;
+  const activeMandalaSpread = isMandalaMode ? mandalaSpreads[safeMandalaIndex] : null;
+  const activeCatalogSpread = isCatalogSpread ? catalogSpreads[safeIndex] : null;
+  const activeUserSpread =
+    !isMandalaMode && !isCatalogSpread ? spreads[safeIndex - catalogCount] ?? spreads[0] : null;
+
+  const [internalZoom, setInternalZoom] = useState(100);
+  const zoom = controlledZoom ?? internalZoom;
+  const setZoom = useCallback(
+    (updater: number | ((z: number) => number)) => {
+      const next = typeof updater === 'function' ? updater(zoom) : updater;
+      if (onChangeZoom) onChangeZoom(next);
+      else setInternalZoom(next);
+    },
+    [zoom, onChangeZoom]
+  );
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedCatalogPattern, setSelectedCatalogPattern] = useState<CopiedPatternData | null>(null);
+  const [previewMandala, setPreviewMandala] = useState<CopiedPatternData | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [showOverview, setShowOverview] = useState(false);
 
@@ -189,12 +310,17 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     | 'symbol-color'
     | 'text-color'
     | 'shape-color'
+    | 'mannequin-color'
     | 'rotate'
     | 'rotate-all'
     | null
   >(null);
   const [allRotateAngle, setAllRotateAngle] = useState(0);
   const [croppingElement, setCroppingElement] = useState<PageElement | null>(null);
+  const [mattingElementId, setMattingElementId] = useState<string | null>(null);
+  const [mattingProgress, setMattingProgress] = useState<number>(0);
+  const [mattingMandalaId, setMattingMandalaId] = useState<string | null>(null);
+  const [mattedMandalaMap, setMattedMandalaMap] = useState<Record<string, string>>({});
   const [copiedElement, setCopiedElement] = useState<Omit<PageElement, 'id'> | null>(null);
   const [clipboardMode, setClipboardMode] = useState<'element' | 'pattern' | null>(null);
   const pasteCountRef = useRef(0);
@@ -212,13 +338,13 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
 
   const bookContainerRef = useRef<HTMLDivElement>(null);
 
-  const canPrev = safeIndex > 0;
-  const canNext = safeIndex < totalBookSpreads - 1;
+  const canPrev = activeSafeIndex > 0;
+  const canNext = activeSafeIndex < activeTotalSpreads - 1;
 
   // Clear element-only subpanels when selection changes
   useEffect(() => {
     setEditorSubPanel(null);
-  }, [selectedElementId, safeIndex]);
+  }, [selectedElementId, activeSafeIndex, isMandalaMode]);
 
   const commitPageTurn = useCallback(
     (dir: 'next' | 'prev') => {
@@ -234,13 +360,27 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       setFlipAngle(dir === 'next' ? -180 : 180);
 
       window.setTimeout(() => {
-        onChangeSpreadIndex(dir === 'next' ? safeIndex + 1 : safeIndex - 1);
+        const nextIdx = dir === 'next' ? activeSafeIndex + 1 : activeSafeIndex - 1;
+        if (isMandalaMode) {
+          onChangeMandalaSpreadIndex?.(nextIdx);
+        } else {
+          onChangeSpreadIndex(nextIdx);
+        }
         setIsAnimatingFlip(false);
         setFlipDir(null);
         setFlipAngle(0);
       }, 460);
     },
-    [isAnimatingFlip, canNext, canPrev, onPlayPageFlip, onChangeSpreadIndex, safeIndex]
+    [
+      isAnimatingFlip,
+      canNext,
+      canPrev,
+      onPlayPageFlip,
+      activeSafeIndex,
+      isMandalaMode,
+      onChangeMandalaSpreadIndex,
+      onChangeSpreadIndex,
+    ]
   );
 
   // Edge drag handlers for tactile page flipping
@@ -278,7 +418,12 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         setIsAnimatingFlip(true);
         setFlipAngle(dir === 'next' ? -180 : 180);
         window.setTimeout(() => {
-          onChangeSpreadIndex(dir === 'next' ? safeIndex + 1 : safeIndex - 1);
+          const nextIdx = dir === 'next' ? activeSafeIndex + 1 : activeSafeIndex - 1;
+          if (isMandalaMode) {
+            onChangeMandalaSpreadIndex?.(nextIdx);
+          } else {
+            onChangeSpreadIndex(nextIdx);
+          }
           setIsAnimatingFlip(false);
           setFlipDir(null);
           setFlipAngle(0);
@@ -299,7 +444,14 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [flipAngle, safeIndex, onChangeSpreadIndex, onPlayPageFlip]);
+  }, [
+    flipAngle,
+    activeSafeIndex,
+    isMandalaMode,
+    onChangeMandalaSpreadIndex,
+    onChangeSpreadIndex,
+    onPlayPageFlip,
+  ]);
 
   useEffect(() => {
     if (skipNextPatternSyncRef.current) {
@@ -314,6 +466,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   const deleteElement = useCallback(
     (id: string) => {
       if (!activeUserSpread) return;
+      audioEngine.playEraseBrush();
       onUpdateSpread({
         ...activeUserSpread,
         elements: activeUserSpread.elements.filter((el) => el.id !== id),
@@ -375,6 +528,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     });
     setSelectedElementId(newEl.id);
     onSelectTool('select');
+    audioEngine.playYarnPluck(2);
     onNotify?.('Objeto pegado');
   }, [activeUserSpread, copiedElement, onUpdateSpread, onSelectTool, onNotify]);
 
@@ -396,10 +550,10 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       const key = e.key.toLowerCase();
 
       if (mod && key === 'c') {
-        if (isCatalogSpread && selectedCatalogPattern) {
+        if (isCatalogView && selectedCatalogPattern) {
           e.preventDefault();
           onCopyPattern(selectedCatalogPattern);
-        } else if (!isCatalogSpread && activeUserSpread && selectedElementId) {
+        } else if (!isCatalogView && activeUserSpread && selectedElementId) {
           const sel = activeUserSpread.elements.find((el) => el.id === selectedElementId);
           if (sel) {
             e.preventDefault();
@@ -407,7 +561,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
           }
         }
       } else if (mod && key === 'x') {
-        if (!isCatalogSpread && activeUserSpread && selectedElementId) {
+        if (!isCatalogView && activeUserSpread && selectedElementId) {
           const sel = activeUserSpread.elements.find((el) => el.id === selectedElementId);
           if (sel) {
             e.preventDefault();
@@ -415,7 +569,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
           }
         }
       } else if (mod && key === 'v') {
-        if (!isCatalogSpread && activeUserSpread) {
+        if (!isCatalogView && activeUserSpread) {
           if (clipboardMode === 'element' && copiedElement) {
             e.preventDefault();
             pasteCopiedElement();
@@ -428,7 +582,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
           }
         }
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) {
-        if (!isCatalogSpread && activeUserSpread && selectedElementId && !editingTextId) {
+        if (!isCatalogView && activeUserSpread && selectedElementId && !editingTextId) {
           e.preventDefault();
           deleteElement(selectedElementId);
           onNotify?.('Objeto eliminado');
@@ -438,7 +592,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    isCatalogSpread,
+    isCatalogView,
     selectedCatalogPattern,
     activeUserSpread,
     selectedElementId,
@@ -560,12 +714,6 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     });
   };
 
-  const cyclePaperStyle = () => {
-    if (!activeUserSpread) return;
-    const order: PaperStyle[] = ['grid', 'dots', 'plain'];
-    const next = order[(order.indexOf(activeUserSpread.paperStyle) + 1) % order.length];
-    onUpdateSpread({ ...activeUserSpread, paperStyle: next });
-  };
 
   const cycleFrameStyle = (el: PageElement) => {
     const order: ImageFrameStyle[] = ['polaroid', 'gold', 'rounded', 'minimal'];
@@ -573,6 +721,81 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     const next = order[(order.indexOf(curr) + 1) % order.length];
     updateElement(el.id, { frameStyle: next });
   };
+
+  const handleExtractElementFigure = useCallback(
+    async (el: PageElement) => {
+      if (el.type !== 'image' || mattingElementId) return;
+      const sourceToMat = el.originalContent || el.content;
+      setSelectedElementId(el.id);
+      setMattingElementId(el.id);
+      setMattingProgress(5);
+      audioEngine.playStitchClick();
+      try {
+        const extractedUrl = await extractFigureMatting(sourceToMat, (pct) => {
+          setMattingProgress(pct);
+        });
+        updateElement(el.id, {
+          originalContent: sourceToMat,
+          content: extractedUrl,
+          frameStyle: 'minimal',
+        });
+        audioEngine.playSaveChime();
+        onNotify?.('Figura extraída con IA');
+      } catch {
+        onNotify?.('No se pudo extraer la figura de esta imagen');
+      } finally {
+        setMattingElementId(null);
+        setMattingProgress(0);
+      }
+    },
+    [mattingElementId, updateElement, onNotify]
+  );
+
+  const handleRestoreElementFigure = useCallback(
+    (el: PageElement) => {
+      if (!el.originalContent) return;
+      audioEngine.playUndoRedo(false);
+      updateElement(el.id, {
+        content: el.originalContent,
+        originalContent: undefined,
+      });
+      onNotify?.('Imagen original restaurada');
+    },
+    [updateElement, onNotify]
+  );
+
+  const handleExtractMandalaFigure = useCallback(
+    async (item: CopiedPatternData) => {
+      const sourceUrl = item.imagePath;
+      if (!sourceUrl || mattingMandalaId) return;
+      setMattingMandalaId(item.id);
+      setMattingProgress(5);
+      audioEngine.playStitchClick();
+      try {
+        const extractedUrl = await extractFigureMatting(sourceUrl, (pct) => {
+          setMattingProgress(pct);
+        });
+        setMattedMandalaMap((prev) => ({ ...prev, [item.id]: extractedUrl }));
+        const extractedPattern: CopiedPatternData = {
+          ...item,
+          imagePath: extractedUrl,
+        };
+        setSelectedCatalogPattern(extractedPattern);
+        onCopyPattern(extractedPattern);
+        setPreviewMandala((prev) =>
+          prev && prev.id === item.id ? { ...prev, imagePath: extractedUrl } : prev
+        );
+        audioEngine.playSaveChime();
+        onNotify?.(`Figura extraída y copiada: ${item.name}`);
+      } catch {
+        onNotify?.('No se pudo extraer la figura de este diseño');
+      } finally {
+        setMattingMandalaId(null);
+        setMattingProgress(0);
+      }
+    },
+    [mattingMandalaId, onCopyPattern, onNotify]
+  );
 
   const rotateAllElements = useCallback(
     (mode: 'set' | 'delta' | 'reset', value: number) => {
@@ -608,18 +831,198 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   const selectedElement =
     activeUserSpread?.elements.find((e) => e.id === selectedElementId) || null;
 
-  const activeTitle = isCatalogSpread
-    ? activeCatalogSpread?.title || 'Catálogo de Patrones'
-    : activeUserSpread?.title || 'Mi Hoja';
+  const activeTitle = isMandalaMode
+    ? activeMandalaSpread?.title || 'Apartado de Mandalas'
+    : isCatalogSpread
+      ? activeCatalogSpread?.title || 'Catálogo de Patrones'
+      : activeUserSpread?.title || 'Mi Hoja';
+
+  const pageSizeClass =
+    dockedMode && !focusMode ? 'notebook-page-docked' : 'notebook-page-maximized';
+
+  // Sync metadata with RightStudioDock
+  useEffect(() => {
+    onSpreadMetaChange?.({
+      isCatalog: isCatalogView,
+      paperStyle: activeUserSpread?.paperStyle || 'grid',
+      hasSelected: Boolean(selectedElement),
+      hasDrawings: Boolean(
+        activeUserSpread?.leftDrawingDataUrl || activeUserSpread?.rightDrawingDataUrl
+      ),
+      hasElements: Boolean(activeUserSpread && activeUserSpread.elements.length > 0),
+      title: activeTitle,
+      totalBookSpreads: activeTotalSpreads,
+      catalogCount,
+      showOverview,
+      allRotateAngle,
+    });
+  }, [
+    isCatalogView,
+    activeUserSpread,
+    selectedElement,
+    activeTitle,
+    activeTotalSpreads,
+    catalogCount,
+    showOverview,
+    allRotateAngle,
+    onSpreadMetaChange,
+  ]);
+
+  // Respond to paper style cycle signal from RightStudioDock
+  const prevCycleSignalRef = useRef(cyclePaperSignal);
+  useEffect(() => {
+    if (cyclePaperSignal === prevCycleSignalRef.current) return;
+    prevCycleSignalRef.current = cyclePaperSignal;
+    if (!isCatalogSpread && activeUserSpread) {
+      const order: PaperStyle[] = ['grid', 'dots', 'plain'];
+      const next = order[(order.indexOf(activeUserSpread.paperStyle) + 1) % order.length];
+      onUpdateSpread({ ...activeUserSpread, paperStyle: next });
+    }
+  }, [cyclePaperSignal, isCatalogSpread, activeUserSpread, onUpdateSpread]);
+
+  // Respond to page turn signal from RightStudioDock
+  const prevTurnSignalIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!turnPageSignal || turnPageSignal.id === prevTurnSignalIdRef.current) return;
+    prevTurnSignalIdRef.current = turnPageSignal.id;
+    commitPageTurn(turnPageSignal.dir);
+  }, [turnPageSignal, commitPageTurn]);
+
+  // Respond to overview toggle signal from RightStudioDock
+  const prevOverviewSignalRef = useRef(toggleOverviewSignal);
+  useEffect(() => {
+    if (toggleOverviewSignal === prevOverviewSignalRef.current) return;
+    prevOverviewSignalRef.current = toggleOverviewSignal;
+    setShowOverview((v) => !v);
+  }, [toggleOverviewSignal]);
+
+  // Respond to Rotate All signal from RightStudioDock
+  const prevRotateAllSignalIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!rotateAllSignal || rotateAllSignal.id === prevRotateAllSignalIdRef.current) return;
+    prevRotateAllSignalIdRef.current = rotateAllSignal.id;
+    rotateAllElements(rotateAllSignal.mode, rotateAllSignal.value);
+  }, [rotateAllSignal, rotateAllElements]);
+
+  // Respond to Capas dock action buttons (+, Trash, Up, Down)
+  const prevLayerActionIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!layerActionSignal || layerActionSignal.id === prevLayerActionIdRef.current) return;
+    prevLayerActionIdRef.current = layerActionSignal.id;
+    const { action } = layerActionSignal;
+
+    if (action.type === 'add-note') {
+      if (isCatalogSpread) {
+        onChangeSpreadIndex(catalogCount);
+      }
+      const target = spreads[0];
+      if (!isCatalogSpread && activeUserSpread) {
+        const newEl: PageElement = {
+          id: `el-${Date.now()}`,
+          side: 'left',
+          type: 'text',
+          x: 12,
+          y: 18,
+          width: 215,
+          content: 'Escribe aquí tu nota o punto…',
+          color: brush.color,
+          fontSize: selectedFont === 'caveat' ? 22 : 17,
+          fontFamily: selectedFont,
+          fontWeight: 'normal',
+          fontStyle: 'normal',
+          textDecoration: 'none',
+          textAlign: 'left',
+          backgroundColor: 'transparent',
+        };
+        onUpdateSpread({
+          ...activeUserSpread,
+          elements: [...activeUserSpread.elements, newEl],
+          updatedAt: new Date().toISOString(),
+        });
+        setSelectedElementId(newEl.id);
+        setEditingTextId(newEl.id);
+        onSelectTool('select');
+      } else if (target) {
+        onSelectTool('text');
+      }
+    } else if (action.type === 'delete-active' && !isCatalogSpread && activeUserSpread) {
+      if (selectedElementId) {
+        deleteElement(selectedElementId);
+        onNotify?.('Objeto eliminado');
+      } else if (activeUserSpread.leftDrawingDataUrl || activeUserSpread.rightDrawingDataUrl) {
+        onUpdateSpread({
+          ...activeUserSpread,
+          leftDrawingDataUrl: undefined,
+          rightDrawingDataUrl: undefined,
+        });
+        onNotify?.('Trazos de la página limpiados');
+      }
+    } else if (action.type === 'bring-front' && selectedElementId && !isCatalogSpread && activeUserSpread) {
+      const target = activeUserSpread.elements.find((e) => e.id === selectedElementId);
+      if (target) {
+        const targetLayer: StackableLayerId =
+          target.type === 'text' || target.type === 'pattern-note' ? 'notes' : 'images';
+        const sameLayerEls = activeUserSpread.elements.filter((e) =>
+          targetLayer === 'notes'
+            ? e.type === 'text' || e.type === 'pattern-note'
+            : e.type !== 'text' && e.type !== 'pattern-note'
+        );
+        const isAlreadyTopInLayer =
+          sameLayerEls.length <= 1 || sameLayerEls[sameLayerEls.length - 1]?.id === target.id;
+        if (!isAlreadyTopInLayer) {
+          const others = activeUserSpread.elements.filter((e) => e.id !== selectedElementId);
+          onUpdateSpread({ ...activeUserSpread, elements: [...others, target], updatedAt: new Date().toISOString() });
+          onNotify?.('Traído al frente');
+        } else {
+          onStepLayerOrder?.(targetLayer, 'up');
+        }
+      }
+    } else if (action.type === 'send-back' && selectedElementId && !isCatalogSpread && activeUserSpread) {
+      const target = activeUserSpread.elements.find((e) => e.id === selectedElementId);
+      if (target) {
+        const targetLayer: StackableLayerId =
+          target.type === 'text' || target.type === 'pattern-note' ? 'notes' : 'images';
+        const sameLayerEls = activeUserSpread.elements.filter((e) =>
+          targetLayer === 'notes'
+            ? e.type === 'text' || e.type === 'pattern-note'
+            : e.type !== 'text' && e.type !== 'pattern-note'
+        );
+        const isAlreadyBottomInLayer =
+          sameLayerEls.length <= 1 || sameLayerEls[0]?.id === target.id;
+        if (!isAlreadyBottomInLayer) {
+          const others = activeUserSpread.elements.filter((e) => e.id !== selectedElementId);
+          onUpdateSpread({ ...activeUserSpread, elements: [target, ...others], updatedAt: new Date().toISOString() });
+          onNotify?.('Enviado atrás');
+        } else {
+          onStepLayerOrder?.(targetLayer, 'down');
+        }
+      }
+    }
+  }, [
+    layerActionSignal,
+    isCatalogSpread,
+    catalogCount,
+    spreads,
+    activeUserSpread,
+    selectedElementId,
+    brush.color,
+    selectedFont,
+    onChangeSpreadIndex,
+    onUpdateSpread,
+    onSelectTool,
+    onStepLayerOrder,
+    deleteElement,
+    onNotify,
+  ]);
 
   return (
-    <div className="relative flex-1 flex flex-col items-center justify-between px-2 py-1.5 sm:px-4 sm:py-2 overflow-hidden bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
+    <div className="relative flex-1 flex flex-col items-center justify-center p-0.5 sm:p-1 overflow-hidden bg-transparent">
       {/* Contextual Animated Floating Paint + Word + Photo Editor Toolbar (only visible when actively needed) */}
       <AnimatePresence>
         {(selectedElement ||
-          (isCatalogSpread && selectedCatalogPattern) ||
-          (!isCatalogSpread && (copiedPattern || copiedElement)) ||
-          (!isCatalogSpread &&
+          (isCatalogView && selectedCatalogPattern) ||
+          (!isCatalogView && (copiedPattern || copiedElement)) ||
+          (!isCatalogView &&
             activeUserSpread &&
             (activeUserSpread.leftDrawingDataUrl || activeUserSpread.rightDrawingDataUrl) &&
             (activeTool === 'draw' || activeTool === 'eraser')) ||
@@ -649,31 +1052,29 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               </div>
             )}
 
-            {/* Catalog Pattern Selected -> Copy ONLY the pattern */}
-            {isCatalogSpread && selectedCatalogPattern && (
+            {/* Catalog Pattern or Mandala Selected -> Already Auto-Copied on Click */}
+            {isCatalogView && selectedCatalogPattern && (
               <>
-                <span className="text-xs text-[#f6e3c2] px-2 font-medium truncate max-w-[200px]">
-                  Patrón: <strong className="text-[#ffdfa3]">{selectedCatalogPattern.name}</strong>
+                <span className="inline-flex items-center gap-1.5 text-xs text-[#f6e3c2] px-2 font-medium truncate max-w-[230px]">
+                  <Check className="w-3.5 h-3.5 text-[#7fe0aa] shrink-0" />
+                  <span className="truncate">
+                    Copiado: <strong className="text-[#ffdfa3]">{selectedCatalogPattern.name}</strong>
+                  </span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onCopyPattern(selectedCatalogPattern)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copiar símbolo</span>
-                </button>
                 {copiedPattern && (
                   <button
                     type="button"
                     onClick={() => {
-                      const targetSpread = spreads[0];
-                      onChangeSpreadIndex(catalogCount);
+                      const activeUserIdx =
+                        safeIndex >= catalogCount ? safeIndex - catalogCount : 0;
+                      const targetSpread = spreads[activeUserIdx] ?? spreads[0];
+                      onChangeNotebookMode?.('book');
+                      onChangeSpreadIndex(catalogCount + activeUserIdx);
                       if (targetSpread) {
-                        onPastePatternOnSpread(targetSpread.id, 'left');
+                        onPastePatternOnSpread(targetSpread.id, 'left', copiedPattern);
                       }
                     }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#3c2110] border border-[#eab86a]/55 text-xs text-[#ffebc2] hover:bg-[#573119] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
                   >
                     <ClipboardPaste className="w-3.5 h-3.5" />
                     <span>Pegar en Mis Hojas</span>
@@ -682,8 +1083,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               </>
             )}
 
-            {/* Copied Object or Symbol Paste Bar on User Editable Pages */}
-            {!isCatalogSpread && activeUserSpread && (clipboardMode === 'element' ? copiedElement : copiedPattern || copiedElement) && (
+            {/* Copied Object or Symbol/Mandala Paste Bar on User Editable Pages */}
+            {!isCatalogView && activeUserSpread && (clipboardMode === 'element' ? copiedElement : copiedPattern || copiedElement) && (
               <button
                 type="button"
                 onClick={() => {
@@ -703,17 +1104,51 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                   {clipboardMode === 'element' && copiedElement
                     ? 'Pegar objeto (Ctrl+V)'
                     : copiedPattern
-                      ? `Pegar símbolo: ${copiedPattern.abbreviation || copiedPattern.name}`
+                      ? copiedPattern.mandalaId || copiedPattern.imagePath
+                        ? `Pegar mandala: ${copiedPattern.name}`
+                        : `Pegar símbolo: ${copiedPattern.abbreviation || copiedPattern.name}`
                       : 'Pegar objeto (Ctrl+V)'}
                 </span>
               </button>
             )}
 
             {/* Selected Element Paint + Word + Photo Editor Controls */}
-          {!isCatalogSpread && selectedElement && (
+          {!isCatalogView && selectedElement && (
             <>
               {selectedElement.type === 'image' && (
                 <>
+                  <button
+                    type="button"
+                    disabled={Boolean(mattingElementId)}
+                    onClick={() => void handleExtractElementFigure(selectedElement)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-b from-[#3d7c6b] to-[#265448] hover:brightness-110 border border-[#8ce0c5]/45 text-xs font-medium text-white cursor-pointer shadow disabled:opacity-60"
+                    title="AI Image Matting: extraer la figura con fondo transparente"
+                  >
+                    {mattingElementId === selectedElement.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Wand2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {mattingElementId === selectedElement.id
+                        ? `Extrayendo ${mattingProgress}%`
+                        : 'Extraer figura'}
+                    </span>
+                  </button>
+
+                  {selectedElement.originalContent &&
+                    selectedElement.content !== selectedElement.originalContent && (
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreElementFigure(selectedElement)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                        title="Restaurar imagen original"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span className="hidden md:inline">Original</span>
+                      </button>
+                    )}
+
                   <button
                     type="button"
                     onClick={() => setCroppingElement(selectedElement)}
@@ -1042,6 +1477,67 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                 </>
               )}
 
+              {/* Mannequin Controls (Front / Back View, Color / Sketch Tint, Natural Wood) */}
+              {selectedElement.type === 'mannequin' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextView = selectedElement.content === 'back' ? 'front' : 'back';
+                      updateElement(selectedElement.id, {
+                        content: nextView,
+                        title: nextView === 'back' ? 'Maniquí de espalda' : 'Maniquí de frente',
+                      });
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                    title="Alternar vista de frente o espalda"
+                  >
+                    <span>
+                      {selectedElement.content === 'back' ? 'Vista: Espalda' : 'Vista: Frente'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditorSubPanel((p) =>
+                        p === 'mannequin-color' ? null : 'mannequin-color'
+                      )
+                    }
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-pointer ${
+                      editorSubPanel === 'mannequin-color'
+                        ? 'bg-[#6b3d1e] border-[#ebb96a] text-white'
+                        : 'bg-[#361d0e] border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18]'
+                    }`}
+                    title="Colorear o cambiar tono del maniquí"
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full border border-white/60"
+                      style={{
+                        backgroundColor:
+                          selectedElement.color && selectedElement.color !== 'natural'
+                            ? selectedElement.color
+                            : '#D99658',
+                      }}
+                    />
+                    <span>Color</span>
+                  </button>
+
+                  {selectedElement.color && selectedElement.color !== 'natural' && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateElement(selectedElement.id, { color: 'natural' })
+                      }
+                      className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                      title="Restaurar madera natural y latón"
+                    >
+                      Madera
+                    </button>
+                  )}
+                </>
+              )}
+
               {/* Common Transform, Free Rotation & Layer Tools */}
               <button
                 type="button"
@@ -1317,16 +1813,23 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               selectedElement &&
               (editorSubPanel === 'symbol-color' ||
                 editorSubPanel === 'text-color' ||
-                editorSubPanel === 'shape-color') && (
+                editorSubPanel === 'shape-color' ||
+                editorSubPanel === 'mannequin-color') && (
                 <ColorSwatchPopover
                   title={
                     editorSubPanel === 'text-color'
                       ? 'Color del Texto'
                       : editorSubPanel === 'shape-color'
                         ? 'Color de Figura'
-                        : 'Color del Símbolo'
+                        : editorSubPanel === 'mannequin-color'
+                          ? 'Color del Maniquí'
+                          : 'Color del Símbolo'
                   }
-                  color={selectedElement.color || '#3E1E0C'}
+                  color={
+                    selectedElement.color && selectedElement.color !== 'natural'
+                      ? selectedElement.color
+                      : '#3E1E0C'
+                  }
                   onChange={(hex) => updateElement(selectedElement.id, { color: hex })}
                   onClose={() => setEditorSubPanel(null)}
                 />
@@ -1341,27 +1844,106 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         <div className="w-full max-w-[1120px] flex-1 overflow-y-auto studio-scroll p-4 rounded-2xl leather-panel bg-[#221208]">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display text-lg text-[#f7e2b9]">
-              Índice Visual del Libro ({totalBookSpreads} pliegos)
+              {isMandalaMode
+                ? `Índice de Mandalas (${mandalaSpreads.length} pliegos · ${allMandalaItems.length} diseños)`
+                : `Índice Visual del Libro (${totalBookSpreads} pliegos)`}
             </h3>
-            <button
-              type="button"
-              onClick={() => setShowOverview(false)}
-              className="px-3 py-1.5 rounded-lg bg-[#9a6127] text-xs font-medium text-white cursor-pointer"
-            >
-              Volver al Cuaderno
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onAddSpread();
+                  setShowOverview(false);
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#523017] hover:bg-[#6e4120] border border-[#d6a25e]/45 text-xs font-medium text-[#ffebc2] cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nueva hoja</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOverview(false)}
+                className="px-3 py-1.5 rounded-lg bg-[#9a6127] text-xs font-medium text-white cursor-pointer"
+              >
+                Volver al Cuaderno
+              </button>
+            </div>
           </div>
+
+          {isMandalaMode && (
+            <div className="mb-5">
+              <h4 className="font-editorial text-sm font-bold text-[#f0c77c] uppercase tracking-wider mb-2">
+                Apartado Mandalas ({mandalaSpreads.length} pliegos)
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {mandalaSpreads.map((ms, idx) => {
+                  const thumbs = [...ms.leftItems, ...ms.rightItems].slice(0, 4);
+                  return (
+                    <button
+                      key={ms.id}
+                      type="button"
+                      onClick={() => {
+                        onChangeNotebookMode?.('mandalas');
+                        onChangeMandalaSpreadIndex?.(idx);
+                        setShowOverview(false);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        idx === safeMandalaIndex
+                          ? 'border-[#f0c577] bg-[#4a2a15]'
+                          : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
+                      }`}
+                    >
+                      <div className="h-24 rounded-lg parchment-page border border-[#966a35]/50 mb-2 p-1.5 grid grid-cols-4 gap-1 items-center">
+                        {thumbs.map((t) =>
+                          t.imagePath ? (
+                            <div
+                              key={t.id}
+                              className="w-full h-full bg-white rounded overflow-hidden flex items-center justify-center p-0.5"
+                            >
+                              <img
+                                src={t.imagePath}
+                                alt={t.name}
+                                loading="lazy"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              key={t.id}
+                              className="w-full h-full flex items-center justify-center"
+                            >
+                              <CrochetMandalaSvg
+                                mandalaId={t.mandalaId || t.id}
+                                className="w-10 h-10"
+                              />
+                            </div>
+                          )
+                        )}
+                      </div>
+                      <div className="text-xs font-medium text-[#ffebc2] truncate">{ms.title}</div>
+                      <div className="flex items-center justify-between text-[11px] text-[#e7cc9f]/80 mt-0.5">
+                        <span>Pliego {idx + 1}</span>
+                        <span>{ms.leftItems.length + ms.rightItems.length} mandalas</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {catalogSpreads.map((cs, idx) => (
               <button
                 key={cs.id}
                 type="button"
                 onClick={() => {
+                  onChangeNotebookMode?.('book');
                   onChangeSpreadIndex(idx);
                   setShowOverview(false);
                 }}
                 className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                  idx === safeIndex
+                  !isMandalaMode && idx === safeIndex
                     ? 'border-[#f0c577] bg-[#4a2a15]'
                     : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
                 }`}
@@ -1379,6 +1961,31 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               </button>
             ))}
 
+            {!isMandalaMode &&
+              mandalaSpreads.map((ms, idx) => (
+                <button
+                  key={ms.id}
+                  type="button"
+                  onClick={() => {
+                    onChangeNotebookMode?.('mandalas');
+                    onChangeMandalaSpreadIndex?.(idx);
+                    setShowOverview(false);
+                  }}
+                  className="p-3 rounded-xl border text-left transition-all cursor-pointer border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]"
+                >
+                  <div className="h-24 rounded-lg parchment-page parchment-grid border border-[#966a35]/50 mb-2 flex flex-col items-center justify-center text-[#5c361d] font-editorial italic text-sm px-3 text-center">
+                    <span className="text-[10px] uppercase tracking-wider text-[#7a202a] font-sans font-semibold not-italic">
+                      Apartado Mandalas
+                    </span>
+                    <span>{ms.title}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-[#e7cc9f]">
+                    <span>Pliego {idx + 1}</span>
+                    <span>{ms.leftItems.length + ms.rightItems.length} mandalas</span>
+                  </div>
+                </button>
+              ))}
+
             {spreads.map((sp, idx) => {
               const globalIdx = catalogCount + idx;
               return (
@@ -1386,11 +1993,12 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                   key={sp.id}
                   type="button"
                   onClick={() => {
+                    onChangeNotebookMode?.('book');
                     onChangeSpreadIndex(globalIdx);
                     setShowOverview(false);
                   }}
                   className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    globalIdx === safeIndex
+                    !isMandalaMode && globalIdx === safeIndex
                       ? 'border-[#f0c577] bg-[#4a2a15]'
                       : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
                   }`}
@@ -1408,8 +2016,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
           </div>
         </div>
       ) : (
-        /* Open Book 3D Stage */
-        <div className="flex-1 w-full flex items-center justify-center overflow-auto studio-scroll py-1">
+        /* Open Book 3D Stage centered & maximized */
+        <div className="flex-1 w-full flex items-center justify-center overflow-auto studio-scroll p-0.5">
           <div
             ref={bookContainerRef}
             onPointerDownCapture={(e) => {
@@ -1417,6 +2025,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               e.stopPropagation();
               e.preventDefault();
               const picked = sampleColorAtScreenPoint(e.clientX, e.clientY);
+              audioEngine.playYarnPluck(6);
               onPickColorFromCanvas(picked);
             }}
             style={{
@@ -1427,26 +2036,70 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               activeTool === 'eyedropper' ? 'cursor-crosshair' : ''
             }`}
           >
-            {/* Outer Leather Book Cover Frame */}
-            <div className="relative flex rounded-2xl p-2 sm:p-3 leather-surface border-2 border-[#b47c3e]/65 shadow-[0_26px_60px_rgba(0,0,0,0.78)]">
-              {/* Left & Right Parchment Pages */}
-              <div className="relative flex rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.55)] border border-[#7c5328]/70">
-                {isCatalogSpread && activeCatalogSpread ? (
+            {/* Outer 3D Leather Book Cover Frame */}
+            <div className="relative flex rounded-2xl p-1.5 sm:p-2 book-cover-3d">
+              {/* Stitched Leather Inner Trim */}
+              <div className="pointer-events-none absolute inset-1 rounded-[14px] border border-dashed border-[#d6a25e]/45" />
+
+              {/* 3D Stacked Paper Thickness Shell */}
+              <div className="relative flex items-stretch rounded-xl p-[3px] book-page-bottom-stack-3d shadow-[0_14px_30px_rgba(0,0,0,0.68)]">
+                {/* Left Stacked Paper Thickness */}
+                <div className="w-1.5 sm:w-2 rounded-l-lg book-page-stack-3d border-r border-[#8d6131]/55 shrink-0" />
+
+                {/* Left & Right Parchment Pages */}
+                <div className="relative flex rounded-md overflow-hidden border border-[#7c5328]/75 shadow-[inset_0_0_24px_rgba(88,52,20,0.22)]">
+                {isMandalaMode && activeMandalaSpread ? (
+                  <>
+                    <MandalaCatalogPage
+                      side="left"
+                      spreadNumber={safeMandalaIndex + 1}
+                      items={activeMandalaSpread.leftItems}
+                      pageSizeClass={pageSizeClass}
+                      selectedPatternId={selectedCatalogPattern?.id || null}
+                      copiedPatternId={copiedPattern?.id || null}
+                      mattedMap={mattedMandalaMap}
+                      mattingId={mattingMandalaId}
+                      mattingProgress={mattingProgress}
+                      onSelectPattern={setSelectedCatalogPattern}
+                      onCopyPattern={onCopyPattern}
+                      onPreviewPattern={setPreviewMandala}
+                      onExtractFigure={(item) => void handleExtractMandalaFigure(item)}
+                    />
+                    <div className="w-[5px] bg-gradient-to-r from-[#8b6236]/60 via-[#2a1408]/90 to-[#8b6236]/60 shrink-0" />
+                    <MandalaCatalogPage
+                      side="right"
+                      spreadNumber={safeMandalaIndex + 1}
+                      items={activeMandalaSpread.rightItems}
+                      pageSizeClass={pageSizeClass}
+                      selectedPatternId={selectedCatalogPattern?.id || null}
+                      copiedPatternId={copiedPattern?.id || null}
+                      mattedMap={mattedMandalaMap}
+                      mattingId={mattingMandalaId}
+                      mattingProgress={mattingProgress}
+                      onSelectPattern={setSelectedCatalogPattern}
+                      onCopyPattern={onCopyPattern}
+                      onPreviewPattern={setPreviewMandala}
+                      onExtractFigure={(item) => void handleExtractMandalaFigure(item)}
+                    />
+                  </>
+                ) : isCatalogSpread && activeCatalogSpread ? (
                   <>
                     <PatternCatalogPage
                       side="left"
                       spreadNumber={safeIndex + 1}
                       items={activeCatalogSpread.leftItems}
+                      pageSizeClass={pageSizeClass}
                       selectedPatternId={selectedCatalogPattern?.id || null}
                       copiedPatternId={copiedPattern?.id || null}
                       onSelectPattern={setSelectedCatalogPattern}
                       onCopyPattern={onCopyPattern}
                     />
-                    <div className="w-[3px] bg-gradient-to-r from-[#8b6236]/55 via-[#3f220e]/80 to-[#8b6236]/55 shrink-0" />
+                    <div className="w-[5px] bg-gradient-to-r from-[#8b6236]/60 via-[#2a1408]/90 to-[#8b6236]/60 shrink-0" />
                     <PatternCatalogPage
                       side="right"
                       spreadNumber={safeIndex + 1}
                       items={activeCatalogSpread.rightItems}
+                      pageSizeClass={pageSizeClass}
                       selectedPatternId={selectedCatalogPattern?.id || null}
                       copiedPatternId={copiedPattern?.id || null}
                       onSelectPattern={setSelectedCatalogPattern}
@@ -1459,6 +2112,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       side="left"
                       spreadId={activeUserSpread.id}
                       paperStyle={activeUserSpread.paperStyle}
+                      pageSizeClass={pageSizeClass}
+                      layerVisibility={layerVisibility}
+                      layerOrder={layerOrder}
                       drawingDataUrl={activeUserSpread.leftDrawingDataUrl}
                       onSaveDrawing={(url) =>
                         onUpdateSpread({ ...activeUserSpread, leftDrawingDataUrl: url })
@@ -1469,6 +2125,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       elements={activeUserSpread.elements.filter((e) => e.side === 'left')}
                       selectedElementId={selectedElementId}
                       editingTextId={editingTextId}
+                      mattingElementId={mattingElementId}
+                      mattingProgress={mattingProgress}
                       onSelectElement={setSelectedElementId}
                       onEditText={setEditingTextId}
                       onUpdateElement={updateElement}
@@ -1476,15 +2134,21 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                         deleteElement(id);
                         onNotify?.('Objeto eliminado');
                       }}
+                      onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
+                      onRestoreElementFigure={handleRestoreElementFigure}
+                      onEnterDressingRoom={onEnterDressingRoom}
                       onPlaceElement={(x, y) => handlePlaceElement('left', x, y)}
                     />
 
-                    <div className="w-[3px] bg-gradient-to-r from-[#8b6236]/55 via-[#3f220e]/80 to-[#8b6236]/55 shrink-0" />
+                    <div className="w-[5px] bg-gradient-to-r from-[#8b6236]/60 via-[#2a1408]/90 to-[#8b6236]/60 shrink-0" />
 
                     <SingleNotebookPage
                       side="right"
                       spreadId={activeUserSpread.id}
                       paperStyle={activeUserSpread.paperStyle}
+                      pageSizeClass={pageSizeClass}
+                      layerVisibility={layerVisibility}
+                      layerOrder={layerOrder}
                       drawingDataUrl={activeUserSpread.rightDrawingDataUrl}
                       onSaveDrawing={(url) =>
                         onUpdateSpread({ ...activeUserSpread, rightDrawingDataUrl: url })
@@ -1495,6 +2159,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       elements={activeUserSpread.elements.filter((e) => e.side === 'right')}
                       selectedElementId={selectedElementId}
                       editingTextId={editingTextId}
+                      mattingElementId={mattingElementId}
+                      mattingProgress={mattingProgress}
                       onSelectElement={setSelectedElementId}
                       onEditText={setEditingTextId}
                       onUpdateElement={updateElement}
@@ -1502,6 +2168,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                         deleteElement(id);
                         onNotify?.('Objeto eliminado');
                       }}
+                      onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
+                      onRestoreElementFigure={handleRestoreElementFigure}
+                      onEnterDressingRoom={onEnterDressingRoom}
                       onPlaceElement={(x, y) => handlePlaceElement('right', x, y)}
                     />
                   </>
@@ -1551,222 +2220,236 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     />
                   </div>
                 )}
+                </div>
+
+                {/* Right Stacked Paper Thickness */}
+                <div className="w-1.5 sm:w-2 rounded-r-lg book-page-stack-3d border-l border-[#8d6131]/55 shrink-0" />
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Bottom Pagination, Section Jump & Zoom Bar */}
-      <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2 select-none">
-        {isCatalogSpread ? (
-          <div className="hidden md:flex items-center gap-1.5 bg-[#241309]/90 border border-[#b98241]/40 rounded-xl px-3 py-1.5 text-xs text-[#f4dfb9]">
-            <BookOpenCheck className="w-3.5 h-3.5 text-[#f0c77c]" />
-            <span className="truncate max-w-[200px]">{activeTitle}</span>
-          </div>
-        ) : (
-          <input
-            type="text"
-            value={activeUserSpread?.title || ''}
-            onChange={(e) => {
-              if (activeUserSpread) {
-                onUpdateSpread({ ...activeUserSpread, title: e.target.value });
-              }
-            }}
-            aria-label="Título de la página"
-            className="hidden md:block bg-[#241309]/85 border border-[#b98241]/35 focus:border-[#ebbc6e] rounded-xl font-editorial italic text-sm text-[#f4dfb9] px-3 py-1.5 focus:outline-none truncate w-48"
-          />
-        )}
-
-        {/* Quick jump between First Pages (Patrones) and Editable Sheets */}
-        <div className="flex items-center gap-1 p-1 rounded-xl leather-panel bg-[#221208] text-xs">
-          <button
-            type="button"
-            onClick={() => onChangeSpreadIndex(0)}
-            className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-              isCatalogSpread
-                ? 'bg-[#8c5422] text-white font-medium'
-                : 'text-[#dec39c] hover:text-white'
-            }`}
+      {/* Focus-Mode Minimal Floating Pill (only visible when right studio panels are hidden in Focus Mode) */}
+      <AnimatePresence>
+        {focusMode && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed bottom-3 right-3 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-full carved-bar-3d shadow-2xl select-none"
           >
-            Patrones (1–{catalogCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeSpreadIndex(catalogCount)}
-            className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-              !isCatalogSpread
-                ? 'bg-[#8c5422] text-white font-medium'
-                : 'text-[#dec39c] hover:text-white'
-            }`}
-          >
-            Mis Hojas ({catalogCount + 1}+)
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1 px-2 py-1 rounded-xl leather-panel bg-[#221208]">
-          <button
-            type="button"
-            disabled={!canPrev}
-            onClick={() => commitPageTurn('prev')}
-            aria-label="Página anterior"
-            className="p-1.5 rounded-lg text-[#f3dcb3] hover:bg-[#593319] disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="px-2 text-xs sm:text-sm font-editorial text-[#f8e6c4] whitespace-nowrap font-mono-tab">
-            Pliego {safeIndex + 1} de {totalBookSpreads}
-          </span>
-          <button
-            type="button"
-            disabled={!canNext}
-            onClick={() => commitPageTurn('next')}
-            aria-label="Página siguiente"
-            className="p-1.5 rounded-lg text-[#f3dcb3] hover:bg-[#593319] disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onAddSpread}
-            title="Añadir nueva hoja editable al cuaderno"
-            className="ml-1 p-1.5 rounded-lg bg-[#8c5422] hover:bg-[#ab6a2e] text-[#fff6e3] cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1 px-2 py-1 rounded-xl leather-panel bg-[#221208]">
-          <button
-            type="button"
-            onClick={() => setShowOverview((v) => !v)}
-            title="Vista general de hojas"
-            className="p-1.5 rounded-lg text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
-          >
-            <Grid3X3 className="w-4 h-4" />
-          </button>
-          {!isCatalogSpread && activeUserSpread && (
-            <>
+            <button
+              type="button"
+              disabled={!canPrev}
+              onClick={() => commitPageTurn('prev')}
+              aria-label="Página anterior"
+              className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] disabled:opacity-35 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-1.5 text-xs font-mono-tab text-[#f8e6c4]">
+              {activeSafeIndex + 1} / {activeTotalSpreads}
+            </span>
+            <button
+              type="button"
+              disabled={!canNext}
+              onClick={() => commitPageTurn('next')}
+              aria-label="Página siguiente"
+              className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] disabled:opacity-35 cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-[#b88443]/40 mx-0.5" />
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playStitchClick();
+                setZoom((z) => Math.max(70, z - 10));
+              }}
+              aria-label="Alejar"
+              className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[11px] font-mono-tab text-[#f8e6c4] w-9 text-center">
+              {zoom}%
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playStitchClick();
+                setZoom((z) => Math.min(130, z + 10));
+              }}
+              aria-label="Acercar"
+              className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            {onToggleFocusMode && (
               <button
                 type="button"
-                onClick={cyclePaperStyle}
-                title={`Cambiar papel (actual: ${activeUserSpread.paperStyle})`}
-                className="px-2 py-1 rounded-lg text-xs text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
+                onClick={() => {
+                  audioEngine.playToggleChime(true);
+                  onToggleFocusMode();
+                }}
+                title="Mostrar herramientas"
+                className="p-1 rounded-full bg-[#8c5422] text-white hover:bg-[#a6662c] cursor-pointer"
               >
-                {activeUserSpread.paperStyle === 'grid'
-                  ? 'Cuadrícula'
-                  : activeUserSpread.paperStyle === 'dots'
-                    ? 'Puntos'
-                    : 'Pergamino'}
+                <Minimize2 className="w-3.5 h-3.5" />
               </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              {activeUserSpread.elements.length > 0 && (
-                <div className="relative">
+      {/* Mandala Full-Size Lightbox Preview Modal */}
+      <AnimatePresence>
+        {previewMandala && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPreviewMandala(null)}
+            className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.94 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-4xl w-full max-h-[92vh] rounded-2xl leather-panel bg-[#221208] p-3 sm:p-4 flex flex-col gap-3 shadow-[0_28px_70px_rgba(0,0,0,0.95)]"
+            >
+              <div className="flex items-center justify-between gap-2 border-b border-[#b98241]/30 pb-2">
+                <div className="min-w-0">
+                  <h3 className="font-editorial text-lg font-bold text-[#ffebc2] truncate">
+                    {previewMandala.name}
+                  </h3>
+                  <p className="text-xs text-[#e2c697] truncate">
+                    {previewMandala.description} · {previewMandala.abbreviation}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {previewMandala.imagePath && (
+                    <button
+                      type="button"
+                      disabled={Boolean(mattingMandalaId)}
+                      onClick={() => void handleExtractMandalaFigure(previewMandala)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#3d7c6b] to-[#265448] hover:brightness-110 border border-[#8ce0c5]/45 text-xs font-medium text-white cursor-pointer shadow disabled:opacity-60"
+                      title="AI Image Matting: extraer la figura sin fondo"
+                    >
+                      {mattingMandalaId === previewMandala.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Wand2 className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {mattingMandalaId === previewMandala.id
+                          ? `Extrayendo ${mattingProgress}%`
+                          : 'Extraer figura'}
+                      </span>
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() =>
-                      setEditorSubPanel((p) => (p === 'rotate-all' ? null : 'rotate-all'))
-                    }
-                    title="Rotar libremente todos los objetos de esta hoja"
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs cursor-pointer transition-colors ${
-                      editorSubPanel === 'rotate-all'
-                        ? 'bg-[#6b3d1e] text-white'
-                        : 'text-[#f3dcb3] hover:bg-[#593319]'
-                    }`}
+                    onClick={() => {
+                      const effective = mattedMandalaMap[previewMandala.id]
+                        ? { ...previewMandala, imagePath: mattedMandalaMap[previewMandala.id] }
+                        : previewMandala;
+                      setSelectedCatalogPattern(effective);
+                      onCopyPattern(effective);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3c2110] hover:bg-[#5b3319] border border-[#d69f56]/50 text-xs font-medium text-[#ffebc2] cursor-pointer"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-[#f0c77c]" />
-                    <span className="hidden sm:inline">Rotar todo</span>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar</span>
                   </button>
-
-                  <AnimatePresence>
-                    {editorSubPanel === 'rotate-all' && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                        transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                        className="absolute right-0 bottom-full mb-2 w-64 rounded-xl leather-panel bg-[#221208] p-3 z-50 shadow-[0_22px_50px_rgba(0,0,0,0.92)] text-xs text-[#f5e4c4] space-y-2.5"
-                      >
-                        <div className="flex items-center justify-between border-b border-[#b98241]/25 pb-1.5">
-                          <span className="font-display text-[#ffebc2]">
-                            Rotar Todos los Objetos
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => rotateAllElements('reset', 0)}
-                            className="text-[10px] text-[#e6be7a] hover:text-white cursor-pointer"
-                          >
-                            0° Restablecer
-                          </button>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-[#dec49d]">Ángulo libre</span>
-                            <span className="font-mono-tab text-[#ffebc2]">{allRotateAngle}°</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={359}
-                            value={allRotateAngle}
-                            onChange={(e) => rotateAllElements('set', Number(e.target.value))}
-                            className="w-full accent-[#d69c50] h-1.5 bg-[#140a04] rounded cursor-pointer"
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 gap-1 text-[11px]">
-                          {[
-                            { label: '-45°', delta: -45 },
-                            { label: '-15°', delta: -15 },
-                            { label: '+15°', delta: 15 },
-                            { label: '+90°', delta: 90 },
-                          ].map((btn) => (
-                            <button
-                              key={btn.label}
-                              type="button"
-                              onClick={() => rotateAllElements('delta', btn.delta)}
-                              className="py-1 rounded bg-[#361d0e] hover:bg-[#5b331a] border border-[#b98241]/30 text-[#f3dcb3] cursor-pointer font-mono-tab"
-                            >
-                              {btn.label}
-                            </button>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const effective = mattedMandalaMap[previewMandala.id]
+                        ? { ...previewMandala, imagePath: mattedMandalaMap[previewMandala.id] }
+                        : previewMandala;
+                      setSelectedCatalogPattern(effective);
+                      onCopyPattern(effective);
+                      const activeUserIdx =
+                        safeIndex >= catalogCount ? safeIndex - catalogCount : 0;
+                      const targetSpread = spreads[activeUserIdx] ?? spreads[0];
+                      setPreviewMandala(null);
+                      if (targetSpread) {
+                        onChangeNotebookMode?.('book');
+                        onChangeSpreadIndex(catalogCount + activeUserIdx);
+                        onPastePatternOnSpread(targetSpread.id, 'left', effective);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5" />
+                    <span>Pegar en Mis Hojas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMandala(null)}
+                    aria-label="Cerrar vista ampliada"
+                    className="p-1.5 rounded-lg bg-[#6e212a] hover:bg-[#8c2d34] text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-              )}
-            </>
-          )}
-          <div className="h-4 w-px bg-[#b98241]/30 mx-0.5" />
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.max(70, z - 10))}
-            aria-label="Alejar"
-            className="p-1.5 rounded-lg text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <span className="text-xs font-mono-tab text-[#f8e6c4] w-10 text-center">
-            {zoom}%
-          </span>
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.min(130, z + 10))}
-            aria-label="Acercar"
-            className="p-1.5 rounded-lg text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setZoom(100)}
-            title="Restaurar zoom 100%"
-            className="p-1.5 rounded-lg text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
+              </div>
+
+              <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#f6ecd7] rounded-xl p-3 overflow-auto studio-scroll">
+                {previewMandala.imagePath ? (
+                  <img
+                    src={mattedMandalaMap[previewMandala.id] || previewMandala.imagePath}
+                    alt={previewMandala.name}
+                    className="max-h-[70vh] w-auto max-w-full object-contain select-none"
+                  />
+                ) : (
+                  <CrochetMandalaSvg
+                    mandalaId={previewMandala.mandalaId || previewMandala.id}
+                    className="w-72 h-72"
+                  />
+                )}
+              </div>
+
+              {(() => {
+                const idx = allMandalaItems.findIndex((m) => m.id === previewMandala.id);
+                const prevItem = idx > 0 ? allMandalaItems[idx - 1] : null;
+                const nextItem =
+                  idx >= 0 && idx < allMandalaItems.length - 1
+                    ? allMandalaItems[idx + 1]
+                    : null;
+                return (
+                  <div className="flex items-center justify-between text-xs text-[#e2c697]">
+                    <button
+                      type="button"
+                      disabled={!prevItem}
+                      onClick={() => prevItem && setPreviewMandala(prevItem)}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#361d0e] hover:bg-[#522f18] border border-[#c99552]/40 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Anterior</span>
+                    </button>
+                    <span className="font-mono-tab text-[11px]">
+                      {idx + 1} / {allMandalaItems.length}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!nextItem}
+                      onClick={() => nextItem && setPreviewMandala(nextItem)}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#361d0e] hover:bg-[#522f18] border border-[#c99552]/40 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <span>Siguiente</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })()}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Image Crop Modal */}
       {croppingElement && (
@@ -1790,6 +2473,7 @@ const PatternCatalogPage: React.FC<{
   side: 'left' | 'right';
   spreadNumber: number;
   items: CopiedPatternData[];
+  pageSizeClass: string;
   selectedPatternId: string | null;
   copiedPatternId: string | null;
   onSelectPattern: (pat: CopiedPatternData) => void;
@@ -1799,6 +2483,7 @@ const PatternCatalogPage: React.FC<{
     side,
     spreadNumber,
     items,
+    pageSizeClass,
     selectedPatternId,
     copiedPatternId,
     onSelectPattern,
@@ -1806,16 +2491,16 @@ const PatternCatalogPage: React.FC<{
   }) => {
     const pageNum = (spreadNumber - 1) * 2 + (side === 'left' ? 1 : 2);
     return (
-      <div className="relative notebook-page-maximized parchment-page parchment-grid overflow-hidden flex flex-col px-6 py-4">
+      <div className={`relative ${pageSizeClass} parchment-page parchment-grid overflow-hidden flex flex-col px-6 py-4`}>
         {side === 'left' ? (
           <>
-            <CornerCrochetFlower position="top-left" className="absolute top-1 left-1 w-20 h-20 opacity-85" />
-            <CornerCrochetFlower position="bottom-left" className="absolute bottom-1 left-1 w-20 h-20 opacity-85" />
+            <CornerCrochetFlower position="top-left" className="absolute top-0.5 left-0.5 w-24 h-24 opacity-90" />
+            <CornerCrochetFlower position="bottom-left" showYarnOrnament className="absolute bottom-0.5 left-0.5 w-24 h-24 opacity-85" />
           </>
         ) : (
           <>
-            <CornerCrochetFlower position="top-right" className="absolute top-1 right-3 w-16 h-16 opacity-85" />
-            <CornerCrochetFlower position="bottom-right" className="absolute bottom-1 right-3 w-16 h-16 opacity-85" />
+            <CornerCrochetFlower position="top-right" className="absolute top-0.5 right-3 w-20 h-20 opacity-90" />
+            <CornerCrochetFlower position="bottom-right" showYarnOrnament className="absolute bottom-0.5 right-3 w-24 h-24 opacity-85" />
           </>
         )}
 
@@ -1826,13 +2511,13 @@ const PatternCatalogPage: React.FC<{
               {side === 'left' ? 'Índice de Patrones Crochet' : 'Alfabeto y Diagramas'}
             </h2>
             <p className="text-[11px] text-[#6d4521]">
-              Selecciona y copia solo el símbolo como si fuese una letra para pegarlo en tus hojas
+              Haz clic encima de cualquier patrón o punto para copiarlo automáticamente
             </p>
           </div>
           <span className="font-mono-tab text-[11px] text-[#7c552d]">Pág. {pageNum}</span>
         </div>
 
-        {/* Pattern Cards Grid */}
+        {/* Pattern Cards Grid — Transparent & Click-to-Auto-Copy */}
         <div className="relative z-10 flex-1 grid grid-cols-1 gap-2.5 overflow-y-auto studio-scroll pr-1">
           {items.map((item) => {
             const isSelected = selectedPatternId === item.id;
@@ -1840,60 +2525,77 @@ const PatternCatalogPage: React.FC<{
             return (
               <div
                 key={item.id}
-                onClick={() => onSelectPattern(item)}
-                className={`group rounded-xl border p-2.5 transition-all cursor-pointer flex items-center gap-3 ${
-                  isSelected
-                    ? 'bg-[#fff9eb] border-[#7a202a] ring-2 ring-[#d49a4c]/70 shadow-md'
-                    : 'bg-[#fffcf4]/85 border-[#a87842]/50 hover:border-[#7a202a]/75 hover:bg-[#fffaf0]'
+                role="button"
+                tabIndex={0}
+                title={`Clic para copiar automáticamente: ${item.name}`}
+                onClick={() => {
+                  onSelectPattern(item);
+                  onCopyPattern(item);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectPattern(item);
+                    onCopyPattern(item);
+                  }
+                }}
+                className={`group relative rounded-2xl border p-2.5 transition-all duration-200 cursor-pointer flex items-center gap-3.5 select-none ${
+                  isSelected || isCopied
+                    ? 'bg-[#fff8e8]/28 border-[#7a202a]/75 ring-1 ring-[#d49a4c]/60 shadow-[0_6px_18px_rgba(92,48,18,0.12)]'
+                    : 'bg-transparent border-[#966a35]/35 hover:bg-[#fff9ec]/22 hover:border-[#7a202a]/65 hover:-translate-y-0.5 active:scale-[0.99]'
                 }`}
               >
-                {/* Symbol preview box */}
-                <div className="w-14 h-14 rounded-lg bg-[#f6e8cb] border border-[#b48449]/60 flex items-center justify-center shrink-0 p-1 overflow-hidden">
+                {/* Delicate stitched inner corner accents */}
+                <span className="pointer-events-none absolute top-1.5 right-1.5 w-2 h-2 border-t border-r border-[#b48449]/45 rounded-tr-sm" />
+                <span className="pointer-events-none absolute bottom-1.5 left-1.5 w-2 h-2 border-b border-l border-[#b48449]/45 rounded-bl-sm" />
+
+                {/* Transparent Symbol / Pattern Preview Box */}
+                <div className="w-14 h-14 rounded-xl bg-transparent border border-dashed border-[#a6763c]/50 group-hover:border-[#7a202a]/65 flex items-center justify-center shrink-0 p-1 overflow-hidden transition-colors">
                   {item.diagramGrid ? (
-                    <DiagramGridSvg grid={item.diagramGrid} className="w-12 h-12" />
+                    <DiagramGridSvg
+                      grid={item.diagramGrid}
+                      className="w-12 h-12 drop-shadow-[0_1px_2px_rgba(62,30,12,0.18)]"
+                    />
                   ) : (
-                    <StitchSymbolSvg stitchKey={item.stitchKey} className="w-11 h-11" />
+                    <StitchSymbolSvg
+                      stitchKey={item.stitchKey}
+                      className="w-11 h-11 drop-shadow-[0_1px_2px_rgba(62,30,12,0.18)]"
+                    />
                   )}
                 </div>
 
                 {/* Details */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {item.letter && (
-                      <span className="px-1.5 py-0.5 rounded bg-[#7a202a] text-[#fff6e5] font-display text-[10px]">
-                        {item.letter}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      {item.letter && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#7a202a]/90 text-[#fff6e5] border border-[#e3b868]/45 font-display text-[10px] shadow-xs">
+                          {item.letter}
+                        </span>
+                      )}
+                      <h3 className="font-editorial text-base font-bold text-[#3f1c09] truncate">
+                        {item.name}
+                      </h3>
+                      <span className="font-mono-tab text-[10px] px-1.5 py-0.5 rounded bg-[#a87842]/15 border border-[#a87842]/35 text-[#5b3318]">
+                        {item.abbreviation}
+                      </span>
+                    </div>
+
+                    {isCopied ? (
+                      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#2e5a44]/15 border border-[#2e5a44]/35 text-[10px] font-medium text-[#214d37]">
+                        <Check className="w-3 h-3" />
+                        <span>Copiado</span>
+                      </span>
+                    ) : (
+                      <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] italic text-[#7a4b25]">
+                        Clic para copiar
                       </span>
                     )}
-                    <h3 className="font-editorial text-base font-bold text-[#3f1c09] truncate">
-                      {item.name}
-                    </h3>
-                    <span className="font-mono-tab text-[10px] px-1.5 py-0.5 rounded bg-[#ecd8b4] text-[#5b3318]">
-                      {item.abbreviation}
-                    </span>
                   </div>
-                  <p className="text-[11px] text-[#5e391e] line-clamp-2 mt-0.5 leading-snug">
+                  <p className="text-[11px] text-[#5e391e]/90 line-clamp-2 mt-0.5 leading-snug">
                     {item.description}
                   </p>
                 </div>
-
-                {/* Copy Pattern Action */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectPattern(item);
-                    onCopyPattern(item);
-                  }}
-                  title="Copiar solo este patrón"
-                  className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
-                    isCopied
-                      ? 'bg-[#2e5a44] text-white'
-                      : 'bg-[#8d5422] hover:bg-[#7a202a] text-white'
-                  }`}
-                >
-                  {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{isCopied ? 'Copiado' : 'Copiar'}</span>
-                </button>
               </div>
             );
           })}
@@ -1901,6 +2603,198 @@ const PatternCatalogPage: React.FC<{
           {items.length === 0 && (
             <div className="flex-1 flex items-center justify-center text-xs italic text-[#7a542f]">
               Final del catálogo de patrones
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+
+/* ---------- Mandala Gallery Pages Inside the Notebook (Click-to-Auto-Copy) ---------- */
+
+const MandalaCatalogPage: React.FC<{
+  side: 'left' | 'right';
+  spreadNumber: number;
+  items: CopiedPatternData[];
+  pageSizeClass: string;
+  selectedPatternId: string | null;
+  copiedPatternId: string | null;
+  mattedMap: Record<string, string>;
+  mattingId: string | null;
+  mattingProgress: number;
+  onSelectPattern: (pat: CopiedPatternData) => void;
+  onCopyPattern: (pat: CopiedPatternData) => void;
+  onPreviewPattern: (pat: CopiedPatternData) => void;
+  onExtractFigure: (pat: CopiedPatternData) => void;
+}> = memo(
+  ({
+    side,
+    spreadNumber,
+    items,
+    pageSizeClass,
+    selectedPatternId,
+    copiedPatternId,
+    mattedMap,
+    mattingId,
+    mattingProgress,
+    onSelectPattern,
+    onCopyPattern,
+    onPreviewPattern,
+    onExtractFigure,
+  }) => {
+    const pageNum = (spreadNumber - 1) * 2 + (side === 'left' ? 1 : 2);
+    const hasPhotos = items.some((it) => Boolean(it.imagePath));
+    return (
+      <div className={`relative ${pageSizeClass} parchment-page parchment-grid overflow-hidden flex flex-col px-5 py-3.5`}>
+        {side === 'left' ? (
+          <>
+            <CornerCrochetFlower position="top-left" className="absolute top-0.5 left-0.5 w-20 h-20 opacity-85" />
+            <CornerCrochetFlower position="bottom-left" showYarnOrnament className="absolute bottom-0.5 left-0.5 w-20 h-20 opacity-80" />
+          </>
+        ) : (
+          <>
+            <CornerCrochetFlower position="top-right" className="absolute top-0.5 right-3 w-18 h-18 opacity-85" />
+            <CornerCrochetFlower position="bottom-right" showYarnOrnament className="absolute bottom-0.5 right-3 w-20 h-20 opacity-80" />
+          </>
+        )}
+
+        {/* Header */}
+        <div className="relative z-10 flex items-baseline justify-between border-b border-[#8e6233]/35 pb-1.5 mb-2 pl-7 pr-5">
+          <div>
+            <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#4a220d]">
+              {side === 'left'
+                ? 'Apartado de Mandalas'
+                : hasPhotos
+                  ? 'Galería de Diagramas'
+                  : 'Encaje y Rosetones'}
+            </h2>
+            <p className="text-[10.5px] text-[#6d4521]">
+              Clic en cualquier foto para copiar · Lupa para ampliar diagrama
+            </p>
+          </div>
+          <span className="font-mono-tab text-[11px] text-[#7c552d]">Pág. {pageNum}</span>
+        </div>
+
+        {/* Multi-Mandala Grid — Arranged Photos & Vector Mandalas with Click-to-Auto-Copy */}
+        <div className="relative z-10 flex-1 grid grid-cols-2 grid-rows-3 gap-2 min-h-0">
+          {items.map((item) => {
+            const isSelected = selectedPatternId === item.id;
+            const isCopied = copiedPatternId === item.id;
+            const isPhoto = Boolean(item.imagePath);
+            const displayImage = mattedMap[item.id] || item.imagePath;
+            const effectiveItem = mattedMap[item.id]
+              ? { ...item, imagePath: mattedMap[item.id] }
+              : item;
+            const isMatting = mattingId === item.id;
+            return (
+              <div
+                key={item.id}
+                role="button"
+                tabIndex={0}
+                title={`Clic para copiar: ${item.name} (${item.description})`}
+                onClick={() => {
+                  onSelectPattern(effectiveItem);
+                  onCopyPattern(effectiveItem);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectPattern(effectiveItem);
+                    onCopyPattern(effectiveItem);
+                  }
+                }}
+                className={`group relative rounded-xl border p-1.5 transition-all duration-200 cursor-pointer flex flex-col items-center justify-between text-center select-none min-h-0 overflow-hidden ${
+                  isSelected || isCopied
+                    ? 'bg-[#fff8e8]/25 border-[#7a202a]/80 ring-2 ring-[#d49a4c]/75 shadow-[0_6px_16px_rgba(92,48,18,0.14)]'
+                    : 'bg-transparent border-[#966a35]/30 hover:bg-[#fff9ec]/18 hover:border-[#7a202a]/65 hover:-translate-y-0.5 active:scale-[0.98]'
+                }`}
+              >
+                {/* Zoom / Preview button in top-left */}
+                <button
+                  type="button"
+                  aria-label={`Ampliar ${item.name}`}
+                  title="Ampliar diagrama"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    audioEngine.playStitchClick();
+                    onPreviewPattern(effectiveItem);
+                  }}
+                  className="absolute top-1.5 left-1.5 z-20 p-1 rounded-md bg-[#2a1509]/80 hover:bg-[#7a202a] text-[#ffebc2] opacity-0 group-hover:opacity-100 transition-opacity shadow cursor-pointer"
+                >
+                  <ZoomIn className="w-3 h-3" />
+                </button>
+
+                {isPhoto && (
+                  <button
+                    type="button"
+                    disabled={Boolean(mattingId)}
+                    title="AI Image Matting: Extraer figura sin fondo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onExtractFigure(item);
+                    }}
+                    className={`absolute bottom-7 right-1.5 z-20 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#265448]/92 hover:bg-[#327060] border border-[#8ce0c5]/50 text-[9px] font-medium text-white shadow transition-opacity cursor-pointer disabled:opacity-60 ${
+                      isMatting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
+                    {isMatting ? (
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                    ) : (
+                      <Wand2 className="w-2.5 h-2.5" />
+                    )}
+                    <span>{isMatting ? `${mattingProgress}%` : 'Extraer figura'}</span>
+                  </button>
+                )}
+
+                {isCopied ? (
+                  <span className="absolute top-1.5 right-1.5 z-20 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#2e5a44] text-white text-[9px] font-medium shadow">
+                    <Check className="w-2.5 h-2.5" />
+                    <span>Copiado</span>
+                  </span>
+                ) : (
+                  <span className="absolute top-1.5 right-1.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded bg-[#f5e7cf]/95 border border-[#b48449]/40 text-[9px] font-medium text-[#5a3015]">
+                    Copiar
+                  </span>
+                )}
+
+                {isPhoto ? (
+                  <div className="flex-1 w-full min-h-0 rounded-lg bg-transparent overflow-hidden flex items-center justify-center p-0.5">
+                    <img
+                      src={displayImage}
+                      alt={item.name}
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                      className={`w-full h-full object-contain transition-transform duration-200 group-hover:scale-[1.03] ${
+                        mattedMap[item.id] ? '' : 'mix-blend-multiply'
+                      }`}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex-1 w-full flex items-center justify-center min-h-0 py-0.5">
+                    <CrochetMandalaSvg
+                      mandalaId={item.mandalaId || item.id}
+                      className="w-[74px] h-[74px] sm:w-[88px] sm:h-[88px] drop-shadow-[0_1px_2px_rgba(62,30,12,0.16)] transition-transform duration-200 group-hover:scale-105"
+                    />
+                  </div>
+                )}
+
+                <div className="w-full min-w-0 pt-1 flex items-center justify-between gap-1 px-0.5">
+                  <h3 className="font-editorial text-[11px] font-bold text-[#3f1c09] truncate leading-tight">
+                    {item.name}
+                  </h3>
+                  <span className="shrink-0 font-mono-tab text-[8.5px] px-1 py-0.2 rounded bg-[#a87842]/15 text-[#6d4521] leading-tight">
+                    {item.abbreviation}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+
+          {items.length === 0 && (
+            <div className="col-span-2 row-span-3 flex items-center justify-center text-xs italic text-[#7a542f]">
+              Final del apartado de mandalas
             </div>
           )}
         </div>
@@ -2230,6 +3124,8 @@ const PageElementItem = memo<{
   isSelected: boolean;
   isEditing: boolean;
   isDrawLocked: boolean;
+  isMatting?: boolean;
+  mattingProgress?: number;
   liveOverride?: { x: number; y: number; width: number; rotation?: number };
   onStartDrag: (el: PageElement, e: React.PointerEvent) => void;
   onStartResize: (el: PageElement, e: React.PointerEvent) => void;
@@ -2237,6 +3133,9 @@ const PageElementItem = memo<{
   onDoubleClick: (el: PageElement, e: React.MouseEvent) => void;
   onUpdateElement: (id: string, patch: Partial<PageElement>) => void;
   onDeleteElement: (id: string) => void;
+  onExtractFigure?: (el: PageElement) => void;
+  onRestoreFigure?: (el: PageElement) => void;
+  onEnterDressingRoom?: () => void;
   onEditTextDone: () => void;
 }>(
   ({
@@ -2244,6 +3143,8 @@ const PageElementItem = memo<{
     isSelected,
     isEditing,
     isDrawLocked,
+    isMatting = false,
+    mattingProgress = 0,
     liveOverride,
     onStartDrag,
     onStartResize,
@@ -2251,6 +3152,9 @@ const PageElementItem = memo<{
     onDoubleClick,
     onUpdateElement,
     onDeleteElement,
+    onExtractFigure,
+    onRestoreFigure,
+    onEnterDressingRoom,
     onEditTextDone,
   }) => {
     const x = liveOverride ? liveOverride.x : el.x;
@@ -2268,9 +3172,17 @@ const PageElementItem = memo<{
       ? `brightness(${el.filters.brightness}%) contrast(${el.filters.contrast}%) saturate(${el.filters.saturate}%) sepia(${el.filters.sepia}%) blur(${el.filters.blur}px)`
       : undefined;
 
+    const isMattedCutout = Boolean(el.originalContent && el.content !== el.originalContent);
+    const isMinimalPngCutout =
+      el.frameStyle === 'minimal' && el.content.startsWith('data:image/png');
+    const isMinimalAssetDiagram =
+      el.frameStyle === 'minimal' && el.content.startsWith('/assets/aistudio/');
+
     const frameClasses =
       el.frameStyle === 'minimal'
-        ? 'p-0 bg-transparent border-0 shadow-md'
+        ? isMinimalAssetDiagram || isMattedCutout || isMinimalPngCutout
+          ? 'p-0 bg-transparent border-0'
+          : 'p-0 bg-transparent border-0 shadow-md'
         : el.frameStyle === 'gold'
           ? 'p-1.5 bg-[#2d180b] border-2 border-[#e0af5a] rounded-lg shadow-lg'
           : el.frameStyle === 'rounded'
@@ -2278,6 +3190,30 @@ const PageElementItem = memo<{
             : 'p-1.5 bg-[#fffdf7] border border-[#b98a50]/65 rounded shadow-md';
 
     const hasTextBg = Boolean(el.backgroundColor && el.backgroundColor !== 'transparent');
+
+    // Fixed, large left-page centerpiece wardrobe with clean parchment borders on all sides
+    if (el.type === 'wardrobe') {
+      return (
+        <div
+          data-element-box="true"
+          style={{
+            left: '4.5%',
+            right: '6.5%',
+            top: '5%',
+            bottom: '5.5%',
+            opacity: el.opacity ?? 1,
+          }}
+          className={`absolute flex items-center justify-center ${
+            isDrawLocked ? 'pointer-events-none' : 'pointer-events-auto'
+          }`}
+        >
+          <CrochetWardrobe3D
+            disabled={isDrawLocked}
+            onEnterDressingRoom={onEnterDressingRoom}
+          />
+        </div>
+      );
+    }
 
     return (
       <div
@@ -2291,7 +3227,7 @@ const PageElementItem = memo<{
         }}
         onPointerDown={(e) => onStartDrag(el, e)}
         onDoubleClick={(e) => onDoubleClick(el, e)}
-        className={`absolute pointer-events-auto ${
+        className={`group absolute pointer-events-auto ${
           isDrawLocked ? 'pointer-events-none' : 'cursor-move'
         } ${
           isSelected
@@ -2392,18 +3328,67 @@ const PageElementItem = memo<{
         )}
 
         {el.type === 'image' && (
-          <div className={frameClasses}>
+          <div className={`relative ${frameClasses}`}>
             <img
               src={el.content}
               alt={el.title || 'Foto de proyecto'}
               referrerPolicy="no-referrer"
               decoding="async"
               style={{ filter: cssFilter }}
-              className={`w-full h-auto object-cover max-h-56 ${
+              className={`w-full h-auto object-contain max-h-72 ${
                 el.frameStyle === 'rounded' ? 'rounded-xl' : 'rounded'
+              } ${isMinimalAssetDiagram ? 'mix-blend-multiply' : ''} ${
+                isMattedCutout || isMinimalPngCutout
+                  ? 'drop-shadow-[0_4px_10px_rgba(45,22,8,0.28)]'
+                  : ''
               }`}
               draggable={false}
             />
+
+            {/* Direct per-image AI Image Matting ("Extraer figura") button */}
+            {!isDrawLocked && onExtractFigure && (
+              <div
+                onPointerDown={(e) => e.stopPropagation()}
+                className={`absolute bottom-1.5 left-1.5 z-20 flex items-center gap-1 transition-opacity duration-150 ${
+                  isMatting || isSelected
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover:opacity-100'
+                }`}
+              >
+                <button
+                  type="button"
+                  disabled={isMatting}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onExtractFigure(el);
+                  }}
+                  title="AI Image Matting: extraer la figura con fondo transparente"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#244e43]/92 hover:bg-[#2f695a] border border-[#8ce0c5]/60 text-[10px] font-medium text-white shadow-md cursor-pointer disabled:opacity-75"
+                >
+                  {isMatting ? (
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-2.5 h-2.5" />
+                  )}
+                  <span>{isMatting ? `${mattingProgress}%` : 'Extraer figura'}</span>
+                </button>
+
+                {isMattedCutout && onRestoreFigure && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRestoreFigure(el);
+                    }}
+                    title="Restaurar imagen original"
+                    className="p-1 rounded-full bg-[#2b160a]/90 hover:bg-[#4e2a14] border border-[#d69f56]/55 text-[#ffebc2] shadow-md cursor-pointer"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {el.title && el.frameStyle !== 'minimal' && (
               <p
                 className={`mt-1 text-center font-hand text-sm truncate ${
@@ -2419,9 +3404,15 @@ const PageElementItem = memo<{
         {el.type === 'pattern-note' && el.patternData && (
           <div
             title={el.patternData.name}
-            className="w-full aspect-square flex items-center justify-center select-none"
+            className="w-full aspect-square bg-transparent flex items-center justify-center select-none drop-shadow-[0_1px_2px_rgba(62,30,12,0.16)]"
           >
-            {el.patternData.diagramGrid ? (
+            {el.patternData.mandalaId ? (
+              <CrochetMandalaSvg
+                mandalaId={el.patternData.mandalaId}
+                color={el.color}
+                className="w-full h-full"
+              />
+            ) : el.patternData.diagramGrid ? (
               <DiagramGridSvg
                 grid={el.patternData.diagramGrid}
                 color={el.color || '#3e1e0c'}
@@ -2435,6 +3426,14 @@ const PageElementItem = memo<{
               />
             )}
           </div>
+        )}
+
+        {el.type === 'mannequin' && (
+          <MannequinSvg
+            view={el.content === 'back' ? 'back' : 'front'}
+            color={el.color}
+            className="w-full h-auto drop-shadow-[0_4px_10px_rgba(64,33,12,0.22)] select-none"
+          />
         )}
 
         {/* Corner Resize Handle when selected */}
@@ -2457,6 +3456,9 @@ interface SinglePageProps {
   side: 'left' | 'right';
   spreadId: string;
   paperStyle: PaperStyle;
+  pageSizeClass: string;
+  layerVisibility: LayerVisibility;
+  layerOrder: StackableLayerId[];
   drawingDataUrl?: string;
   onSaveDrawing: (dataUrl: string) => void;
   activeTool: ActiveCanvasTool;
@@ -2465,10 +3467,15 @@ interface SinglePageProps {
   elements: PageElement[];
   selectedElementId: string | null;
   editingTextId: string | null;
+  mattingElementId?: string | null;
+  mattingProgress?: number;
   onSelectElement: (id: string | null) => void;
   onEditText: (id: string | null) => void;
   onUpdateElement: (id: string, patch: Partial<PageElement>) => void;
   onDeleteElement: (id: string) => void;
+  onExtractElementFigure?: (el: PageElement) => void;
+  onRestoreElementFigure?: (el: PageElement) => void;
+  onEnterDressingRoom?: () => void;
   onPlaceElement: (xPct: number, yPct: number) => void;
 }
 
@@ -2477,6 +3484,9 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     side,
     spreadId,
     paperStyle,
+    pageSizeClass,
+    layerVisibility,
+    layerOrder,
     drawingDataUrl,
     onSaveDrawing,
     activeTool,
@@ -2485,10 +3495,15 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     elements,
     selectedElementId,
     editingTextId,
+    mattingElementId = null,
+    mattingProgress = 0,
     onSelectElement,
     onEditText,
     onUpdateElement,
     onDeleteElement,
+    onExtractElementFigure,
+    onRestoreElementFigure,
+    onEnterDressingRoom,
     onPlaceElement,
   }) => {
     const pageRef = useRef<HTMLDivElement>(null);
@@ -2518,6 +3533,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     const dragElRef = useRef<{
       mode: 'drag' | 'resize' | 'rotate';
       id: string;
+      elementType?: PageElement['type'];
       startX: number;
       startY: number;
       origXPct: number;
@@ -2525,6 +3541,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       origWidth: number;
       centerX?: number;
       centerY?: number;
+      hasMoved?: boolean;
     } | null>(null);
 
     // Sync canvas image ONLY when spread switches or external undo/clear changed drawingDataUrl
@@ -2676,13 +3693,6 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     };
 
     const handleCanvasPointerDown = (e: React.PointerEvent) => {
-      if (activeTool === 'eyedropper') {
-        e.stopPropagation();
-        const picked = sampleColorAtScreenPoint(e.clientX, e.clientY);
-        onPickColor(picked);
-        return;
-      }
-
       if (activeTool === 'draw' || activeTool === 'eraser') {
         e.stopPropagation();
         isDrawingRef.current = true;
@@ -2690,13 +3700,21 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         lastPosRef.current = pt;
         drawSegment(pt, pt, activeTool === 'eraser');
         (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+      }
+    };
+
+    const handlePagePointerDown = (e: React.PointerEvent) => {
+      if (activeTool === 'eyedropper') {
+        e.stopPropagation();
+        const picked = sampleColorAtScreenPoint(e.clientX, e.clientY);
+        onPickColor(picked);
       } else if (activeTool === 'text' || activeTool === 'shape') {
         const rect = pageRef.current?.getBoundingClientRect();
         if (!rect) return;
         const xPct = ((e.clientX - rect.left) / rect.width) * 100;
         const yPct = ((e.clientY - rect.top) / rect.height) * 100;
         onPlaceElement(xPct, yPct);
-      } else {
+      } else if (activeTool !== 'draw' && activeTool !== 'eraser') {
         onSelectElement(null);
         onEditText(null);
       }
@@ -2746,6 +3764,15 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
             rotation: deg,
           };
         } else if (mode === 'drag') {
+          if (!dragElRef.current.hasMoved) {
+            if (Math.hypot(clientX - startX, clientY - startY) < 6) {
+              return;
+            }
+            dragElRef.current.hasMoved = true;
+            if (dragElRef.current.elementType === 'wardrobe') {
+              onSelectElement(id);
+            }
+          }
           const rawXPct = origXPct + ((clientX - startX) / rect.width) * 100;
           const minX = side === 'right' ? -96 : 2;
           const maxX = side === 'left' ? 184 : 84;
@@ -2756,17 +3783,18 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
             width: origWidth,
           };
         } else {
+          const maxResizeW = dragElRef.current.elementType === 'wardrobe' ? 460 : 400;
           nextTransform = {
             id,
             x: origXPct,
             y: origYPct,
-            width: Math.max(22, Math.min(400, Math.round(origWidth + (clientX - startX)))),
+            width: Math.max(22, Math.min(maxResizeW, Math.round(origWidth + (clientX - startX)))),
           };
         }
         liveTransformRef.current = nextTransform;
         setLiveTransform(nextTransform);
       },
-      [side]
+      [side, onSelectElement]
     );
 
     const handleCanvasPointerMove = (e: React.PointerEvent) => {
@@ -2872,7 +3900,12 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
 
     const handleStartDragElement = useCallback(
       (el: PageElement, e: React.PointerEvent) => {
-        if (activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'eyedropper') {
+        if (
+          el.type === 'wardrobe' ||
+          activeTool === 'draw' ||
+          activeTool === 'eraser' ||
+          activeTool === 'eyedropper'
+        ) {
           return;
         }
         e.stopPropagation();
@@ -2881,11 +3914,13 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           dragElRef.current = {
             mode: 'drag',
             id: el.id,
+            elementType: el.type,
             startX: e.clientX,
             startY: e.clientY,
             origXPct: el.x,
             origYPct: el.y,
             origWidth: el.width,
+            hasMoved: false,
           };
         }
       },
@@ -2900,6 +3935,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         dragElRef.current = {
           mode: 'resize',
           id: el.id,
+          elementType: el.type,
           startX: e.clientX,
           startY: e.clientY,
           origXPct: el.x,
@@ -2923,6 +3959,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         dragElRef.current = {
           mode: 'rotate',
           id: el.id,
+          elementType: el.type,
           startX: e.clientX,
           startY: e.clientY,
           origXPct: el.x,
@@ -2940,32 +3977,56 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         if (el.type === 'text') {
           e.stopPropagation();
           onEditText(el.id);
+        } else if (el.type === 'wardrobe') {
+          e.stopPropagation();
+          onSelectElement(el.id);
         }
       },
-      [onEditText]
+      [onEditText, onSelectElement]
     );
 
     const handleEditTextDone = useCallback(() => {
       onEditText(null);
     }, [onEditText]);
 
-    const paperBgClass =
-      paperStyle === 'grid'
+    const paperBgClass = !layerVisibility.background
+      ? ''
+      : paperStyle === 'grid'
         ? 'parchment-grid'
         : paperStyle === 'dots'
           ? 'parchment-dots'
           : '';
 
+    const visibleElements = elements.filter((el) => {
+      if (el.type === 'text' || el.type === 'pattern-note') return layerVisibility.notes;
+      return layerVisibility.images;
+    });
+    const notesElements = visibleElements.filter(
+      (el) => el.type === 'text' || el.type === 'pattern-note'
+    );
+    const imagesElements = visibleElements.filter(
+      (el) => el.type !== 'text' && el.type !== 'pattern-note'
+    );
+
     const isDrawLocked = activeTool === 'draw' || activeTool === 'eraser';
+    const getLayerZ = (layer: StackableLayerId) => {
+      const idx = layerOrder.indexOf(layer);
+      return idx === 0 ? 24 : idx === 1 ? 18 : 12;
+    };
+    const draggingInNotes =
+      liveTransform !== null && notesElements.some((m) => m.id === liveTransform.id);
+    const draggingInImages =
+      liveTransform !== null && imagesElements.some((m) => m.id === liveTransform.id);
 
     return (
       <div
         ref={pageRef}
         data-page-side={side}
+        onPointerDown={handlePagePointerDown}
         onPointerMove={handleCanvasPointerMove}
         onPointerUp={handleCanvasPointerUp}
         onPointerLeave={() => setEraserCursor(null)}
-        className={`relative notebook-page-maximized parchment-page ${paperBgClass} overflow-visible ${
+        className={`relative ${pageSizeClass} parchment-page ${paperBgClass} overflow-visible ${
           liveTransform ? 'z-30' : ''
         } ${
           activeTool === 'draw' || activeTool === 'eyedropper'
@@ -2977,32 +4038,60 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
                 : 'cursor-default'
         }`}
       >
-        {/* Clipped Paper Decorations & Ruler */}
+        {/* Clipped Paper Decorations & 25cm Ruler */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {/* Corner Crochet Flowers & Filigree */}
           {side === 'left' ? (
             <>
-              <CornerCrochetFlower position="top-left" className="absolute top-1 left-1 w-24 h-24" />
-              <CornerCrochetFlower position="bottom-left" className="absolute bottom-1 left-1 w-24 h-24" />
+              <CornerCrochetFlower position="top-left" className="absolute top-0.5 left-0.5 w-28 h-28" />
+              <CornerCrochetFlower position="bottom-left" showYarnOrnament className="absolute bottom-0.5 left-0.5 w-32 h-32" />
             </>
           ) : (
             <>
-              <CornerCrochetFlower position="top-right" className="absolute top-1 right-3 w-20 h-20" />
-              <CornerCrochetFlower position="bottom-right" className="absolute bottom-1 right-3 w-20 h-20" />
+              <CornerCrochetFlower position="top-right" className="absolute top-0.5 right-4 w-24 h-24" />
+              <CornerCrochetFlower position="bottom-right" showYarnOrnament className="absolute bottom-0.5 right-4 w-32 h-32" />
               <div
-                className="pointer-events-none absolute inset-y-3 right-0 w-7 border-l border-[#a37846]/35 flex flex-col justify-between py-2 pr-1 text-right"
+                className="pointer-events-none absolute inset-y-2 right-0 w-7 border-l border-[#a37846]/45 flex flex-col justify-between py-2 pr-1 text-right bg-[#f4e2bc]/35"
                 aria-hidden="true"
               >
-                {Array.from({ length: 24 }, (_, i) => i + 1).map((cm) => (
+                {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
                   <div key={cm} className="flex items-center justify-end gap-1 leading-none">
-                    <span className="w-1.5 h-px bg-[#7c552d]/60" />
-                    <span className="text-[8px] font-mono-tab text-[#6e4a26]/80">{cm}</span>
+                    <span className="w-1.5 h-px bg-[#6e4a26]/70" />
+                    <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
                   </div>
                 ))}
-                <span className="text-[8px] font-mono-tab text-[#6e4a26] pr-0.5">cm</span>
+                <span className="text-[8px] font-mono-tab font-semibold text-[#5e3a18] pr-0.5">cm</span>
               </div>
             </>
           )}
+        </div>
+
+        {/* Imágenes / Maniquíes / Stickers / Figuras Layer */}
+        <div
+          style={{ zIndex: draggingInImages ? 29 : getLayerZ('images') }}
+          className="absolute inset-0 pointer-events-none"
+        >
+          {imagesElements.map((el) => (
+            <PageElementItem
+              key={el.id}
+              el={el}
+              isSelected={el.id === selectedElementId}
+              isEditing={el.id === editingTextId}
+              isDrawLocked={isDrawLocked}
+              isMatting={mattingElementId === el.id}
+              mattingProgress={mattingElementId === el.id ? mattingProgress : 0}
+              liveOverride={liveTransform?.id === el.id ? liveTransform : undefined}
+              onStartDrag={handleStartDragElement}
+              onStartResize={handleStartResizeElement}
+              onStartRotate={handleStartRotateElement}
+              onDoubleClick={handleDoubleClickElement}
+              onUpdateElement={onUpdateElement}
+              onDeleteElement={onDeleteElement}
+              onExtractFigure={onExtractElementFigure}
+              onRestoreFigure={onRestoreElementFigure}
+              onEnterDressingRoom={onEnterDressingRoom}
+              onEditTextDone={handleEditTextDone}
+            />
+          ))}
         </div>
 
         {/* Drawing Canvas Layer */}
@@ -3011,7 +4100,10 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           width={PAGE_W}
           height={PAGE_H}
           onPointerDown={handleCanvasPointerDown}
-          className="absolute inset-0 w-full h-full z-10 touch-none"
+          style={{ zIndex: getLayerZ('drawing') }}
+          className={`absolute inset-0 w-full h-full touch-none transition-opacity ${
+            isDrawLocked ? '' : 'pointer-events-none'
+          } ${layerVisibility.drawing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         />
 
         {/* Visual Eraser Ring Cursor */}
@@ -3028,9 +4120,12 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           />
         )}
 
-        {/* Interactive Page Elements (overflow-visible allows cross-page dragging) */}
-        <div className={`absolute inset-0 pointer-events-none ${liveTransform ? 'z-30' : 'z-20'}`}>
-          {elements.map((el) => (
+        {/* Notas y Patrones Layer */}
+        <div
+          style={{ zIndex: draggingInNotes ? 29 : getLayerZ('notes') }}
+          className="absolute inset-0 pointer-events-none"
+        >
+          {notesElements.map((el) => (
             <PageElementItem
               key={el.id}
               el={el}

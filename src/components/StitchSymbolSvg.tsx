@@ -364,7 +364,7 @@ export const DiagramGridSvg: React.FC<{
               y2={pos}
               stroke="#b48449"
               strokeWidth="0.7"
-              strokeOpacity="0.28"
+              strokeOpacity="0.16"
             />
             <line
               x1={pos}
@@ -373,7 +373,7 @@ export const DiagramGridSvg: React.FC<{
               y2={100 - pad}
               stroke="#b48449"
               strokeWidth="0.7"
-              strokeOpacity="0.28"
+              strokeOpacity="0.16"
             />
           </g>
         );

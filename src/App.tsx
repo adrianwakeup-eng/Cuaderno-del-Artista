@@ -1,10 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Minimize2, SlidersHorizontal } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { User } from 'firebase/auth';
 import { CoverScreen } from './components/CoverScreen';
 import { CrochetTransition } from './components/CrochetTransition';
-import { TopStudioBar } from './components/TopStudioBar';
+import { OuterFrameCrochetCorner } from './components/CrochetDecorations';
+import {
+  RightStudioDock,
+  type LayerAction,
+  type LayerVisibility,
+  type StackableLayerId,
+} from './components/RightToolPanels';
 import { NotebookSpread } from './components/NotebookSpread';
 import { PatternsView } from './components/PatternsView';
 import { GoogleDriveModal } from './components/GoogleDriveModal';
@@ -15,17 +21,23 @@ import {
   SettingsView,
   StickersAndImagesView,
 } from './components/StudioUtilityViews';
-import { DEFAULT_WORKSPACE } from './data/seedData';
+import { CrochetGifsView } from './components/CrochetGifsView';
+import { GoldenDressingRoomView } from './components/GoldenDressingRoomView';
+import { ElectronTitleBar, OfflineIndicator } from './components/WindowsDesktopControls';
+import { DEFAULT_WORKSPACE, INITIAL_DESK_NOTES } from './data/seedData';
 import { CROCHET_ALPHABET } from './data/crochetAlphabet';
 import type {
   ActiveCanvasTool,
   BrushSettings,
   CopiedPatternData,
   CrochetPattern,
+  DeskNoteItem,
+  DressingRoomGarment,
   FontChoice,
   NotebookSpread as SpreadType,
   NotebookWorkspaceData,
   PageElement,
+  PaperStyle,
   ShapeKind,
   StudioSection,
 } from './types/crochet';
@@ -45,7 +57,11 @@ export default function App() {
   // View state: 'cover' -> 'transitioning' -> 'studio'
   const [bookState, setBookState] = useState<'cover' | 'transitioning' | 'studio'>('cover');
   const [activeSection, setActiveSection] = useState<StudioSection>('cuaderno');
-  const [currentSpreadIndex, setCurrentSpreadIndex] = useState(0);
+  const [notebookMode, setNotebookMode] = useState<'book' | 'mandalas'>('book');
+  const [currentSpreadIndex, setCurrentSpreadIndex] = useState(() =>
+    Math.ceil((CROCHET_ALPHABET.length + DEFAULT_WORKSPACE.patterns.length) / 8)
+  );
+  const [mandalaSpreadIndex, setMandalaSpreadIndex] = useState(0);
   const [activeTool, setActiveTool] = useState<ActiveCanvasTool>('select');
   const [selectedShapeKind, setSelectedShapeKind] = useState<ShapeKind>('crochet-ring');
 
@@ -63,11 +79,97 @@ export default function App() {
   const [redoStack, setRedoStack] = useState<SpreadType[][]>([]);
   const [copiedPattern, setCopiedPattern] = useState<CopiedPatternData | null>(null);
 
-  const [musicPlaying, setMusicPlaying] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [savedToast, setSavedToast] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [showMobileDock, setShowMobileDock] = useState(false);
+  const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>({
+    notes: true,
+    drawing: true,
+    images: true,
+    background: true,
+  });
+  const [layerOrder, setLayerOrder] = useState<StackableLayerId[]>([
+    'notes',
+    'drawing',
+    'images',
+  ]);
+  const [selectedLayer, setSelectedLayer] = useState<StackableLayerId>('images');
+  const [spreadMeta, setSpreadMeta] = useState<{
+    isCatalog: boolean;
+    paperStyle: PaperStyle;
+    hasSelected: boolean;
+    hasDrawings: boolean;
+    hasElements: boolean;
+    title: string;
+    totalBookSpreads: number;
+    catalogCount: number;
+    showOverview: boolean;
+    allRotateAngle: number;
+  }>({
+    isCatalog: true,
+    paperStyle: 'grid',
+    hasSelected: false,
+    hasDrawings: false,
+    hasElements: false,
+    title: 'Catálogo de Patrones',
+    totalBookSpreads: 1,
+    catalogCount: 1,
+    showOverview: false,
+    allRotateAngle: 0,
+  });
+  const [layerActionSignal, setLayerActionSignal] = useState<{
+    id: number;
+    action: LayerAction;
+  } | null>(null);
+  const [cyclePaperSignal, setCyclePaperSignal] = useState(0);
+  const [bookZoom, setBookZoom] = useState(100);
+  const [turnPageSignal, setTurnPageSignal] = useState<{
+    id: number;
+    dir: 'prev' | 'next';
+  } | null>(null);
+  const [toggleOverviewSignal, setToggleOverviewSignal] = useState(0);
+  const [rotateAllSignal, setRotateAllSignal] = useState<{
+    id: number;
+    mode: 'set' | 'delta' | 'reset';
+    value: number;
+  } | null>(null);
   const imageUploadRef = useRef<HTMLInputElement>(null);
+
+  const layerLabels: Record<StackableLayerId, string> = {
+    notes: 'Notas',
+    drawing: 'Dibujo',
+    images: 'Imágenes',
+  };
+
+  const handleStepLayerOrder = (layer: StackableLayerId, dir: 'up' | 'down') => {
+    setLayerOrder((prev) => {
+      const idx = prev.indexOf(layer);
+      if (idx === -1) return prev;
+      const targetIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      return next;
+    });
+    showToast(
+      dir === 'up'
+        ? `Capa "${layerLabels[layer]}" subida`
+        : `Capa "${layerLabels[layer]}" bajada`
+    );
+  };
+
+  const handleDockLayerAction = (action: LayerAction) => {
+    if (action.type === 'select-layer') {
+      setSelectedLayer(action.layer);
+      return;
+    }
+    if ((action.type === 'bring-front' || action.type === 'send-back') && !spreadMeta.hasSelected) {
+      handleStepLayerOrder(selectedLayer, action.type === 'bring-front' ? 'up' : 'down');
+      return;
+    }
+    setLayerActionSignal({ id: Date.now(), action });
+  };
 
   // Google Drive Auth & Modal state (in-memory token only)
   const [driveUser, setDriveUser] = useState<User | null>(null);
@@ -94,9 +196,8 @@ export default function App() {
   useEffect(() => {
     void loadWorkspace().then((data) => {
       setWorkspace(data);
-      audioEngine.setMusicVolume(data.musicVolume);
+      setCurrentSpreadIndex(Math.ceil((CROCHET_ALPHABET.length + data.patterns.length) / 8));
       audioEngine.setSfxEnabled(data.sfxEnabled);
-      audioEngine.setAmbientWarmth(data.ambientWarmth);
       setLoaded(true);
     });
   }, []);
@@ -115,18 +216,14 @@ export default function App() {
     window.setTimeout(() => setSavedToast(null), 2200);
   }, []);
 
-  const handleToggleMusic = () => {
-    const next = audioEngine.toggleMusic();
-    setMusicPlaying(next);
-    setWorkspace((prev) => ({ ...prev, musicEnabled: next }));
+  const handleToggleSfx = () => {
+    const next = !workspace.sfxEnabled;
+    audioEngine.setSfxEnabled(next);
+    setWorkspace((prev) => ({ ...prev, sfxEnabled: next }));
   };
 
   const handleOpenBook = () => {
     audioEngine.playBookOpen();
-    if (!audioEngine.getIsPlaying()) {
-      audioEngine.startMusic();
-      setMusicPlaying(true);
-    }
     setBookState('transitioning');
     window.setTimeout(() => {
       setBookState('studio');
@@ -151,7 +248,7 @@ export default function App() {
   }, []);
 
   const handleAddSpread = () => {
-    audioEngine.playPageFlip();
+    audioEngine.playSaveChime();
     setUndoStack((prev) => [...prev.slice(-11), workspace.spreads]);
     setRedoStack([]);
     const newSpread: SpreadType = {
@@ -166,12 +263,14 @@ export default function App() {
       setCurrentSpreadIndex(catalogSpreadCount + nextSpreads.length - 1);
       return { ...prev, spreads: nextSpreads };
     });
+    setNotebookMode('book');
     setActiveSection('cuaderno');
     showToast('Nueva hoja añadida');
   };
 
   const handleUndo = () => {
     if (undoStack.length === 0) return;
+    audioEngine.playUndoRedo(false);
     const previous = undoStack[undoStack.length - 1];
     setRedoStack((r) => [...r, workspace.spreads]);
     setUndoStack((u) => u.slice(0, -1));
@@ -180,6 +279,7 @@ export default function App() {
 
   const handleRedo = () => {
     if (redoStack.length === 0) return;
+    audioEngine.playUndoRedo(true);
     const next = redoStack[redoStack.length - 1];
     setUndoStack((u) => [...u, workspace.spreads]);
     setRedoStack((r) => r.slice(0, -1));
@@ -207,6 +307,7 @@ export default function App() {
   const insertElementOnCurrentSpread = (el: Omit<PageElement, 'id'>) => {
     const target = getActiveEditableSpread();
     if (!target) return;
+    setNotebookMode('book');
     if (currentSpreadIndex < catalogSpreadCount) {
       setCurrentSpreadIndex(catalogSpreadCount);
     }
@@ -240,24 +341,81 @@ export default function App() {
     (pat: CopiedPatternData) => {
       audioEngine.playStitchClick();
       setCopiedPattern(pat);
-      showToast(`Símbolo copiado: ${pat.name}`);
+      if (pat.mandalaId || pat.imagePath) {
+        try {
+          void navigator.clipboard
+            ?.writeText(`${pat.name} (${pat.abbreviation}) — ${pat.description}`)
+            .catch(() => {});
+        } catch {
+          // ignore clipboard errors inside iframe
+        }
+        showToast(`Mandala copiado: ${pat.name}`);
+      } else {
+        showToast(`Símbolo copiado: ${pat.name}`);
+      }
     },
     [showToast]
   );
 
   const handlePastePatternOnSpread = useCallback(
-    (spreadId: string, side: 'left' | 'right' = 'left') => {
-      if (!copiedPattern) return;
+    (
+      spreadId: string,
+      side: 'left' | 'right' = 'left',
+      patternOverride?: CopiedPatternData
+    ) => {
+      const patToPaste = patternOverride ?? copiedPattern;
+      if (!patToPaste) return;
       const target = workspace.spreads.find((sp) => sp.id === spreadId) ?? workspace.spreads[0];
       if (!target) return;
+
+      if (patToPaste.imagePath) {
+        const existingImages = target.elements.filter(
+          (e) => e.side === side && e.type === 'image'
+        ).length;
+        const col = existingImages % 2;
+        const row = Math.floor(existingImages / 2) % 2;
+        const newEl: PageElement = {
+          id: `el-${Date.now()}`,
+          side,
+          type: 'image',
+          x: 8 + col * 36,
+          y: 14 + row * 34,
+          width: 210,
+          content: patToPaste.imagePath,
+          title: patToPaste.name,
+          rotation: 0,
+          frameStyle: 'minimal',
+        };
+        updateCurrentSpread({
+          ...target,
+          elements: [...target.elements, newEl],
+          updatedAt: new Date().toISOString(),
+        });
+        setNotebookMode('book');
+        setActiveTool('select');
+        showToast(`Mandala pegado: ${patToPaste.name}`);
+        return;
+      }
+
+      const isMandala = Boolean(patToPaste.mandalaId);
       const existingSymbols = target.elements.filter(
         (e) => e.side === side && e.type === 'pattern-note'
       ).length;
-      const cols = 8;
-      const col = existingSymbols % cols;
-      const row = Math.floor(existingSymbols / cols) % 7;
-      const offsetX = 10 + col * 9.5;
-      const offsetY = 14 + row * 10;
+
+      let offsetX: number;
+      let offsetY: number;
+      if (isMandala) {
+        const col = existingSymbols % 2;
+        const row = Math.floor(existingSymbols / 2) % 3;
+        offsetX = 10 + col * 40;
+        offsetY = 12 + row * 28;
+      } else {
+        const cols = 8;
+        const col = existingSymbols % cols;
+        const row = Math.floor(existingSymbols / cols) % 7;
+        offsetX = 10 + col * 9.5;
+        offsetY = 14 + row * 10;
+      }
 
       const newEl: PageElement = {
         id: `el-${Date.now()}`,
@@ -265,10 +423,10 @@ export default function App() {
         type: 'pattern-note',
         x: offsetX,
         y: offsetY,
-        width: 44,
-        content: copiedPattern.stitchKey,
-        color: brush.color,
-        patternData: { ...copiedPattern },
+        width: isMandala ? 148 : 44,
+        content: patToPaste.stitchKey,
+        ...(isMandala ? {} : { color: brush.color }),
+        patternData: { ...patToPaste },
       };
 
       updateCurrentSpread({
@@ -276,8 +434,13 @@ export default function App() {
         elements: [...target.elements, newEl],
         updatedAt: new Date().toISOString(),
       });
+      setNotebookMode('book');
       setActiveTool('select');
-      showToast(`Símbolo pegado: ${copiedPattern.abbreviation || copiedPattern.name}`);
+      showToast(
+        isMandala
+          ? `Mandala pegado: ${patToPaste.name}`
+          : `Símbolo pegado: ${patToPaste.abbreviation || patToPaste.name}`
+      );
     },
     [copiedPattern, workspace.spreads, brush.color, updateCurrentSpread, showToast]
   );
@@ -289,6 +452,7 @@ export default function App() {
     }
     const target = getActiveEditableSpread();
     if (!target) return;
+    audioEngine.playEraseBrush();
     updateCurrentSpread({
       ...target,
       leftDrawingDataUrl: undefined,
@@ -335,7 +499,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#1a0f08] text-[#f5e7cf] overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-[#1a0f08] text-[#f5e7cf] overflow-hidden">
+      {/* Native Windows Title Bar (visible only inside the Windows Electron .exe app) */}
+      <ElectronTitleBar />
+
       {/* Hidden global image input for inserting directly into notebook */}
       <input
         ref={imageUploadRef}
@@ -354,238 +521,608 @@ export default function App() {
         {bookState === 'transitioning' && <CrochetTransition active />}
       </AnimatePresence>
 
-      {/* Cover Screen (1st photo) */}
+      {/* Cover Screen */}
       {bookState !== 'studio' && (
-        <CoverScreen
-          musicPlaying={musicPlaying}
-          onToggleMusic={handleToggleMusic}
-          onOpenBook={handleOpenBook}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <CoverScreen
+            sfxEnabled={workspace.sfxEnabled}
+            onToggleSfx={handleToggleSfx}
+            deskNotes={workspace.deskNotes ?? INITIAL_DESK_NOTES}
+            onChangeDeskNotes={(deskNotes: DeskNoteItem[]) =>
+              setWorkspace((prev) => ({ ...prev, deskNotes }))
+            }
+            onOpenBook={handleOpenBook}
+          />
+        </div>
       )}
 
-      {/* Open Studio Workspace (2nd photo aesthetic & full crochet details) */}
+      {/* Open Studio Workspace: Maximized Book on the LEFT, All Toolbars & Palettes on the RIGHT */}
       {bookState === 'studio' && (
         <motion.div
           initial={{ opacity: 0, scale: 0.985 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="h-screen w-screen flex flex-col overflow-hidden"
+          className="relative flex-1 min-h-0 w-full flex overflow-hidden leather-studio-bg"
         >
-          {!focusMode && <TopStudioBar
-            activeSection={activeSection}
-            patternCount={workspace.patterns.length}
-            activeTool={activeTool}
-            selectedShapeKind={selectedShapeKind}
-            onSelectShapeKind={setSelectedShapeKind}
-            brush={brush}
-            recentColors={workspace.recentColors}
-            onChangeBrush={(patch) => setBrush((prev) => ({ ...prev, ...patch }))}
-            onSelectColor={handleSelectColor}
-            onSelectTool={setActiveTool}
-            onClearPageStrokes={handleClearPageStrokes}
-            onNewPage={handleAddSpread}
-            onExportBackup={() => {
-              exportWorkspaceJson(workspace);
-              showToast('Respaldo exportado');
-            }}
-            onImportBackup={handleImportBackup}
-            onSaveNow={() => {
-              void saveWorkspace(workspace);
-              showToast('Cuaderno guardado');
-            }}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            canUndo={undoStack.length > 0}
-            canRedo={redoStack.length > 0}
-            onOpenImageUpload={() => imageUploadRef.current?.click()}
-            onGoToSection={(sec) => {
-              audioEngine.playStitchClick();
-              setActiveSection(sec);
-            }}
-            musicPlaying={musicPlaying}
-            onToggleMusic={handleToggleMusic}
-            onOpenHelp={() => setShowHelp(true)}
-            onReturnToCover={handleReturnToCover}
-            onOpenDrive={(tab = 'backups') => {
-              setDriveInitialTab(tab);
-              setDriveModalOpen(true);
-            }}
-            driveConnected={!driveNeedsAuth && driveUser !== null}
-            savedToast={savedToast}
-          />}
-          {activeSection === 'cuaderno' && (
-            <button type="button" onClick={() => setFocusMode((value) => !value)}
-              aria-label={focusMode ? 'Mostrar herramientas' : 'Modo concentración'}
-              title={focusMode ? 'Mostrar herramientas' : 'Modo concentración'}
-              className="fixed top-3 right-3 z-[70] rounded-lg border border-[#bd9458] bg-[#29170d]/90 p-2 text-[#f8dcaa] shadow-lg hover:bg-[#543016]">
-              {focusMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          {/* Decorative 3D Crochet Lace & Flowers along outer left corners (never blocking right controls or vestidor) */}
+          {!focusMode && activeSection !== 'vestidor' && (
+            <>
+              <OuterFrameCrochetCorner corner="top-left" />
+              <OuterFrameCrochetCorner corner="bottom-left" />
+            </>
+          )}
+
+          {/* Focus mode quick exit button */}
+          {focusMode && activeSection === 'cuaderno' && (
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playToggleChime(true);
+                setFocusMode(false);
+              }}
+              aria-label="Mostrar herramientas"
+              title="Mostrar herramientas"
+              className="fixed top-2 right-2 z-[70] rounded-lg border border-[#d49e58]/70 bg-[#291509]/95 p-1.5 text-[#f8dcaa] shadow-lg hover:bg-[#543016] cursor-pointer"
+            >
+              <Minimize2 size={16} />
             </button>
           )}
 
-          <div className="flex-1 flex min-h-0 overflow-hidden">
-            {/* Main Center Stage */}
-            <main className="flex-1 flex min-w-0 min-h-0 overflow-hidden">
-              {activeSection === 'cuaderno' && (
-                <NotebookSpread
-                  spreads={workspace.spreads}
-                  patterns={workspace.patterns}
-                  currentSpreadIndex={currentSpreadIndex}
-                  onChangeSpreadIndex={setCurrentSpreadIndex}
-                  onAddSpread={handleAddSpread}
-                  onUpdateSpread={updateCurrentSpread}
+          {/* LEFT MAIN STAGE: Huge Open Notebook or Utility Section */}
+          <main className="relative z-10 flex-1 flex min-w-0 min-h-0 overflow-hidden">
+            {activeSection === 'cuaderno' && (
+              <NotebookSpread
+                spreads={workspace.spreads}
+                patterns={workspace.patterns}
+                currentSpreadIndex={currentSpreadIndex}
+                onChangeSpreadIndex={setCurrentSpreadIndex}
+                notebookMode={notebookMode}
+                onChangeNotebookMode={setNotebookMode}
+                mandalaSpreadIndex={mandalaSpreadIndex}
+                onChangeMandalaSpreadIndex={setMandalaSpreadIndex}
+                onAddSpread={handleAddSpread}
+                onUpdateSpread={updateCurrentSpread}
+                activeTool={activeTool}
+                onSelectTool={setActiveTool}
+                selectedShapeKind={selectedShapeKind}
+                brush={brush}
+                onPickColorFromCanvas={(hex) => {
+                  handleSelectColor(hex);
+                  setActiveTool('draw');
+                  showToast(`Color capturado: ${hex}`);
+                }}
+                selectedFont={workspace.selectedFont}
+                copiedPattern={copiedPattern}
+                onCopyPattern={handleCopyPattern}
+                onPastePatternOnSpread={handlePastePatternOnSpread}
+                onPlayPageFlip={() => audioEngine.playPageFlip()}
+                onEnterDressingRoom={() => setActiveSection('vestidor')}
+                onNotify={showToast}
+                dockedMode={!focusMode}
+                focusMode={focusMode}
+                onToggleFocusMode={() => setFocusMode((v) => !v)}
+                layerVisibility={layerVisibility}
+                layerOrder={layerOrder}
+                onStepLayerOrder={handleStepLayerOrder}
+                layerActionSignal={layerActionSignal}
+                cyclePaperSignal={cyclePaperSignal}
+                turnPageSignal={turnPageSignal}
+                toggleOverviewSignal={toggleOverviewSignal}
+                rotateAllSignal={rotateAllSignal}
+                zoom={bookZoom}
+                onChangeZoom={setBookZoom}
+                onSpreadMetaChange={setSpreadMeta}
+              />
+            )}
+
+            {activeSection === 'patrones' && (
+              <PatternsView
+                patterns={workspace.patterns}
+                onSavePattern={handleSavePattern}
+                onDeletePattern={handleDeletePattern}
+                onPlayStitchClick={() => audioEngine.playStitchClick()}
+                onPinStitchToNotebook={(entry) => {
+                  const target = getActiveEditableSpread();
+                  const count = target
+                    ? target.elements.filter((e) => e.side === 'left' && e.type === 'pattern-note').length
+                    : 0;
+                  const col = count % 8;
+                  const row = Math.floor(count / 8) % 7;
+                  insertElementOnCurrentSpread({
+                    side: 'left',
+                    type: 'pattern-note',
+                    x: 10 + col * 9.5,
+                    y: 14 + row * 10,
+                    width: 44,
+                    content: entry.stitchKey,
+                    color: brush.color,
+                    patternData: {
+                      id: entry.id,
+                      stitchKey: entry.stitchKey,
+                      name: entry.name,
+                      abbreviation: entry.abbreviation,
+                      description: entry.description,
+                      letter: entry.letter,
+                      group: entry.group,
+                    },
+                  });
+                  audioEngine.playYarnPluck(3);
+                  showToast('Símbolo pegado en el cuaderno');
+                }}
+                onPinPatternToNotebook={(pat) => {
+                  insertElementOnCurrentSpread({
+                    side: 'left',
+                    type: 'pattern-note',
+                    x: 10,
+                    y: 16,
+                    width: 260,
+                    content: pat.title,
+                    patternData: {
+                      id: pat.id,
+                      stitchKey: 'custom',
+                      name: pat.title,
+                      abbreviation: pat.hookSizeMm,
+                      description: `${pat.materialsSummary} · Vuelta ${pat.currentRound}/${pat.steps.length}`,
+                      diagramGrid: pat.diagramGrid,
+                    },
+                  });
+                  audioEngine.playYarnPluck(5);
+                  showToast('Patrón pegado en el cuaderno');
+                }}
+              />
+            )}
+
+            {activeSection === 'stickers' && (
+              <StickersAndImagesView
+                onInsertSticker={(stickerId) => {
+                  const target = getActiveEditableSpread();
+                  const stickerCount = target
+                    ? target.elements.filter((e) => e.type === 'sticker').length
+                    : 0;
+                  const side = stickerCount % 2 === 0 ? 'left' : 'right';
+                  const offsetX = 16 + ((stickerCount * 13) % 52);
+                  const offsetY = 18 + ((stickerCount * 15) % 54);
+                  insertElementOnCurrentSpread({
+                    side,
+                    type: 'sticker',
+                    x: offsetX,
+                    y: offsetY,
+                    width: 108,
+                    content: stickerId,
+                    rotation: (stickerCount % 3 - 1) * 5,
+                  });
+                  audioEngine.playYarnPluck(stickerCount);
+                  showToast('Sticker añadido al cuaderno');
+                }}
+                onUploadImageToNotebook={() => imageUploadRef.current?.click()}
+              />
+            )}
+
+            {activeSection === 'gifs' && (
+              <CrochetGifsView
+                onInsertGif={(dataUrl, title) => {
+                  const target = getActiveEditableSpread();
+                  const imgCount = target
+                    ? target.elements.filter((e) => e.type === 'image').length
+                    : 0;
+                  const side = imgCount % 2 === 0 ? 'right' : 'left';
+                  const offsetX = 14 + ((imgCount * 15) % 46);
+                  const offsetY = 16 + ((imgCount * 17) % 48);
+                  insertElementOnCurrentSpread({
+                    side,
+                    type: 'image',
+                    x: offsetX,
+                    y: offsetY,
+                    width: 148,
+                    content: dataUrl,
+                    title,
+                    rotation: 0,
+                    frameStyle: 'minimal',
+                  });
+                  showToast(`GIF animado pegado: ${title}`);
+                }}
+                onNotify={showToast}
+                onReturnToNotebook={() => setActiveSection('cuaderno')}
+              />
+            )}
+
+            {activeSection === 'fuentes' && (
+              <FontsView
+                selectedFont={workspace.selectedFont}
+                onSelectFont={(font: FontChoice) =>
+                  setWorkspace((prev) => ({ ...prev, selectedFont: font }))
+                }
+              />
+            )}
+
+            {activeSection === 'pinceles' && (
+              <BrushesQuickView
+                brush={brush}
+                onChangeBrush={(patch) => setBrush((prev) => ({ ...prev, ...patch }))}
+                onActivateDrawMode={() => {
+                  setActiveTool('draw');
+                  setActiveSection('cuaderno');
+                }}
+              />
+            )}
+
+            {activeSection === 'vestidor' && (
+              <GoldenDressingRoomView
+                customGarments={workspace.wardrobeItems ?? []}
+                finishedProjects={workspace.projects}
+                onAddCustomGarment={(garment: DressingRoomGarment) => {
+                  setWorkspace((prev) => ({
+                    ...prev,
+                    wardrobeItems: [garment, ...(prev.wardrobeItems ?? [])],
+                  }));
+                }}
+                onDeleteCustomGarment={(id: string) => {
+                  setWorkspace((prev) => ({
+                    ...prev,
+                    wardrobeItems: (prev.wardrobeItems ?? []).filter((g) => g.id !== id),
+                  }));
+                  showToast('Prenda retirada del vestidor');
+                }}
+                onSelectBrushColor={(hex) => {
+                  handleSelectColor(hex);
+                }}
+                onPinGarmentToNotebook={(garment) => {
+                  const target = getActiveEditableSpread();
+                  if (target) {
+                    setNotebookMode('book');
+                    if (currentSpreadIndex < catalogSpreadCount) {
+                      setCurrentSpreadIndex(catalogSpreadCount);
+                    }
+                    const ts = Date.now();
+                    const newElements: PageElement[] = [];
+                    if (garment.photoDataUrl) {
+                      newElements.push({
+                        id: `el-${ts}-img`,
+                        side: 'right',
+                        type: 'image',
+                        x: 10,
+                        y: 10,
+                        width: 195,
+                        content: garment.photoDataUrl,
+                        title: garment.name,
+                        frameStyle: 'gold',
+                      });
+                    }
+                    newElements.push({
+                      id: `el-${ts}-spec`,
+                      side: 'right',
+                      type: 'text',
+                      x: 10,
+                      y: garment.photoDataUrl ? 56 : 14,
+                      width: 265,
+                      content: `${garment.name}\n• Fibra: ${garment.fiber}${garment.fiberDetail ? ` (${garment.fiberDetail})` : ''}\n• Ganchillo: ${garment.hookSizeMm}\n• Puntada: ${garment.stitchNote}`,
+                      color: '#4c290a',
+                      fontSize: 16,
+                      fontFamily: 'cormorant',
+                      backgroundColor: 'rgba(251, 236, 212, 0.92)',
+                    });
+                    updateCurrentSpread({
+                      ...target,
+                      elements: [...target.elements, ...newElements],
+                      updatedAt: new Date().toISOString(),
+                    });
+                    setActiveTool('select');
+                  }
+                  setActiveSection('cuaderno');
+                  showToast(`Prenda y ficha llevadas al cuaderno: ${garment.name}`);
+                }}
+                onBackToNotebook={() => setActiveSection('cuaderno')}
+                onNotify={showToast}
+              />
+            )}
+
+            {activeSection === 'configuracion' && (
+              <SettingsView
+                sfxEnabled={workspace.sfxEnabled}
+                onToggleSfx={handleToggleSfx}
+                onExportBackup={() => {
+                  exportWorkspaceJson(workspace);
+                  showToast('Respaldo exportado');
+                }}
+                onImportBackup={handleImportBackup}
+                onResetDemoData={() => {
+                  setWorkspace(DEFAULT_WORKSPACE);
+                  setCurrentSpreadIndex(0);
+                  showToast('Cuaderno inicial restaurado');
+                }}
+              />
+            )}
+          </main>
+
+          {/* UNIFIED RIGHT STUDIO DOCK (Desktop inline + Mobile slide drawer — hidden in Vestidor Dorado) */}
+          {!focusMode && activeSection !== 'vestidor' && (
+            <>
+              {/* Desktop Unified Right Studio Dock */}
+              <div className="relative z-30 hidden lg:flex h-full shrink-0">
+                <RightStudioDock
+                  activeSection={activeSection}
                   activeTool={activeTool}
-                  onSelectTool={setActiveTool}
                   selectedShapeKind={selectedShapeKind}
                   brush={brush}
-                  onPickColorFromCanvas={(hex) => {
-                    handleSelectColor(hex);
-                    setActiveTool('draw');
-                    showToast(`Color capturado: ${hex}`);
-                  }}
-                  selectedFont={workspace.selectedFont}
-                  copiedPattern={copiedPattern}
-                  onCopyPattern={handleCopyPattern}
-                  onPastePatternOnSpread={handlePastePatternOnSpread}
-                  onPlayPageFlip={() => audioEngine.playPageFlip()}
-                  onNotify={showToast}
-                />
-              )}
-
-              {activeSection === 'patrones' && (
-                <PatternsView
-                  patterns={workspace.patterns}
-                  onSavePattern={handleSavePattern}
-                  onDeletePattern={handleDeletePattern}
-                  onPlayStitchClick={() => audioEngine.playStitchClick()}
-                  onPinStitchToNotebook={(entry) => {
-                    const target = getActiveEditableSpread();
-                    const count = target
-                      ? target.elements.filter((e) => e.side === 'left' && e.type === 'pattern-note').length
-                      : 0;
-                    const col = count % 8;
-                    const row = Math.floor(count / 8) % 7;
-                    insertElementOnCurrentSpread({
-                      side: 'left',
-                      type: 'pattern-note',
-                      x: 10 + col * 9.5,
-                      y: 14 + row * 10,
-                      width: 44,
-                      content: entry.stitchKey,
-                      color: brush.color,
-                      patternData: {
-                        id: entry.id,
-                        stitchKey: entry.stitchKey,
-                        name: entry.name,
-                        abbreviation: entry.abbreviation,
-                        description: entry.description,
-                        letter: entry.letter,
-                        group: entry.group,
-                      },
-                    });
-                    showToast('Símbolo pegado en el cuaderno');
-                  }}
-                  onPinPatternToNotebook={(pat) => {
-                    insertElementOnCurrentSpread({
-                      side: 'left',
-                      type: 'pattern-note',
-                      x: 10,
-                      y: 16,
-                      width: 260,
-                      content: pat.title,
-                      patternData: {
-                        id: pat.id,
-                        stitchKey: 'custom',
-                        name: pat.title,
-                        abbreviation: pat.hookSizeMm,
-                        description: `${pat.materialsSummary} · Vuelta ${pat.currentRound}/${pat.steps.length}`,
-                        diagramGrid: pat.diagramGrid,
-                      },
-                    });
-                    showToast('Patrón pegado en el cuaderno');
-                  }}
-                />
-              )}
-
-              {activeSection === 'stickers' && (
-                <StickersAndImagesView
-                  onInsertSticker={(stickerId) => {
-                    const target = getActiveEditableSpread();
-                    const stickerCount = target
-                      ? target.elements.filter((e) => e.type === 'sticker').length
-                      : 0;
-                    const side = stickerCount % 2 === 0 ? 'left' : 'right';
-                    const offsetX = 16 + ((stickerCount * 13) % 52);
-                    const offsetY = 18 + ((stickerCount * 15) % 54);
-                    insertElementOnCurrentSpread({
-                      side,
-                      type: 'sticker',
-                      x: offsetX,
-                      y: offsetY,
-                      width: 108,
-                      content: stickerId,
-                      rotation: (stickerCount % 3 - 1) * 5,
-                    });
-                    showToast('Sticker añadido al cuaderno');
-                  }}
-                  onUploadImageToNotebook={() => imageUploadRef.current?.click()}
-                />
-              )}
-
-              {activeSection === 'fuentes' && (
-                <FontsView
-                  selectedFont={workspace.selectedFont}
-                  onSelectFont={(font: FontChoice) =>
-                    setWorkspace((prev) => ({ ...prev, selectedFont: font }))
+                  recentColors={workspace.recentColors}
+                  paperStyle={spreadMeta.paperStyle}
+                  isCatalogSpread={spreadMeta.isCatalog}
+                  activeSpreadTitle={spreadMeta.title}
+                  currentSpreadIndex={
+                    notebookMode === 'mandalas' ? mandalaSpreadIndex : currentSpreadIndex
                   }
-                />
-              )}
-
-              {activeSection === 'pinceles' && (
-                <BrushesQuickView
-                  brush={brush}
-                  onChangeBrush={(patch) => setBrush((prev) => ({ ...prev, ...patch }))}
-                  onActivateDrawMode={() => {
-                    setActiveTool('draw');
-                    setActiveSection('cuaderno');
-                  }}
-                />
-              )}
-
-              {activeSection === 'configuracion' && (
-                <SettingsView
-                  musicPlaying={musicPlaying}
-                  musicVolume={workspace.musicVolume}
+                  totalBookSpreads={spreadMeta.totalBookSpreads}
+                  catalogCount={spreadMeta.catalogCount}
+                  zoom={bookZoom}
+                  showOverview={spreadMeta.showOverview}
+                  hasSelectedElement={spreadMeta.hasSelected}
+                  hasDrawings={spreadMeta.hasDrawings}
+                  hasElements={spreadMeta.hasElements}
+                  allRotateAngle={spreadMeta.allRotateAngle}
+                  layerVisibility={layerVisibility}
+                  layerOrder={layerOrder}
+                  selectedLayer={selectedLayer}
+                  canUndo={undoStack.length > 0}
+                  canRedo={redoStack.length > 0}
+                  driveConnected={!driveNeedsAuth && driveUser !== null}
                   sfxEnabled={workspace.sfxEnabled}
-                  ambientWarmth={workspace.ambientWarmth}
-                  onToggleMusic={handleToggleMusic}
-                  onChangeVolume={(vol) => {
-                    audioEngine.setMusicVolume(vol);
-                    setWorkspace((prev) => ({ ...prev, musicVolume: vol }));
+                  focusMode={focusMode}
+                  savedToast={savedToast}
+                  onSelectColor={handleSelectColor}
+                  onChangeBrush={(patch) => setBrush((prev) => ({ ...prev, ...patch }))}
+                  onSelectTool={setActiveTool}
+                  onSelectShapeKind={setSelectedShapeKind}
+                  onGoToSection={(sec) => setActiveSection(sec)}
+                  notebookMode={notebookMode}
+                  onOpenMandalasSection={() => {
+                    setActiveSection('cuaderno');
+                    setNotebookMode('mandalas');
                   }}
-                  onToggleSfx={() => {
-                    const next = !workspace.sfxEnabled;
-                    audioEngine.setSfxEnabled(next);
-                    setWorkspace((prev) => ({ ...prev, sfxEnabled: next }));
+                  onOpenBookSection={() => {
+                    setActiveSection('cuaderno');
+                    setNotebookMode('book');
                   }}
-                  onToggleWarmth={() => {
-                    const next = !workspace.ambientWarmth;
-                    audioEngine.setAmbientWarmth(next);
-                    setWorkspace((prev) => ({ ...prev, ambientWarmth: next }));
+                  onToggleLayerVisibility={(layer) =>
+                    setLayerVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))
+                  }
+                  onCyclePaperStyle={() => setCyclePaperSignal((c) => c + 1)}
+                  onLayerAction={handleDockLayerAction}
+                  onNewPage={handleAddSpread}
+                  onImportBackup={handleImportBackup}
+                  onSaveNow={() => {
+                    void saveWorkspace(workspace);
+                    showToast('Cuaderno guardado');
                   }}
                   onExportBackup={() => {
                     exportWorkspaceJson(workspace);
                     showToast('Respaldo exportado');
                   }}
-                  onImportBackup={handleImportBackup}
-                  onResetDemoData={() => {
-                    setWorkspace(DEFAULT_WORKSPACE);
-                    setCurrentSpreadIndex(0);
-                    showToast('Cuaderno inicial restaurado');
+                  onUndo={handleUndo}
+                  onRedo={handleRedo}
+                  onOpenImageUpload={() => imageUploadRef.current?.click()}
+                  onInsertMannequin={(view) => {
+                    insertElementOnCurrentSpread({
+                      side: view === 'front' ? 'left' : 'right',
+                      type: 'mannequin',
+                      x: view === 'front' ? 6 : 50,
+                      y: 13,
+                      width: 196,
+                      content: view,
+                      color: 'natural',
+                      opacity: 1,
+                      title: view === 'front' ? 'Maniquí de frente' : 'Maniquí de espalda',
+                    });
+                    setActiveSection('cuaderno');
+                    setActiveTool('select');
+                    showToast(
+                      view === 'front'
+                        ? 'Maniquí de frente añadido'
+                        : 'Maniquí de espalda añadido'
+                    );
                   }}
+                  onInsertWardrobe={() => {
+                    insertElementOnCurrentSpread({
+                      side: 'left',
+                      type: 'wardrobe',
+                      x: 7,
+                      y: 9,
+                      width: 390,
+                      content: 'closed',
+                      opacity: 1,
+                      title: 'Armario Barroco de Crochet',
+                    });
+                    setActiveSection('cuaderno');
+                    setActiveTool('select');
+                    showToast('Armario 3D añadido a la hoja izquierda');
+                  }}
+                  onOpenDrive={(tab = 'backups') => {
+                    setDriveInitialTab(tab);
+                    setDriveModalOpen(true);
+                  }}
+                  onOpenHelp={() => setShowHelp(true)}
+                  onReturnToCover={handleReturnToCover}
+                  onToggleSfx={handleToggleSfx}
+                  onToggleFocusMode={() => setFocusMode((v) => !v)}
+                  onChangeSpreadIndex={setCurrentSpreadIndex}
+                  onTurnPage={(dir) => setTurnPageSignal({ id: Date.now(), dir })}
+                  onChangeZoom={(delta) =>
+                    setBookZoom((z) => Math.max(70, Math.min(130, z + delta)))
+                  }
+                  onToggleOverview={() => setToggleOverviewSignal((c) => c + 1)}
+                  onUpdateSpreadTitle={(title) => {
+                    const target = getActiveEditableSpread();
+                    if (target) {
+                      updateCurrentSpread({ ...target, title });
+                    }
+                  }}
+                  onRotateAllElements={(mode, value) =>
+                    setRotateAllSignal({ id: Date.now(), mode, value })
+                  }
+                  onClearPageStrokes={handleClearPageStrokes}
                 />
+              </div>
+
+              {/* Mobile / Tablet Compact Drawer Trigger & Slide-Over Dock (< lg) */}
+              {!showMobileDock && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playStitchClick();
+                    setShowMobileDock(true);
+                  }}
+                  aria-label="Abrir herramientas"
+                  title="Abrir herramientas"
+                  className="lg:hidden fixed top-2 right-2 z-40 rounded-lg border border-[#d49e58]/70 bg-[#291509]/95 p-2 text-[#f8dcaa] shadow-lg hover:bg-[#543016] cursor-pointer"
+                >
+                  <SlidersHorizontal size={16} />
+                </button>
               )}
-            </main>
-          </div>
+
+              <AnimatePresence>
+                {showMobileDock && (
+                  <div className="lg:hidden">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setShowMobileDock(false)}
+                      className="fixed inset-0 bg-black/45 z-40"
+                    />
+                    <div className="fixed right-1.5 top-1 bottom-1 z-50 flex">
+                      <RightStudioDock
+                        activeSection={activeSection}
+                        activeTool={activeTool}
+                        selectedShapeKind={selectedShapeKind}
+                        brush={brush}
+                        recentColors={workspace.recentColors}
+                        paperStyle={spreadMeta.paperStyle}
+                        isCatalogSpread={spreadMeta.isCatalog}
+                        activeSpreadTitle={spreadMeta.title}
+                        currentSpreadIndex={
+                          notebookMode === 'mandalas' ? mandalaSpreadIndex : currentSpreadIndex
+                        }
+                        totalBookSpreads={spreadMeta.totalBookSpreads}
+                        catalogCount={spreadMeta.catalogCount}
+                        zoom={bookZoom}
+                        showOverview={spreadMeta.showOverview}
+                        hasSelectedElement={spreadMeta.hasSelected}
+                        hasDrawings={spreadMeta.hasDrawings}
+                        hasElements={spreadMeta.hasElements}
+                        allRotateAngle={spreadMeta.allRotateAngle}
+                        layerVisibility={layerVisibility}
+                        layerOrder={layerOrder}
+                        selectedLayer={selectedLayer}
+                        canUndo={undoStack.length > 0}
+                        canRedo={redoStack.length > 0}
+                        driveConnected={!driveNeedsAuth && driveUser !== null}
+                        sfxEnabled={workspace.sfxEnabled}
+                        focusMode={focusMode}
+                        savedToast={savedToast}
+                        onSelectColor={handleSelectColor}
+                        onChangeBrush={(patch) => setBrush((prev) => ({ ...prev, ...patch }))}
+                        onSelectTool={setActiveTool}
+                        onSelectShapeKind={setSelectedShapeKind}
+                        onGoToSection={(sec) => {
+                          setActiveSection(sec);
+                          if (sec !== 'cuaderno') setShowMobileDock(false);
+                        }}
+                        notebookMode={notebookMode}
+                        onOpenMandalasSection={() => {
+                          setActiveSection('cuaderno');
+                          setNotebookMode('mandalas');
+                          setShowMobileDock(false);
+                        }}
+                        onOpenBookSection={() => {
+                          setActiveSection('cuaderno');
+                          setNotebookMode('book');
+                        }}
+                        onToggleLayerVisibility={(layer) =>
+                          setLayerVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))
+                        }
+                        onCyclePaperStyle={() => setCyclePaperSignal((c) => c + 1)}
+                        onLayerAction={handleDockLayerAction}
+                        onNewPage={handleAddSpread}
+                        onImportBackup={handleImportBackup}
+                        onSaveNow={() => {
+                          void saveWorkspace(workspace);
+                          showToast('Cuaderno guardado');
+                        }}
+                        onExportBackup={() => {
+                          exportWorkspaceJson(workspace);
+                          showToast('Respaldo exportado');
+                        }}
+                        onUndo={handleUndo}
+                        onRedo={handleRedo}
+                        onOpenImageUpload={() => imageUploadRef.current?.click()}
+                        onInsertMannequin={(view) => {
+                          insertElementOnCurrentSpread({
+                            side: view === 'front' ? 'left' : 'right',
+                            type: 'mannequin',
+                            x: view === 'front' ? 6 : 50,
+                            y: 13,
+                            width: 196,
+                            content: view,
+                            color: 'natural',
+                            opacity: 1,
+                            title: view === 'front' ? 'Maniquí de frente' : 'Maniquí de espalda',
+                          });
+                          setActiveSection('cuaderno');
+                          setActiveTool('select');
+                          setShowMobileDock(false);
+                          showToast(
+                            view === 'front'
+                              ? 'Maniquí de frente añadido'
+                              : 'Maniquí de espalda añadido'
+                          );
+                        }}
+                        onInsertWardrobe={() => {
+                          insertElementOnCurrentSpread({
+                            side: 'left',
+                            type: 'wardrobe',
+                            x: 7,
+                            y: 9,
+                            width: 390,
+                            content: 'closed',
+                            opacity: 1,
+                            title: 'Armario Barroco de Crochet',
+                          });
+                          setActiveSection('cuaderno');
+                          setActiveTool('select');
+                          setShowMobileDock(false);
+                          showToast('Armario 3D añadido a la hoja izquierda');
+                        }}
+                        onOpenDrive={(tab = 'backups') => {
+                          setDriveInitialTab(tab);
+                          setDriveModalOpen(true);
+                        }}
+                        onOpenHelp={() => setShowHelp(true)}
+                        onReturnToCover={handleReturnToCover}
+                        onToggleSfx={handleToggleSfx}
+                        onToggleFocusMode={() => setFocusMode((v) => !v)}
+                        onChangeSpreadIndex={setCurrentSpreadIndex}
+                        onTurnPage={(dir) => setTurnPageSignal({ id: Date.now(), dir })}
+                        onChangeZoom={(delta) =>
+                          setBookZoom((z) => Math.max(70, Math.min(130, z + delta)))
+                        }
+                        onToggleOverview={() => setToggleOverviewSignal((c) => c + 1)}
+                        onUpdateSpreadTitle={(title) => {
+                          const target = getActiveEditableSpread();
+                          if (target) {
+                            updateCurrentSpread({ ...target, title });
+                          }
+                        }}
+                        onRotateAllElements={(mode, value) =>
+                          setRotateAllSignal({ id: Date.now(), mode, value })
+                        }
+                        onClearPageStrokes={handleClearPageStrokes}
+                        onCloseMobileDrawer={() => setShowMobileDock(false)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
         </motion.div>
       )}
 
@@ -610,6 +1147,8 @@ export default function App() {
         onInsertDriveImage={handleNotebookImageFile}
         onNotify={showToast}
       />
+
+      <OfflineIndicator />
     </div>
   );
 }

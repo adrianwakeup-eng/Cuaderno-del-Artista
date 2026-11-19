@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgLeather" cx="50%" cy="42%" r="68%">
+      <stop offset="0%" stop-color="#4e2612" />
+      <stop offset="55%" stop-color="#2b1409" />
+      <stop offset="100%" stop-color="#170a04" />
+    </radialGradient>
+    <linearGradient id="goldLeaf" x1="15%" y1="10%" x2="85%" y2="90%">
+      <stop offset="0%" stop-color="#fff0c2" />
+      <stop offset="35%" stop-color="#e7b65d" />
+      <stop offset="70%" stop-color="#b87b24" />
+      <stop offset="100%" stop-color="#7c4a0d" />
+    </linearGradient>
+    <linearGradient id="goldBright" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff6d8" />
+      <stop offset="50%" stop-color="#ecc06c" />
+      <stop offset="100%" stop-color="#a56a1c" />
+    </linearGradient>
+    <linearGradient id="crimsonWax" x1="20%" y1="15%" x2="80%" y2="85%">
+      <stop offset="0%" stop-color="#b63740" />
+      <stop offset="60%" stop-color="#7c1d25" />
+      <stop offset="100%" stop-color="#4b0e14" />
+    </linearGradient>
+  </defs>
+
+  <!-- Deep leather full-bleed background -->
+  <rect width="512" height="512" rx="96" fill="url(#bgLeather)" />
+
+  <!-- Outer baroque gold frame -->
+  <rect x="28" y="28" width="456" height="456" rx="72" fill="none" stroke="url(#goldLeaf)" stroke-width="10" />
+  <rect x="48" y="48" width="416" height="416" rx="56" fill="none" stroke="url(#goldLeaf)" stroke-width="3" stroke-dasharray="10 8" opacity="0.78" />
+
+  <!-- Vitruvian golden circle & inner square motif -->
+  <circle cx="256" cy="256" r="158" fill="none" stroke="url(#goldBright)" stroke-width="7" opacity="0.92" />
+  <circle cx="256" cy="256" r="134" fill="none" stroke="url(#goldLeaf)" stroke-width="2.5" stroke-dasharray="7 7" opacity="0.65" />
+  <rect x="148" y="148" width="216" height="216" rx="14" fill="none" stroke="url(#goldLeaf)" stroke-width="2.5" opacity="0.45" />
+
+  <!-- Stylized crochet lace petals (8-fold medallion) -->
+  <g stroke="url(#goldBright)" stroke-width="6" fill="none" stroke-linecap="round">
+    <path d="M256 108 C282 142 282 178 256 212 C230 178 230 142 256 108 Z" />
+    <path d="M256 404 C282 370 282 334 256 300 C230 334 230 370 256 404 Z" />
+    <path d="M108 256 C142 230 178 230 212 256 C178 282 142 282 108 256 Z" />
+    <path d="M404 256 C370 230 334 230 300 256 C334 282 370 282 404 256 Z" />
+  </g>
+  <g stroke="url(#goldLeaf)" stroke-width="4.5" fill="none" stroke-linecap="round" opacity="0.88" transform="rotate(45 256 256)">
+    <path d="M256 120 C278 150 278 182 256 212 C234 182 234 150 256 120 Z" />
+    <path d="M256 392 C278 362 278 330 256 300 C234 330 234 362 256 392 Z" />
+    <path d="M120 256 C150 234 182 234 212 256 C182 278 150 278 120 256 Z" />
+    <path d="M392 256 C362 234 330 234 300 256 C330 278 362 278 392 256 Z" />
+  </g>
+
+  <!-- Central crimson wax seal & golden yarn / crochet hook crest -->
+  <circle cx="256" cy="256" r="78" fill="url(#crimsonWax)" stroke="url(#goldBright)" stroke-width="8" />
+  <circle cx="256" cy="256" r="64" fill="none" stroke="#f7dfaa" stroke-width="2" stroke-dasharray="5 5" opacity="0.65" />
+
+  <!-- Golden yarn ball lines inside seal -->
+  <g stroke="#fce6b3" stroke-width="5.5" fill="none" stroke-linecap="round">
+    <path d="M214 244 C236 216 276 214 298 240" />
+    <path d="M210 264 C238 238 278 238 302 262" />
+    <path d="M220 284 C244 264 276 264 294 282" />
+    <path d="M236 214 C252 240 252 274 236 298" opacity="0.82" />
+    <path d="M268 212 C280 238 280 272 266 298" opacity="0.82" />
+  </g>
+
+  <!-- Diagonal golden crochet hook -->
+  <path d="M174 342 L318 198 C328 188 342 190 342 202 C342 212 332 218 324 212" fill="none" stroke="url(#goldBright)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Four corner golden studs -->
+  <circle cx="84" cy="84" r="9" fill="url(#goldBright)" />
+  <circle cx="428" cy="84" r="9" fill="url(#goldBright)" />
+  <circle cx="84" cy="428" r="9" fill="url(#goldBright)" />
+  <circle cx="428" cy="428" r="9" fill="url(#goldBright)" />
+</svg>

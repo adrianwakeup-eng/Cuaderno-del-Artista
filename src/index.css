@@ -13,6 +13,7 @@
     font-family: var(--font-body);
     overflow-x: hidden;
     user-select: none;
+    background-color: #1a0d05;
   }
 
   input, textarea, [contenteditable="true"] {
@@ -41,41 +42,166 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Tactile leather & parchment surface textures */
+/* ---------- 3D Medieval Pebbled Leather Studio Shell ---------- */
+.leather-studio-bg {
+  background-color: #261208;
+  background-image:
+    radial-gradient(ellipse at 50% 42%, rgba(122, 66, 28, 0.28) 0%, rgba(45, 21, 9, 0.72) 58%, rgba(18, 8, 3, 0.96) 100%),
+    repeating-radial-gradient(circle at 0 0, rgba(255, 200, 130, 0.028) 0, rgba(0, 0, 0, 0.08) 3px, transparent 5px),
+    linear-gradient(160deg, #40210f 0%, #2b1408 48%, #180a04 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(206, 152, 78, 0.35),
+    inset 0 0 42px rgba(0, 0, 0, 0.75);
+}
+
 .leather-surface {
   background:
     radial-gradient(circle at 22% 18%, rgba(164, 102, 54, 0.24), transparent 52%),
     radial-gradient(circle at 80% 85%, rgba(92, 46, 20, 0.35), transparent 55%),
     linear-gradient(160deg, #3c2212 0%, #27150b 52%, #1a0d06 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 219, 166, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 219, 166, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.65);
 }
 
 .leather-panel {
   background:
-    radial-gradient(circle at 20% 10%, rgba(122, 68, 32, 0.34), transparent 58%),
-    linear-gradient(180deg, #351d0f 0%, #211108 100%);
-  border: 1px solid rgba(226, 174, 102, 0.48);
+    radial-gradient(circle at 20% 10%, rgba(122, 68, 32, 0.36), transparent 58%),
+    linear-gradient(180deg, #3b2010 0%, #221107 100%);
+  border: 1.5px solid rgba(224, 171, 94, 0.58);
   box-shadow:
-    inset 0 1px 0 rgba(255, 224, 174, 0.16),
-    0 16px 38px rgba(0, 0, 0, 0.72);
+    inset 0 1px 0 rgba(255, 224, 174, 0.22),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.65),
+    0 16px 38px rgba(0, 0, 0, 0.78);
+}
+
+/* Carved 3D wood & brass horizontal/vertical toolbars & bottom capsules */
+.carved-bar-3d {
+  background:
+    linear-gradient(180deg, rgba(114, 65, 29, 0.45) 0%, rgba(44, 22, 10, 0.92) 28%, rgba(26, 12, 5, 0.98) 100%);
+  border: 1.5px solid rgba(219, 165, 84, 0.68);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 227, 170, 0.32),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.8),
+    0 6px 18px rgba(0, 0, 0, 0.72),
+    0 1px 0 rgba(255, 220, 155, 0.15);
+}
+
+/* Right dock 3D bolted brass panels */
+.dock-card-3d {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(145, 86, 40, 0.28), transparent 58%),
+    linear-gradient(180deg, #3b200f 0%, #291509 55%, #1d0e05 100%);
+  border: 1.5px solid rgba(219, 166, 86, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 227, 168, 0.28),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.78),
+    0 12px 28px rgba(0, 0, 0, 0.75);
+}
+
+.dock-header-3d {
+  background: linear-gradient(180deg, rgba(132, 78, 36, 0.55) 0%, rgba(69, 37, 15, 0.75) 100%);
+  border-bottom: 1px solid rgba(219, 166, 86, 0.48);
+  box-shadow: inset 0 1px 0 rgba(255, 228, 174, 0.25);
+}
+
+.gold-embossed-title {
+  color: #f6cf78;
+  text-shadow:
+    0 1px 0 rgba(255, 244, 204, 0.55),
+    0 2px 4px rgba(0, 0, 0, 0.92),
+    0 0 12px rgba(240, 185, 92, 0.28);
+}
+
+/* ---------- 3D Leather Book Cover & Stacked Parchment Pages ---------- */
+.book-cover-3d {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(112, 58, 25, 0.35), transparent 65%),
+    linear-gradient(145deg, #4b2612 0%, #2d1509 52%, #1d0c04 100%);
+  border: 2px solid rgba(206, 151, 76, 0.72);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 220, 160, 0.24),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.85),
+    0 24px 54px rgba(0, 0, 0, 0.86),
+    0 8px 18px rgba(0, 0, 0, 0.65);
+}
+
+.book-page-stack-3d {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #e6cb99 0px,
+      #f4e0b7 2px,
+      #be945b 3px,
+      #dfc089 4px
+    );
+  box-shadow:
+    inset 0 0 12px rgba(58, 30, 10, 0.55),
+    0 12px 26px rgba(0, 0, 0, 0.65);
+}
+
+.book-page-bottom-stack-3d {
+  background:
+    repeating-linear-gradient(
+      180deg,
+      #e7cd9c 0px,
+      #f3dfb7 2px,
+      #a77b43 3px,
+      #d8b67d 4px
+    );
+  box-shadow: inset 0 2px 6px rgba(64, 34, 12, 0.45);
 }
 
 .parchment-page {
-  background-color: #fbf2de;
+  background-color: #fbf0d5;
   background-image:
-    radial-gradient(circle at 50% 45%, rgba(255, 250, 238, 0.85) 0%, rgba(244, 229, 196, 0.55) 75%, rgba(226, 202, 158, 0.72) 100%);
+    radial-gradient(circle at 50% 45%, rgba(255, 250, 236, 0.88) 0%, rgba(245, 227, 190, 0.62) 72%, rgba(217, 187, 134, 0.78) 100%);
 }
 
 .parchment-grid {
   background-image:
-    linear-gradient(to right, rgba(164, 126, 78, 0.19) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(164, 126, 78, 0.19) 1px, transparent 1px);
+    linear-gradient(to right, rgba(164, 126, 78, 0.21) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(164, 126, 78, 0.21) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
 .parchment-dots {
-  background-image: radial-gradient(rgba(148, 109, 63, 0.32) 1.15px, transparent 1.15px);
+  background-image: radial-gradient(rgba(148, 109, 63, 0.34) 1.15px, transparent 1.15px);
   background-size: 18px 18px;
+}
+
+/* Golden range slider matching 3D brass mockup */
+.brass-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #160a04 0%, #2a150a 100%);
+  border: 1px solid rgba(206, 152, 74, 0.45);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+}
+
+.brass-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fff4c9 0%, #eab95a 55%, #9a641b 100%);
+  border: 1.5px solid #fff0be;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.75);
+  cursor: pointer;
+}
+
+.brass-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fff4c9 0%, #eab95a 55%, #9a641b 100%);
+  border: 1.5px solid #fff0be;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.75);
+  cursor: pointer;
 }
 
 /* Custom warm brass scrollbar */
@@ -246,16 +372,30 @@
   opacity: 0.12;
 }
 
-
-/* Maximize the notebook without stretching its paper proportions. */
-.notebook-page-maximized {
-  width: min(calc((100vw - 56px) / 2), calc((100dvh - 148px) * 0.8205128));
-  height: min(calc((100vw - 56px) * 0.609375), calc(100dvh - 148px));
+/* Studio book page sizing: single unified right dock leaves maximum area for the 2-page open book */
+.notebook-page-docked {
+  width: min(calc((100vw - 332px) / 2), calc((100dvh - 20px) * 0.84));
+  height: min(calc((100vw - 332px) * 0.82), calc(100dvh - 20px));
   flex-shrink: 0;
 }
-@media (max-width: 700px) {
+
+.notebook-page-maximized {
+  width: min(calc((100vw - 44px) / 2), calc((100dvh - 20px) * 0.84));
+  height: min(calc((100vw - 44px) * 0.82), calc(100dvh - 20px));
+  flex-shrink: 0;
+}
+
+@media (max-width: 1023px) {
+  .notebook-page-docked {
+    width: min(calc((100vw - 36px) / 2), calc((100dvh - 28px) * 0.84));
+    height: min(calc((100vw - 36px) * 0.82), calc(100dvh - 28px));
+  }
+}
+
+@media (max-width: 639px) {
+  .notebook-page-docked,
   .notebook-page-maximized {
-    width: min(46vw, 640px);
-    height: min(76dvh, 780px);
+    width: min(45vw, 560px);
+    height: min(84dvh, 780px);
   }
 }

@@ -1,9 +1,11 @@
 import type {
   CrochetPattern,
+  DeskNoteItem,
   FinishedProject,
   MaterialItem,
   NotebookSpread,
   NotebookWorkspaceData,
+  PageElement,
   StitchSymbol,
 } from '../types/crochet';
 
@@ -114,102 +116,91 @@ export type StickerCategory =
   | 'Herramientas'
   | 'Etiquetas';
 
-export interface CrochetStickerDef {
-  id: string;
-  name: string;
-  category: StickerCategory;
-}
+export type { CrochetStickerDef } from './crochetStickersCatalog';
+export { CROCHET_STICKERS, STICKER_RECIPE_MAP } from './crochetStickersCatalog';
 
-export const CROCHET_STICKERS: CrochetStickerDef[] = [
-  // Flores de crochet
-  { id: 'flor-borgona', name: 'Flor Borgoña con Perla', category: 'Flores' },
-  { id: 'flor-rosa', name: 'Roseta Artesanal', category: 'Flores' },
-  { id: 'flor-margarita', name: 'Margarita de Algodón', category: 'Flores' },
-  { id: 'flor-lavanda', name: 'Flor de Lavanda Tejida', category: 'Flores' },
-  { id: 'flor-girasol', name: 'Girasol Amigurumi', category: 'Flores' },
-  { id: 'flor-encaje-perla', name: 'Flor Encaje y Perlas', category: 'Flores' },
-  { id: 'flor-cerezo', name: 'Flor de Cerezo Crochet', category: 'Flores' },
-  { id: 'hoja-crochet', name: 'Ramita de Hojas Tejidas', category: 'Flores' },
-  { id: 'granny-square', name: 'Granny Square Floral', category: 'Flores' },
-
-  // Perlas nacaradas y broches
-  { id: 'perla-clasica', name: 'Perla Nacarada Clásica', category: 'Perlas' },
-  { id: 'racimo-perlas', name: 'Racimo de Perlas y Encaje', category: 'Perlas' },
-  { id: 'tira-perlas', name: 'Guirnalda de Perlas', category: 'Perlas' },
-  { id: 'perla-rosa', name: 'Perla Rosada Vintage', category: 'Perlas' },
-  { id: 'broche-perla', name: 'Broche Dorado con Perla', category: 'Perlas' },
-
-  // Cuentas de colores
-  { id: 'cuentas-arcoiris', name: 'Cuentas de Madera Coloridas', category: 'Cuentas' },
-  { id: 'cuentas-turquesa', name: 'Cuentas Turquesa y Coral', category: 'Cuentas' },
-  { id: 'cuenta-cristal', name: 'Cuentas Cristal Rubí y Ámbar', category: 'Cuentas' },
-  { id: 'cuentas-pastel', name: 'Cuentas Pastel Dulces', category: 'Cuentas' },
-  { id: 'cascabel-dorado', name: 'Cuenta Dorada con Borla', category: 'Cuentas' },
-  { id: 'marcapuntos-cuentas', name: 'Marcapuntos con Cuentas', category: 'Cuentas' },
-
-  // Hilos, herramientas y detalles
-  { id: 'ovillo-crema', name: 'Ovillo Crudo', category: 'Hilos' },
-  { id: 'ovillo-terracota', name: 'Ovillo Terracota', category: 'Hilos' },
-  { id: 'ovillo-salvia', name: 'Ovillo Verde Salvia', category: 'Hilos' },
-  { id: 'ganchillo-madera', name: 'Ganchillo de Madera', category: 'Herramientas' },
-  { id: 'tijeras-vintage', name: 'Tijeras Doradas', category: 'Herramientas' },
-  { id: 'corazon-tejido', name: 'Corazón Tejido Crochet', category: 'Etiquetas' },
-  { id: 'boton-madera', name: 'Botón de Madera Cosido', category: 'Etiquetas' },
-  { id: 'etiqueta-hecho-a-mano', name: 'Hecho a Mano', category: 'Etiquetas' },
+export const INITIAL_LEFT_MANNEQUINS: PageElement[] = [
+  {
+    id: 'el-mannequin-front',
+    side: 'left',
+    type: 'mannequin',
+    x: 5,
+    y: 13,
+    width: 196,
+    content: 'front',
+    color: 'natural',
+    opacity: 1,
+    title: 'Maniquí de frente',
+  },
+  {
+    id: 'el-mannequin-back',
+    side: 'left',
+    type: 'mannequin',
+    x: 51,
+    y: 13,
+    width: 196,
+    content: 'back',
+    color: 'natural',
+    opacity: 1,
+    title: 'Maniquí de espalda',
+  },
 ];
 
+export const INITIAL_LEFT_WARDROBE: PageElement = {
+  id: 'el-wardrobe-main',
+  side: 'left',
+  type: 'wardrobe',
+  x: 4.5,
+  y: 3.5,
+  width: 430,
+  content: 'closed',
+  opacity: 1,
+  title: 'Armario Barroco de Crochet',
+};
+
+export const INITIAL_WARDROBE_SPREAD: NotebookSpread = {
+  id: 'spread-armario',
+  title: 'Mi Armario de Crochet',
+  paperStyle: 'grid',
+  updatedAt: '2026-11-19T08:00:00.000Z',
+  elements: [
+    INITIAL_LEFT_WARDROBE,
+    {
+      id: 'el-armario-mannequin-front',
+      side: 'right',
+      type: 'mannequin',
+      x: 5,
+      y: 13,
+      width: 178,
+      content: 'front',
+      color: 'natural',
+      opacity: 1,
+      title: 'Maniquí de frente',
+    },
+    {
+      id: 'el-armario-mannequin-back',
+      side: 'right',
+      type: 'mannequin',
+      x: 47,
+      y: 13,
+      width: 178,
+      content: 'back',
+      color: 'natural',
+      opacity: 1,
+      title: 'Maniquí de espalda',
+    },
+  ],
+};
+
 export const INITIAL_SPREADS: NotebookSpread[] = [
+  INITIAL_WARDROBE_SPREAD,
   {
     id: 'spread-1',
     title: 'Portada Interior y Notas de Encaje',
     paperStyle: 'grid',
-    updatedAt: '2026-11-17T01:00:00.000Z',
+    updatedAt: '2026-11-18T05:30:00.000Z',
     elements: [
-      {
-        id: 'el-welcome-title',
-        side: 'left',
-        type: 'text',
-        x: 10,
-        y: 12,
-        width: 280,
-        content: 'Diario de Puntos y Lanas',
-        color: '#4e2712',
-        fontSize: 28,
-        fontFamily: 'cormorant',
-      },
-      {
-        id: 'el-welcome-note',
-        side: 'left',
-        type: 'text',
-        x: 10,
-        y: 25,
-        width: 285,
-        content:
-          'Este cuaderno guarda mis diagramas de encaje, muestras de algodón mercerizado, medidas de ganchillos y recuerdos de cada tejido terminado.\n\nConsejo de tensión: bloquea siempre los mandalas con alfileres inoxidables sobre goma eva húmeda.',
-        color: '#5a3822',
-        fontSize: 16,
-        fontFamily: 'lora',
-      },
-      {
-        id: 'el-sticker-1',
-        side: 'left',
-        type: 'sticker',
-        x: 56,
-        y: 62,
-        width: 112,
-        content: 'flor-borgona',
-        rotation: -6,
-      },
-      {
-        id: 'el-sticker-2',
-        side: 'left',
-        type: 'sticker',
-        x: 14,
-        y: 65,
-        width: 120,
-        content: 'etiqueta-hecho-a-mano',
-        rotation: 4,
-      },
+      ...INITIAL_LEFT_MANNEQUINS,
       {
         id: 'el-right-header',
         side: 'right',
@@ -532,6 +523,49 @@ export const INITIAL_PROJECTS: FinishedProject[] = [
   },
 ];
 
+export const INITIAL_DESK_NOTES: DeskNoteItem[] = [
+  {
+    id: 'desk-note-1',
+    text: 'Cada puntada cuenta una historia tejida con paciencia y cariño.',
+    x: 6,
+    y: 12,
+    rotation: -6,
+    tone: 'cream',
+  },
+  {
+    id: 'desk-note-2',
+    text: 'Tus manos crean magia, un punto a la vez.',
+    x: 31,
+    y: 16,
+    rotation: 5,
+    tone: 'ochre',
+  },
+  {
+    id: 'desk-note-3',
+    text: 'Respira, suelta la tensión y disfruta cada vuelta.',
+    x: 18,
+    y: 43,
+    rotation: -3.5,
+    tone: 'sage',
+  },
+  {
+    id: 'desk-note-4',
+    text: 'El crochet transforma hilos simples en abrazos eternos.',
+    x: 7,
+    y: 71,
+    rotation: 4.5,
+    tone: 'rose',
+  },
+  {
+    id: 'desk-note-5',
+    text: 'Los pequeños avances diarios tejen grandes obras maestras.',
+    x: 33,
+    y: 67,
+    rotation: -5,
+    tone: 'linen',
+  },
+];
+
 export const DEFAULT_WORKSPACE: NotebookWorkspaceData = {
   spreads: INITIAL_SPREADS,
   patterns: INITIAL_PATTERNS,
@@ -539,8 +573,8 @@ export const DEFAULT_WORKSPACE: NotebookWorkspaceData = {
   projects: INITIAL_PROJECTS,
   recentColors: ['#4E2712', '#7A202A', '#C76D73', '#E5CEAA', '#3366CC', '#2E5A44', '#D4A25C', '#1C130E'],
   selectedFont: 'lora',
-  musicEnabled: false,
-  musicVolume: 0.45,
   sfxEnabled: true,
-  ambientWarmth: true,
+  deskNotes: INITIAL_DESK_NOTES,
+  mannequinsSeededV1: true,
+  wardrobeSeededV1: true,
 };

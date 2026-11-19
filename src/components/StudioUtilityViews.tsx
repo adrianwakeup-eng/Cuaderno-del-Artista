@@ -2,18 +2,19 @@ import React from 'react';
 import {
   Download,
   Upload,
-  Music,
   Volume2,
   Monitor,
   Check,
   ImagePlus,
   X,
   RotateCcw,
+  Search,
 } from 'lucide-react';
 import { CROCHET_STICKERS } from '../data/seedData';
 import type { BrushSettings, FontChoice } from '../types/crochet';
 import type { StickerCategory } from '../data/seedData';
 import { CrochetStickerSvg } from './CrochetDecorations';
+import { PWAInstallButton } from './WindowsDesktopControls';
 
 /* ---------- 1. Imágenes y Stickers View ---------- */
 const STICKER_CATEGORIES: Array<'Todos' | StickerCategory> = [
@@ -26,16 +27,75 @@ const STICKER_CATEGORIES: Array<'Todos' | StickerCategory> = [
   'Etiquetas',
 ];
 
+const StickerGridCard = React.memo<{
+  sticker: { id: string; name: string; category: StickerCategory };
+  onInsert: (id: string) => void;
+}>(({ sticker, onInsert }) => (
+  <button
+    type="button"
+    onClick={() => onInsert(sticker.id)}
+    className="p-3.5 rounded-2xl parchment-page border-2 border-[#a87842]/65 hover:border-[#7a202a] hover:scale-[1.03] transition-all flex flex-col items-center gap-2.5 cursor-pointer shadow-lg text-[#4a220d]"
+  >
+    <CrochetStickerSvg id={sticker.id} className="w-20 h-20 drop-shadow" />
+    <div className="text-center">
+      <p className="font-editorial text-sm font-bold leading-tight">{sticker.name}</p>
+      <p className="text-[11px] text-[#7c4d27] mt-0.5">{sticker.category} · Pegar</p>
+    </div>
+  </button>
+));
+StickerGridCard.displayName = 'StickerGridCard';
+
 export const StickersAndImagesView: React.FC<{
   onInsertSticker: (stickerId: string) => void;
   onUploadImageToNotebook: () => void;
 }> = ({ onInsertSticker, onUploadImageToNotebook }) => {
   const [activeCategory, setActiveCategory] = React.useState<'Todos' | StickerCategory>('Todos');
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [visibleLimit, setVisibleLimit] = React.useState(80);
+  const sentinelRef = React.useRef<HTMLDivElement | null>(null);
 
-  const visibleStickers =
-    activeCategory === 'Todos'
-      ? CROCHET_STICKERS
-      : CROCHET_STICKERS.filter((s) => s.category === activeCategory);
+  const categoryCounts = React.useMemo(() => {
+    const map: Record<string, number> = { Todos: CROCHET_STICKERS.length };
+    for (const s of CROCHET_STICKERS) {
+      map[s.category] = (map[s.category] || 0) + 1;
+    }
+    return map;
+  }, []);
+
+  const filteredStickers = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return CROCHET_STICKERS.filter((s) => {
+      if (activeCategory !== 'Todos' && s.category !== activeCategory) return false;
+      if (q && !s.name.toLowerCase().includes(q) && !s.category.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+  }, [activeCategory, searchQuery]);
+
+  React.useEffect(() => {
+    setVisibleLimit(80);
+  }, [activeCategory, searchQuery]);
+
+  const displayedStickers = React.useMemo(
+    () => filteredStickers.slice(0, visibleLimit),
+    [filteredStickers, visibleLimit],
+  );
+  const hasMore = displayedStickers.length < filteredStickers.length;
+
+  React.useEffect(() => {
+    if (!hasMore || !sentinelRef.current) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisibleLimit((prev) => Math.min(filteredStickers.length, prev + 80));
+        }
+      },
+      { rootMargin: '300px' },
+    );
+    obs.observe(sentinelRef.current);
+    return () => obs.disconnect();
+  }, [hasMore, filteredStickers.length]);
 
   return (
     <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
@@ -43,7 +103,7 @@ export const StickersAndImagesView: React.FC<{
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="font-display text-xl text-[#f7e2b9]">
-              Stickers de Crochet, Flores, Perlas y Cuentas ({visibleStickers.length})
+              Stickers de Crochet, Flores, Perlas y Cuentas ({filteredStickers.length})
             </h2>
             <p className="text-xs text-[#d6b688]">
               Haz clic en cualquier adorno artesanal para pegarlo directamente en la hoja abierta del cuaderno
@@ -60,47 +120,76 @@ export const StickersAndImagesView: React.FC<{
           </button>
         </div>
 
-        {/* Category Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 mb-5">
-          {STICKER_CATEGORIES.map((cat) => {
-            const count =
-              cat === 'Todos'
-                ? CROCHET_STICKERS.length
-                : CROCHET_STICKERS.filter((s) => s.category === cat).length;
-            const active = activeCategory === cat;
-            return (
+        {/* Category Filter Tabs + Search */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 mb-5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {STICKER_CATEGORIES.map((cat) => {
+              const count = categoryCounts[cat] ?? 0;
+              const active = activeCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] border-[#f4cf8e]/70 text-white font-medium shadow'
+                      : 'bg-[#2a160b]/85 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
+                  }`}
+                >
+                  {cat} <span className="opacity-80 font-mono-tab">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative min-w-[210px] sm:w-64">
+            <Search className="w-3.5 h-3.5 text-[#cfa56a] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar flor, perla, ovillo..."
+              className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-[#231208]/90 border border-[#b98241]/40 text-xs text-[#f7e7c8] placeholder:text-[#a8865b] focus:outline-none focus:border-[#ebbc6e]"
+            />
+            {searchQuery && (
               <button
-                key={cat}
                 type="button"
-                onClick={() => setActiveCategory(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer ${
-                  active
-                    ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] border-[#f4cf8e]/70 text-white font-medium shadow'
-                    : 'bg-[#2a160b]/85 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
-                }`}
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#cfa56a] hover:text-white cursor-pointer"
+                title="Limpiar búsqueda"
               >
-                {cat} <span className="opacity-80 font-mono-tab">({count})</span>
+                <X className="w-3.5 h-3.5" />
               </button>
-            );
-          })}
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-          {visibleStickers.map((st) => (
-            <button
-              key={st.id}
-              type="button"
-              onClick={() => onInsertSticker(st.id)}
-              className="p-3.5 rounded-2xl parchment-page border-2 border-[#a87842]/65 hover:border-[#7a202a] hover:scale-[1.03] transition-all flex flex-col items-center gap-2.5 cursor-pointer shadow-lg text-[#4a220d]"
-            >
-              <CrochetStickerSvg id={st.id} className="w-20 h-20 drop-shadow" />
-              <div className="text-center">
-                <p className="font-editorial text-sm font-bold leading-tight">{st.name}</p>
-                <p className="text-[11px] text-[#7c4d27] mt-0.5">{st.category} · Pegar</p>
+        {filteredStickers.length === 0 ? (
+          <div className="p-8 rounded-2xl border border-[#b98241]/30 bg-[#2a160b]/70 text-center text-sm text-[#dfc49b]">
+            No hay stickers que coincidan con “{searchQuery}”.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+              {displayedStickers.map((st) => (
+                <StickerGridCard key={st.id} sticker={st} onInsert={onInsertSticker} />
+              ))}
+            </div>
+
+            {hasMore && (
+              <div ref={sentinelRef} className="mt-6 flex flex-col items-center gap-2 py-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibleLimit(filteredStickers.length)}
+                  className="px-4 py-2 rounded-lg bg-[#381e0f] border border-[#b98241]/50 hover:bg-[#522d17] text-xs text-[#f4d8ab] cursor-pointer transition-colors shadow"
+                >
+                  Mostrar los {filteredStickers.length - displayedStickers.length} stickers restantes
+                </button>
               </div>
-            </button>
-          ))}
-        </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -257,26 +346,14 @@ export const BrushesQuickView: React.FC<{
 
 /* ---------- 4. Configuración + Windows .exe Guide ---------- */
 export const SettingsView: React.FC<{
-  musicPlaying: boolean;
-  musicVolume: number;
   sfxEnabled: boolean;
-  ambientWarmth: boolean;
-  onToggleMusic: () => void;
-  onChangeVolume: (vol: number) => void;
   onToggleSfx: () => void;
-  onToggleWarmth: () => void;
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
   onResetDemoData: () => void;
 }> = ({
-  musicPlaying,
-  musicVolume,
   sfxEnabled,
-  ambientWarmth,
-  onToggleMusic,
-  onChangeVolume,
   onToggleSfx,
-  onToggleWarmth,
   onExportBackup,
   onImportBackup,
   onResetDemoData,
@@ -286,69 +363,25 @@ export const SettingsView: React.FC<{
   return (
     <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
       <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Audio & Ambience */}
+        {/* Button & Option Sound Effects */}
         <section className="rounded-2xl leather-panel p-5 text-[#f6e4c4] space-y-4">
           <div className="flex items-center gap-2 border-b border-[#b98241]/30 pb-2.5">
-            <Music className="w-5 h-5 text-[#eab86a]" />
+            <Volume2 className="w-5 h-5 text-[#eab86a]" />
             <h2 className="font-display text-lg text-[#ffebc2]">
-              Música Relajante y Sonidos Táctiles
+              Efectos de Sonido
             </h2>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Melodía acústica estilo crochet</p>
-              <p className="text-xs text-[#cfa979]">
-                Arpegios suaves sin conexión mientras organizas y tejes
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onToggleMusic}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer ${
-                musicPlaying
-                  ? 'bg-[#7a202a] text-white'
-                  : 'bg-[#3b2110] border border-[#b98241]/45 text-[#f4dfb9]'
-              }`}
-            >
-              {musicPlaying ? 'Pausar Música' : 'Reproducir'}
-            </button>
-          </div>
+          <p className="text-xs text-[#d6b688] leading-relaxed">
+            Reproduce sonidos táctiles suaves al pulsar botones, cambiar opciones, abrir herramientas, copiar puntos o pasar las páginas del cuaderno.
+          </p>
 
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1.5">
-                <Volume2 className="w-3.5 h-3.5 text-[#eab86a]" />
-                Volumen de música
-              </span>
-              <span className="font-mono-tab">{Math.round(musicVolume * 100)}%</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(musicVolume * 100)}
-              onChange={(e) => onChangeVolume(Number(e.target.value) / 100)}
-              className="w-full accent-[#d69c50] cursor-pointer"
-            />
-          </div>
-
-          <label className="flex items-center justify-between text-xs pt-2 border-t border-[#b98241]/20 cursor-pointer">
-            <span>Efectos de pasar página, cierre de libro y clics de aguja</span>
+          <label className="flex items-center justify-between gap-3 rounded-xl bg-[#2a1509]/80 border border-[#b98241]/35 px-3.5 py-3 text-xs cursor-pointer">
+            <span>Activar efectos de sonido en botones y opciones</span>
             <input
               type="checkbox"
               checked={sfxEnabled}
               onChange={onToggleSfx}
-              className="w-4 h-4 accent-[#d69c50]"
-            />
-          </label>
-
-          <label className="flex items-center justify-between text-xs cursor-pointer">
-            <span>Calidez ambiental de taller acogedor</span>
-            <input
-              type="checkbox"
-              checked={ambientWarmth}
-              onChange={onToggleWarmth}
               className="w-4 h-4 accent-[#d69c50]"
             />
           </label>
@@ -410,30 +443,33 @@ export const SettingsView: React.FC<{
           </div>
         </section>
 
-        {/* Windows .exe Packaging Instructions */}
-        <section className="lg:col-span-2 rounded-2xl parchment-page border-2 border-[#a87842]/75 p-5 text-[#3e210e] shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#9d6f3d]/30 pb-2.5 mb-3">
-            <Monitor className="w-5 h-5 text-[#7a202a]" />
-            <h2 className="font-editorial text-2xl font-bold text-[#4a220d]">
-              Compilar como Programa Ejecutable para Windows (.exe)
-            </h2>
+        {/* Windows Desktop App & .exe Packaging */}
+        <section className="lg:col-span-2 rounded-2xl parchment-page border-2 border-[#a87842]/75 p-5 text-[#3e210e] shadow-xl space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#9d6f3d]/30 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Monitor className="w-5 h-5 text-[#7a202a]" />
+              <h2 className="font-editorial text-2xl font-bold text-[#4a220d]">
+                Aplicación de Escritorio para Windows 10 / 11 (.exe y PWA)
+              </h2>
+            </div>
+            <PWAInstallButton variant="card" />
           </div>
 
-          <p className="text-sm text-[#4f2d16] leading-relaxed mb-3">
-            Este proyecto ya incluye los archivos nativos de escritorio en la carpeta <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">electron/</code> y <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">electron-builder.json</code> para generar un instalador y ejecutable portable <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">.exe</code> en Windows 10 / 11 sin conexión:
+          <p className="text-sm text-[#4f2d16] leading-relaxed">
+            Puedes instalar <strong>Cuaderno del Artista</strong> al instante en Windows con un clic (acceso directo en Escritorio, Menú Inicio y modo offline), o compilar el instalador nativo <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">Instalador.exe</code> y la versión <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">Portable.exe</code> usando los archivos listos en <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">electron/</code>, <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">electron-builder.json</code> y <code className="font-mono-tab bg-[#ecd8b4] px-1.5 py-0.5 rounded">construir-windows.bat</code>:
           </p>
 
           <div className="rounded-xl bg-[#241309] text-[#f7e2b9] p-4 font-mono-tab text-xs space-y-1.5 overflow-x-auto">
-            <div>1. Descarga el proyecto e instala Node.js 20+ en tu PC Windows.</div>
-            <div>2. Abre una terminal en la carpeta del proyecto y ejecuta:</div>
+            <div>1. Descarga el proyecto e instala Node.js 20 LTS o superior en tu PC Windows.</div>
+            <div>2. Haz doble clic en <span className="text-[#f4c675]">construir-windows.bat</span> (o ejecuta en PowerShell):</div>
             <div className="text-[#f4c675] select-all">
-              npm install && npm install -D electron electron-builder
+              npm install && npm install --no-save electron electron-builder && npm run build:win
             </div>
-            <div>3. Compila la interfaz y genera el ejecutable de Windows (.exe):</div>
-            <div className="text-[#f4c675] select-all">
-              npm run build && npx electron-builder --win
+            <div>
+              3. Al terminar encontrarás el instalador en español y el ejecutable portable en{' '}
+              <span className="text-[#a8e09e]">release/Cuaderno-del-Artista-Instalador-*.exe</span> y{' '}
+              <span className="text-[#a8e09e]">release/Cuaderno-del-Artista-Portable-*.exe</span>.
             </div>
-            <div>4. Tu programa quedará listo en la carpeta <span className="text-[#a8e09e]">release/Cuaderno del Artista.exe</span>.</div>
           </div>
         </section>
       </div>

@@ -1,36 +1,18 @@
-// Procedural Web Audio API synthesizer for relaxing crochet-studio acoustic music & tactile SFX.
+// Procedural Web Audio API synthesizer for tactile crochet-studio button & option SFX.
 // Zero external URLs — works 100% offline in browser and Windows Electron builds.
 
 class CrochetAudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private musicGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
-  private delayNode: DelayNode | null = null;
-  private delayFeedback: GainNode | null = null;
-  private isPlaying = false;
-  private schedulerId: number | null = null;
-  private noiseSource: AudioBufferSourceNode | null = null;
-  private noiseGain: GainNode | null = null;
-  private stepIndex = 0;
-  private musicVolume = 0.45;
   private sfxEnabled = true;
-  private warmthEnabled = true;
-
-  // Warm Fmaj7 -> Dm9 -> Bbmaj7 -> C6 gentle acoustic waltz/arpeggio (Hz)
-  private readonly chordProgression: number[][] = [
-    [174.61, 220.0, 261.63, 329.63, 392.0, 440.0], // Fmaj9
-    [146.83, 220.0, 261.63, 329.63, 349.23, 440.0], // Dm9
-    [116.54, 174.61, 220.0, 293.66, 349.23, 440.0], // Bbmaj7
-    [130.81, 196.0, 261.63, 329.63, 392.0, 440.0], // C6/9
-  ];
-
-  private readonly melodyPattern = [0, 2, 3, 5, 4, 2, 1, 3];
 
   private ensureContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return null;
       this.ctx = new AudioCtx();
 
@@ -38,29 +20,9 @@ class CrochetAudioEngine {
       this.masterGain.gain.value = 0.85;
       this.masterGain.connect(this.ctx.destination);
 
-      this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = this.musicVolume;
-
       this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.value = 0.7;
+      this.sfxGain.gain.value = 0.72;
       this.sfxGain.connect(this.masterGain);
-
-      // Soft warm acoustic delay
-      this.delayNode = this.ctx.createDelay(1.0);
-      this.delayNode.delayTime.value = 0.38;
-      this.delayFeedback = this.ctx.createGain();
-      this.delayFeedback.gain.value = 0.28;
-
-      const delayFilter = this.ctx.createBiquadFilter();
-      delayFilter.type = 'lowpass';
-      delayFilter.frequency.value = 1450;
-
-      this.musicGain.connect(this.masterGain);
-      this.musicGain.connect(this.delayNode);
-      this.delayNode.connect(delayFilter);
-      delayFilter.connect(this.delayFeedback);
-      this.delayFeedback.connect(this.delayNode);
-      delayFilter.connect(this.masterGain);
     }
 
     if (this.ctx.state === 'suspended') {
@@ -69,183 +31,12 @@ class CrochetAudioEngine {
     return this.ctx;
   }
 
-  public setMusicVolume(vol: number) {
-    this.musicVolume = Math.max(0, Math.min(1, vol));
-    if (this.musicGain && this.ctx) {
-      this.musicGain.gain.setTargetAtTime(this.musicVolume, this.ctx.currentTime, 0.08);
-    }
-  }
-
   public setSfxEnabled(enabled: boolean) {
     this.sfxEnabled = enabled;
   }
 
-  public setAmbientWarmth(enabled: boolean) {
-    this.warmthEnabled = enabled;
-    if (this.noiseGain && this.ctx) {
-      this.noiseGain.gain.setTargetAtTime(enabled && this.isPlaying ? 0.025 : 0.0001, this.ctx.currentTime, 0.3);
-    }
-  }
-
-  public getIsPlaying(): boolean {
-    return this.isPlaying;
-  }
-
-  public startMusic() {
-    const ctx = this.ensureContext();
-    if (!ctx || this.isPlaying) return;
-    this.isPlaying = true;
-
-    this.startWarmRoomTexture();
-
-    const triggerNextNote = () => {
-      if (!this.isPlaying || !this.ctx || !this.musicGain) return;
-      const now = this.ctx.currentTime;
-      const measure = Math.floor(this.stepIndex / 8) % this.chordProgression.length;
-      const beatInMeasure = this.stepIndex % 8;
-      const chord = this.chordProgression[measure];
-
-      // Bass warm felt note on beat 0 and beat 4
-      if (beatInMeasure === 0 || beatInMeasure === 4) {
-        const bassFreq = beatInMeasure === 0 ? chord[0] : chord[1];
-        this.playFeltNote(bassFreq, now, 1.9, 0.14);
-      }
-
-      // Gentle nylon guitar / kalimba pluck
-      const noteIdx = this.melodyPattern[beatInMeasure];
-      const freq = chord[noteIdx] || chord[2];
-      // Occasional delicate octave shimmer
-      const shimmer = beatInMeasure === 3 && measure % 2 === 1 ? freq * 2 : freq;
-      this.playPluckNote(shimmer, now, 1.35, 0.09);
-
-      this.stepIndex += 1;
-    };
-
-    triggerNextNote();
-    // 68 BPM eighth-note gentle pulse (~440ms)
-    this.schedulerId = window.setInterval(triggerNextNote, 460);
-  }
-
-  public stopMusic() {
-    this.isPlaying = false;
-    if (this.schedulerId !== null) {
-      window.clearInterval(this.schedulerId);
-      this.schedulerId = null;
-    }
-    if (this.noiseGain && this.ctx) {
-      this.noiseGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.2);
-    }
-  }
-
-  public toggleMusic(): boolean {
-    if (this.isPlaying) {
-      this.stopMusic();
-      return false;
-    } else {
-      this.startMusic();
-      return true;
-    }
-  }
-
-  private startWarmRoomTexture() {
-    if (!this.ctx || !this.musicGain) return;
-    if (this.noiseSource) {
-      if (this.noiseGain) {
-        this.noiseGain.gain.setTargetAtTime(this.warmthEnabled ? 0.025 : 0.0001, this.ctx.currentTime, 0.3);
-      }
-      return;
-    }
-
-    const bufferSize = this.ctx.sampleRate * 3;
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    let lastOut = 0;
-    for (let i = 0; i < bufferSize; i++) {
-      const white = Math.random() * 2 - 1;
-      // Brownish cozy fireplace/room warmth noise
-      data[i] = (lastOut + 0.02 * white) / 1.02;
-      lastOut = data[i];
-      data[i] *= 2.2;
-    }
-
-    const src = this.ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
-
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 420;
-
-    const gain = this.ctx.createGain();
-    gain.gain.value = this.warmthEnabled ? 0.025 : 0.0001;
-
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.musicGain);
-    src.start();
-
-    this.noiseSource = src;
-    this.noiseGain = gain;
-  }
-
-  private playPluckNote(freq: number, startTime: number, duration: number, peakGain: number) {
-    if (!this.ctx || !this.musicGain) return;
-    const osc = this.ctx.createOscillator();
-    const harmonic = this.ctx.createOscillator();
-    const filter = this.ctx.createBiquadFilter();
-    const env = this.ctx.createGain();
-
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, startTime);
-
-    harmonic.type = 'sine';
-    harmonic.frequency.setValueAtTime(freq * 2, startTime);
-
-    const harmonicGain = this.ctx.createGain();
-    harmonicGain.gain.value = 0.22;
-
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2100, startTime);
-    filter.frequency.exponentialRampToValueAtTime(520, startTime + duration);
-
-    env.gain.setValueAtTime(0.0001, startTime);
-    env.gain.linearRampToValueAtTime(peakGain, startTime + 0.028);
-    env.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-    osc.connect(filter);
-    harmonic.connect(harmonicGain);
-    harmonicGain.connect(filter);
-    filter.connect(env);
-    env.connect(this.musicGain);
-
-    osc.start(startTime);
-    harmonic.start(startTime);
-    osc.stop(startTime + duration + 0.05);
-    harmonic.stop(startTime + duration + 0.05);
-  }
-
-  private playFeltNote(freq: number, startTime: number, duration: number, peakGain: number) {
-    if (!this.ctx || !this.musicGain) return;
-    const osc = this.ctx.createOscillator();
-    const env = this.ctx.createGain();
-    const filter = this.ctx.createBiquadFilter();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, startTime);
-
-    filter.type = 'lowpass';
-    filter.frequency.value = 600;
-
-    env.gain.setValueAtTime(0.0001, startTime);
-    env.gain.linearRampToValueAtTime(peakGain, startTime + 0.14);
-    env.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-    osc.connect(filter);
-    filter.connect(env);
-    env.connect(this.musicGain);
-
-    osc.start(startTime);
-    osc.stop(startTime + duration + 0.05);
+  public getSfxEnabled(): boolean {
+    return this.sfxEnabled;
   }
 
   // Tactile SFX: Leather clasp + wooden bead when opening the book
@@ -323,7 +114,7 @@ class CrochetAudioEngine {
     src.start(now);
   }
 
-  // Tactile SFX: Gentle wooden crochet hook click
+  // Tactile SFX: Gentle wooden crochet hook click + tiny retro sparkle
   public playStitchClick() {
     if (!this.sfxEnabled) return;
     const ctx = this.ensureContext();
@@ -332,18 +123,250 @@ class CrochetAudioEngine {
 
     const osc = ctx.createOscillator();
     const env = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(580, now);
-    osc.frequency.exponentialRampToValueAtTime(220, now + 0.045);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(640, now);
+    osc.frequency.exponentialRampToValueAtTime(240, now + 0.045);
 
     env.gain.setValueAtTime(0.001, now);
-    env.gain.linearRampToValueAtTime(0.12, now + 0.005);
+    env.gain.linearRampToValueAtTime(0.13, now + 0.005);
     env.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
 
     osc.connect(env);
     env.connect(this.sfxGain);
     osc.start(now);
     osc.stop(now + 0.06);
+  }
+
+  // Retro + Crochet SFX: Cozy 8-bit wooden pop for opening toolbars, drawers & selecting tools
+  public playRetroPop(pitchBoost = 0) {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+    const base = 523.25 * Math.pow(1.06, pitchBoost); // C5 scaled
+
+    [base, base * 1.25].forEach((freq, idx) => {
+      const t = now + idx * 0.038;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'square';
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1850;
+
+      osc.frequency.setValueAtTime(freq, t);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.065, t + 0.006);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.075);
+
+      osc.connect(filter);
+      filter.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.085);
+    });
+  }
+
+  // Crochet Yarn Pluck: Soft plucked thread note for colors, brushes, stickers & symbols
+  public playYarnPluck(seed = 0) {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+    const pentatonic = [392.0, 440.0, 523.25, 587.33, 659.25, 783.99];
+    const freq = pentatonic[Math.abs(seed) % pentatonic.length];
+
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq * 1.04, now);
+    osc.frequency.exponentialRampToValueAtTime(freq, now + 0.04);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(2200, now);
+    filter.frequency.exponentialRampToValueAtTime(650, now + 0.16);
+
+    env.gain.setValueAtTime(0.0001, now);
+    env.gain.linearRampToValueAtTime(0.14, now + 0.008);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+    osc.connect(filter);
+    filter.connect(env);
+    env.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  }
+
+  // Retro Undo / Redo Chime
+  public playUndoRedo(isRedo = false) {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+    const notes = isRedo ? [392.0, 587.33] : [587.33, 392.0];
+
+    notes.forEach((freq, idx) => {
+      const t = now + idx * 0.05;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.11, t + 0.008);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.11);
+    });
+  }
+
+  // Retro Toggle Bell: Sweet on/off craft bell for layers & switches
+  public playToggleChime(active = true) {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+    const notes = active ? [523.25, 783.99] : [659.25, 440.0];
+
+    notes.forEach((freq, idx) => {
+      const t = now + idx * 0.045;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.1, t + 0.008);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    });
+  }
+
+  // Cozy Retro Save / New Page Arpeggio
+  public playSaveChime() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+
+    notes.forEach((freq, idx) => {
+      const t = now + idx * 0.055;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.1, t + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.24);
+    });
+  }
+
+  // Soft Felt Brush Eraser Whisper
+  public playEraseBrush() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    const duration = 0.16;
+    const bufferSize = Math.floor(ctx.sampleRate * duration);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1400, now);
+    filter.Q.value = 1.1;
+
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.001, now);
+    env.gain.linearRampToValueAtTime(0.14, now + 0.02);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    src.connect(filter);
+    filter.connect(env);
+    env.connect(this.sfxGain);
+    src.start(now);
+  }
+
+  // Tactile SFX: Ornate wooden wardrobe latch + gentle hinge swing + golden crochet shimmer
+  public playWardrobeDoor(opening = true) {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    // 1. Warm brass latch & carved wood thud
+    const latch = ctx.createOscillator();
+    const latchEnv = ctx.createGain();
+    latch.type = 'triangle';
+    latch.frequency.setValueAtTime(opening ? 320 : 190, now);
+    latch.frequency.exponentialRampToValueAtTime(opening ? 130 : 88, now + 0.09);
+    latchEnv.gain.setValueAtTime(0.0001, now);
+    latchEnv.gain.linearRampToValueAtTime(0.18, now + 0.012);
+    latchEnv.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    latch.connect(latchEnv);
+    latchEnv.connect(this.sfxGain);
+    latch.start(now);
+    latch.stop(now + 0.14);
+
+    // 2. Soft wooden door air-whoosh
+    const dur = opening ? 0.34 : 0.24;
+    const bufSize = Math.floor(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const ch = buffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      ch[i] = (Math.random() * 2 - 1) * Math.sin((i / bufSize) * Math.PI);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(opening ? 480 : 760, now + 0.04);
+    filter.frequency.exponentialRampToValueAtTime(opening ? 980 : 380, now + dur);
+    filter.Q.value = 2.0;
+    const nEnv = ctx.createGain();
+    nEnv.gain.setValueAtTime(0.0001, now + 0.03);
+    nEnv.gain.linearRampToValueAtTime(0.13, now + 0.12);
+    nEnv.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    noise.connect(filter);
+    filter.connect(nEnv);
+    nEnv.connect(this.sfxGain);
+    noise.start(now + 0.03);
+
+    // 3. Delicate warm harp notes revealing the crochet collection (or settling shut)
+    const notes = opening ? [392.0, 493.88, 587.33, 783.99] : [587.33, 392.0];
+    notes.forEach((freq, idx) => {
+      const t = now + (opening ? 0.1 + idx * 0.075 : 0.08 + idx * 0.06);
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(opening ? 0.075 : 0.06, t + 0.018);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      o.connect(g);
+      g.connect(this.sfxGain!);
+      o.start(t);
+      o.stop(t + 0.58);
+    });
   }
 }
 

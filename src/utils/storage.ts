@@ -1,4 +1,10 @@
-import { DEFAULT_WORKSPACE, ositoGrid } from '../data/seedData';
+import {
+  DEFAULT_WORKSPACE,
+  INITIAL_DESK_NOTES,
+  INITIAL_LEFT_MANNEQUINS,
+  INITIAL_WARDROBE_SPREAD,
+  ositoGrid,
+} from '../data/seedData';
 import type { NotebookWorkspaceData } from '../types/crochet';
 
 const DB_NAME = 'cuaderno_artista_crochet_db';
@@ -7,8 +13,46 @@ const STORE_NAME = 'workspace';
 const WORKSPACE_KEY = 'main_notebook_v1';
 const LOCAL_BACKUP_KEY = 'cuaderno_artista_crochet_fallback_v1';
 
+const DEFAULT_SPREAD1_LEFT_IDS = new Set([
+  'el-welcome-title',
+  'el-welcome-note',
+  'el-sticker-1',
+  'el-sticker-2',
+]);
+
 function normalizeLoadedWorkspace(raw: Partial<NotebookWorkspaceData>): NotebookWorkspaceData {
   const merged: NotebookWorkspaceData = { ...DEFAULT_WORKSPACE, ...raw };
+  if (!Array.isArray(merged.deskNotes) || merged.deskNotes.length === 0) {
+    merged.deskNotes = INITIAL_DESK_NOTES;
+  }
+  if (!raw.mannequinsSeededV1 && Array.isArray(merged.spreads) && merged.spreads.length > 0) {
+    merged.spreads = merged.spreads.map((sp, idx) => {
+      if (sp.id !== 'spread-1' && idx !== 0) return sp;
+      const hasMannequin = sp.elements.some((el) => el.type === 'mannequin');
+      if (hasMannequin) return sp;
+      const leftElements = sp.elements.filter((el) => el.side === 'left');
+      const rightElements = sp.elements.filter((el) => el.side === 'right');
+      const isOnlyStarterOrEmpty =
+        leftElements.length === 0 ||
+        leftElements.every((el) => DEFAULT_SPREAD1_LEFT_IDS.has(el.id));
+      return {
+        ...sp,
+        elements: isOnlyStarterOrEmpty
+          ? [...INITIAL_LEFT_MANNEQUINS, ...rightElements]
+          : [...INITIAL_LEFT_MANNEQUINS, ...leftElements, ...rightElements],
+      };
+    });
+    merged.mannequinsSeededV1 = true;
+  }
+  if (!raw.wardrobeSeededV1 && Array.isArray(merged.spreads)) {
+    const alreadyHasWardrobe = merged.spreads.some((sp) =>
+      sp.elements.some((el) => el.type === 'wardrobe')
+    );
+    if (!alreadyHasWardrobe) {
+      merged.spreads = [INITIAL_WARDROBE_SPREAD, ...merged.spreads];
+    }
+    merged.wardrobeSeededV1 = true;
+  }
   merged.patterns = merged.patterns.map((p) => {
     if (p.id === 'pat-osito-algodon') {
       const hasAnyStitch = p.diagramGrid?.some((row) => row.some((cell) => Boolean(cell)));

@@ -1,6 +1,7 @@
 {
   "appId": "com.cuadernodelartista.crochet",
   "productName": "Cuaderno del Artista",
+  "asar": true,
   "directories": {
     "output": "release"
   },
@@ -12,14 +13,29 @@
     "main": "electron/main.cjs"
   },
   "win": {
+    "icon": "electron/icon.ico",
     "target": [
-      "nsis",
-      "portable"
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
     ]
   },
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
-    "createDesktopShortcut": true
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Cuaderno del Artista",
+    "installerLanguages": ["es_ES"],
+    "language": "1034",
+    "artifactName": "Cuaderno-del-Artista-Instalador-${version}.exe"
+  },
+  "portable": {
+    "artifactName": "Cuaderno-del-Artista-Portable-${version}.exe"
   }
 }

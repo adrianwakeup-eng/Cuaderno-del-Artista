@@ -4,8 +4,10 @@ export type StudioSection =
   | 'materiales'
   | 'proyectos'
   | 'stickers'
+  | 'gifs'
   | 'fuentes'
   | 'pinceles'
+  | 'vestidor'
   | 'configuracion';
 
 export type PaperStyle = 'grid' | 'dots' | 'plain';
@@ -70,18 +72,21 @@ export interface CopiedPatternData {
   description: string;
   letter?: string;
   group?: string;
+  mandalaId?: string;
+  imagePath?: string;
   diagramGrid?: StitchSymbol[][];
 }
 
 export interface PageElement {
   id: string;
   side: 'left' | 'right';
-  type: 'text' | 'sticker' | 'image' | 'shape' | 'pattern-note';
+  type: 'text' | 'sticker' | 'image' | 'shape' | 'pattern-note' | 'mannequin' | 'wardrobe';
   x: number; // percentage 0..100 of single page width
   y: number; // percentage 0..100 of single page height
   width: number; // px relative to base page
   height?: number;
-  content: string; // text body, sticker id, image dataUrl, or shape id
+  content: string; // text body, sticker id, image dataUrl, shape id, 'front' | 'back', or 'closed' | 'open'
+  originalContent?: string;
   color?: string;
   fontSize?: number;
   fontFamily?: FontChoice;
@@ -168,6 +173,71 @@ export interface FinishedProject {
   notes: string;
 }
 
+export interface DeskNoteItem {
+  id: string;
+  text: string;
+  x: number; // percentage across cover stage (left desk area)
+  y: number; // percentage down cover stage
+  rotation: number; // degrees
+  tone: 'cream' | 'ochre' | 'sage' | 'rose' | 'linen';
+}
+
+export type DressingRoomCategory =
+  | 'Suéteres'
+  | 'Chalecos'
+  | 'Cardigans'
+  | 'Chaquetas'
+  | 'Accesorios'
+  | 'Pantalones'
+  | 'Bermudas';
+
+export type GarmentSilhouetteKind =
+  | 'sweater'
+  | 'cardigan'
+  | 'vest'
+  | 'jacket'
+  | 'hoodie'
+  | 'polo'
+  | 'coat'
+  | 'scarf'
+  | 'trousers'
+  | 'joggers'
+  | 'tailored-pants'
+  | 'shorts';
+
+export type GarmentStitchPattern =
+  | 'cable'
+  | 'jacquard'
+  | 'herringbone'
+  | 'ribbed'
+  | 'waffle'
+  | 'honeycomb'
+  | 'striped'
+  | 'heraldic'
+  | 'chevron'
+  | 'argyle';
+
+export interface DressingRoomGarment {
+  id: string;
+  name: string;
+  category: DressingRoomCategory;
+  garmentSlot?: 'top' | 'bottom';
+  silhouetteKind?: GarmentSilhouetteKind;
+  stitchPattern?: GarmentStitchPattern;
+  baseTemplateId?: string;
+  eyebrow?: string;
+  subtitle: string;
+  fiber: string;
+  fiberDetail?: string;
+  hookSizeMm: string;
+  stitchNote: string;
+  palette: string[];
+  accentColor: string;
+  photoDataUrl?: string;
+  backPhotoDataUrl?: string;
+  isCustom?: boolean;
+}
+
 export interface NotebookWorkspaceData {
   spreads: NotebookSpread[];
   patterns: CrochetPattern[];
@@ -175,8 +245,12 @@ export interface NotebookWorkspaceData {
   projects: FinishedProject[];
   recentColors: string[];
   selectedFont: FontChoice;
-  musicEnabled: boolean;
-  musicVolume: number;
   sfxEnabled: boolean;
-  ambientWarmth: boolean;
+  deskNotes?: DeskNoteItem[];
+  mannequinsSeededV1?: boolean;
+  wardrobeSeededV1?: boolean;
+  wardrobeItems?: DressingRoomGarment[];
+  musicEnabled?: boolean;
+  musicVolume?: number;
+  ambientWarmth?: boolean;
 }

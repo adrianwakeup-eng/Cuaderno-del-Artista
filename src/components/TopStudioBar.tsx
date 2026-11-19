@@ -1,38 +1,32 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  FilePlus2,
-  FolderOpen,
-  Save,
-  Undo2,
-  Redo2,
-  Type,
-  Shapes,
-  ImagePlus,
-  Flower2,
-  Brush,
-  MousePointer,
-  Settings,
-  Volume2,
-  VolumeX,
-  HelpCircle,
-  BookMarked,
-  BookOpen,
-  ScrollText,
-  CaseSensitive,
-  ChevronDown,
-  Download,
-  Minus,
-  Square,
-  X,
-  Eraser,
-  Circle,
   ArrowRight,
-  Heart,
+  BookMarked,
+  Circle,
   Cloud,
+  Download,
+  FilePlus2,
+  Flower2,
+  FolderOpen,
+  Heart,
+  HelpCircle,
+  ImagePlus,
+  Layers,
+  Minus,
+  MousePointer,
+  PenTool,
+  Redo2,
+  Save,
+  Settings,
+  Shapes,
+  Square,
+  Type,
+  Undo2,
+  X,
 } from 'lucide-react';
 import type { ActiveCanvasTool, BrushSettings, ShapeKind, StudioSection } from '../types/crochet';
-import { BrushStudioPanel, ColorPalettePanel, EraserStudioPanel } from './RightToolPanels';
+import { YarnBall3D } from './CrochetDecorations';
 
 interface TopStudioBarProps {
   activeSection: StudioSection;
@@ -40,12 +34,12 @@ interface TopStudioBarProps {
   activeTool: ActiveCanvasTool;
   selectedShapeKind: ShapeKind;
   onSelectShapeKind: (kind: ShapeKind) => void;
-  brush: BrushSettings;
-  recentColors: string[];
-  onChangeBrush: (patch: Partial<BrushSettings>) => void;
-  onSelectColor: (hex: string) => void;
+  brush?: BrushSettings;
+  recentColors?: string[];
+  onChangeBrush?: (patch: Partial<BrushSettings>) => void;
+  onSelectColor?: (hex: string) => void;
   onSelectTool: (tool: ActiveCanvasTool) => void;
-  onClearPageStrokes: () => void;
+  onClearPageStrokes?: () => void;
   onNewPage: () => void;
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
@@ -56,29 +50,23 @@ interface TopStudioBarProps {
   canRedo: boolean;
   onOpenImageUpload: () => void;
   onGoToSection: (section: StudioSection) => void;
-  musicPlaying: boolean;
-  onToggleMusic: () => void;
   onOpenHelp: () => void;
   onReturnToCover: () => void;
   onOpenDrive: (tab?: 'backups' | 'images' | 'all') => void;
   driveConnected: boolean;
+  showRightDock: boolean;
+  onToggleRightDock: () => void;
   savedToast: string | null;
 }
 
-type PopupKey = 'archivo' | 'insertar' | 'brocha' | 'goma' | 'color' | null;
+type PopupKey = 'abrir' | 'figuras' | 'imagen' | null;
 
 export const TopStudioBar: React.FC<TopStudioBarProps> = ({
   activeSection,
-  patternCount,
   activeTool,
   selectedShapeKind,
   onSelectShapeKind,
-  brush,
-  recentColors,
-  onChangeBrush,
-  onSelectColor,
   onSelectTool,
-  onClearPageStrokes,
   onNewPage,
   onExportBackup,
   onImportBackup,
@@ -89,12 +77,12 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
   canRedo,
   onOpenImageUpload,
   onGoToSection,
-  musicPlaying,
-  onToggleMusic,
   onOpenHelp,
   onReturnToCover,
   onOpenDrive,
   driveConnected,
+  showRightDock,
+  onToggleRightDock,
   savedToast,
 }) => {
   const [openPopup, setOpenPopup] = useState<PopupKey>(null);
@@ -144,10 +132,7 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
   };
 
   return (
-    <header
-      ref={barRef}
-      className="relative z-40 w-full shrink-0 leather-surface border-b border-[#d49e58]/40 select-none"
-    >
+    <header ref={barRef} className="relative z-40 w-full shrink-0 select-none">
       {/* Hidden backup import input */}
       <input
         ref={importInputRef}
@@ -161,424 +146,21 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
         }}
       />
 
-      {/* Single Unified Top Studio Bar (no wrapping — right controls stay pinned top-right) */}
-      <div className="flex flex-nowrap items-center justify-between gap-2 px-3 py-1.5 bg-gradient-to-r from-[#2c170b] via-[#3b2010] to-[#261409]">
-        {/* Left: Brand + Cuaderno & Patrones */}
-        <div className="flex items-center gap-2 min-w-0 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#cf6c6e] to-[#7d2228] border border-[#f2d098]/60 flex items-center justify-center shadow shrink-0">
-              <span className="w-3 h-3 rounded-full border border-dashed border-[#f7e1b5]" />
-            </div>
-            <h1 className="font-display text-sm tracking-wide text-[#f6e2be] whitespace-nowrap">
-              Cuaderno del Artista
-            </h1>
-          </div>
+      {/* Row 1: Embossed Golden Studio Title + Window Controls */}
+      <div className="relative flex items-center justify-between px-4 sm:px-6 pt-1.5 pb-1">
+        {/* Spacer left for 3D lace corner ornament */}
+        <div className="w-24 sm:w-44 shrink-0" />
 
-          <div className="h-5 w-px bg-[#b88443]/35 hidden sm:block" />
-
-          <nav className="flex items-center gap-1" aria-label="Secciones principales">
-            <button
-              type="button"
-              onClick={() => {
-                setOpenPopup(null);
-                onGoToSection('cuaderno');
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                activeSection === 'cuaderno'
-                  ? 'bg-gradient-to-b from-[#d49b50] to-[#9b6126] text-[#fff8eb] font-medium border border-[#f5d292]/60 shadow'
-                  : 'text-[#e8cfab] hover:bg-[#5c361d]/60 hover:text-[#fff2dc]'
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Cuaderno</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setOpenPopup(null);
-                onGoToSection('patrones');
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                activeSection === 'patrones'
-                  ? 'bg-gradient-to-b from-[#d49b50] to-[#9b6126] text-[#fff8eb] font-medium border border-[#f5d292]/60 shadow'
-                  : 'text-[#e8cfab] hover:bg-[#5c361d]/60 hover:text-[#fff2dc]'
-              }`}
-            >
-              <ScrollText className="w-3.5 h-3.5" />
-              <span>Patrones</span>
-              <span className="font-mono-tab text-[11px] opacity-80">({patternCount})</span>
-            </button>
-          </nav>
+        {/* Centered 3D Yarn Ball + Title matching uploaded photo */}
+        <div className="flex items-center justify-center gap-2.5 min-w-0">
+          <YarnBall3D tone="gold" className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 -my-1" />
+          <h1 className="font-editorial italic font-bold text-lg sm:text-2xl tracking-wide gold-embossed-title truncate">
+            Cuaderno del Artista – Fuentes-Nazco
+          </h1>
         </div>
 
-        {/* Center: Organized Tools & Pop-up Buttons */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Archivo Pop-up */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => togglePopup('archivo')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer whitespace-nowrap ${
-                openPopup === 'archivo'
-                  ? 'bg-[#6b3d1e] border-[#ebb96a]/70 text-white'
-                  : 'bg-[#2a160b]/80 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
-              }`}
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-[#f0c77c]" />
-              <span>Archivo</span>
-              <ChevronDown className="w-3 h-3 opacity-75" />
-            </button>
-
-            <AnimatePresence>
-              {openPopup === 'archivo' && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute left-0 top-full mt-2 w-52 rounded-xl leather-panel bg-[#221208] p-1.5 z-50 flex flex-col gap-0.5 shadow-[0_20px_45px_rgba(0,0,0,0.88)] origin-top-left"
-                >
-                  <PopupMenuItem
-                    icon={<FilePlus2 className="w-4 h-4 text-[#f0c77c]" />}
-                    label="Nueva hoja"
-                    onClick={() => {
-                      onNewPage();
-                      setOpenPopup(null);
-                    }}
-                  />
-                  <PopupMenuItem
-                    icon={<Save className="w-4 h-4 text-[#f0c77c]" />}
-                    label="Guardar cuaderno"
-                    onClick={() => {
-                      onSaveNow();
-                      setOpenPopup(null);
-                    }}
-                  />
-                  <PopupMenuItem
-                    icon={<FolderOpen className="w-4 h-4 text-[#f0c77c]" />}
-                    label="Abrir respaldo (.json)"
-                    onClick={() => {
-                      importInputRef.current?.click();
-                      setOpenPopup(null);
-                    }}
-                  />
-                  <PopupMenuItem
-                    icon={<Download className="w-4 h-4 text-[#f0c77c]" />}
-                    label="Exportar respaldo"
-                    onClick={() => {
-                      onExportBackup();
-                      setOpenPopup(null);
-                    }}
-                  />
-                  <div className="my-1 border-t border-[#b98241]/25" />
-                  <PopupMenuItem
-                    icon={<Cloud className="w-4 h-4 text-[#f3cf8a]" />}
-                    label="Google Drive (Nube)"
-                    onClick={() => {
-                      onOpenDrive('backups');
-                      setOpenPopup(null);
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Deshacer / Rehacer */}
-          <button
-            type="button"
-            onClick={onUndo}
-            disabled={!canUndo}
-            title="Deshacer"
-            className="p-1.5 rounded-lg text-[#e9c891] hover:bg-[#5c361d]/60 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
-          >
-            <Undo2 className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onRedo}
-            disabled={!canRedo}
-            title="Rehacer"
-            className="p-1.5 rounded-lg text-[#e9c891] hover:bg-[#5c361d]/60 disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
-          >
-            <Redo2 className="w-4 h-4" />
-          </button>
-
-          <div className="h-5 w-px bg-[#b88443]/30 mx-0.5" />
-
-          {/* Mover / Seleccionar */}
-          <button
-            type="button"
-            onClick={() => {
-              setOpenPopup(null);
-              onGoToSection('cuaderno');
-              onSelectTool('select');
-            }}
-            title="Mover y editar elementos"
-            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer whitespace-nowrap ${
-              activeSection === 'cuaderno' && activeTool === 'select'
-                ? 'bg-[#6b3d1e] border-[#ebb96a]/70 text-white'
-                : 'border-transparent text-[#e8cfab] hover:bg-[#5c361d]/60'
-            }`}
-          >
-            <MousePointer className="w-3.5 h-3.5 text-[#f0c77c]" />
-            <span className="hidden md:inline">Mover</span>
-          </button>
-
-          {/* Insertar Pop-up (Texto, Fuentes, Figura, Imagen, Sticker) */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => togglePopup('insertar')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer whitespace-nowrap ${
-                openPopup === 'insertar' ||
-                activeTool === 'text' ||
-                activeTool === 'shape' ||
-                activeSection === 'stickers' ||
-                activeSection === 'fuentes'
-                  ? 'bg-[#6b3d1e] border-[#ebb96a]/70 text-white'
-                  : 'bg-[#2a160b]/80 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
-              }`}
-            >
-              <Type className="w-3.5 h-3.5 text-[#f3cf8a]" />
-              <span>Insertar</span>
-              <ChevronDown className="w-3 h-3 opacity-75" />
-            </button>
-
-            <AnimatePresence>
-              {openPopup === 'insertar' && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute left-0 top-full mt-2 w-60 rounded-xl leather-panel bg-[#221208] p-2 z-50 flex flex-col gap-1 shadow-[0_20px_45px_rgba(0,0,0,0.88)] origin-top-left"
-                >
-                  <PopupMenuItem
-                    icon={<Type className="w-4 h-4 text-[#f3cf8a]" />}
-                    label="Cuadro de Texto (Word)"
-                    onClick={() => {
-                      onGoToSection('cuaderno');
-                      onSelectTool('text');
-                      setOpenPopup(null);
-                    }}
-                  />
-                  <PopupMenuItem
-                    icon={<CaseSensitive className="w-4 h-4 text-[#f3cf8a]" />}
-                    label="Elegir Fuente"
-                    onClick={() => {
-                      onGoToSection('fuentes');
-                      setOpenPopup(null);
-                    }}
-                  />
-                  <div className="my-1 pt-1.5 border-t border-[#b98241]/25">
-                    <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-[#d9ba8b]">
-                      Figuras (Paint &amp; Crochet)
-                    </p>
-                    <div className="grid grid-cols-3 gap-1 px-1">
-                      {(
-                        [
-                          { id: 'crochet-ring', label: 'Anillo', icon: <Shapes className="w-3.5 h-3.5" /> },
-                          { id: 'circle', label: 'Círculo', icon: <Circle className="w-3.5 h-3.5" /> },
-                          { id: 'square', label: 'Cuadro', icon: <Square className="w-3.5 h-3.5" /> },
-                          { id: 'arrow', label: 'Flecha', icon: <ArrowRight className="w-3.5 h-3.5" /> },
-                          { id: 'line', label: 'Línea', icon: <Minus className="w-3.5 h-3.5" /> },
-                          { id: 'heart', label: 'Corazón', icon: <Heart className="w-3.5 h-3.5" /> },
-                        ] as Array<{ id: ShapeKind; label: string; icon: React.ReactNode }>
-                      ).map((sh) => (
-                        <button
-                          key={sh.id}
-                          type="button"
-                          onClick={() => {
-                            onSelectShapeKind(sh.id);
-                            onGoToSection('cuaderno');
-                            onSelectTool('shape');
-                            setOpenPopup(null);
-                          }}
-                          className={`flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-[10px] border cursor-pointer transition-colors ${
-                            activeTool === 'shape' && selectedShapeKind === sh.id
-                              ? 'bg-[#6b3e1f] border-[#ebb86c] text-white'
-                              : 'bg-[#2c180c] border-[#8b5d31]/30 text-[#e8cfab] hover:bg-[#492915]'
-                          }`}
-                        >
-                          {sh.icon}
-                          <span>{sh.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="pt-1 border-t border-[#b98241]/25 flex flex-col gap-0.5">
-                    <PopupMenuItem
-                      icon={<ImagePlus className="w-4 h-4 text-[#f3cf8a]" />}
-                      label="Subir Imagen"
-                      onClick={() => {
-                        onOpenImageUpload();
-                        setOpenPopup(null);
-                      }}
-                    />
-                    <PopupMenuItem
-                      icon={<Cloud className="w-4 h-4 text-[#9fd3a6]" />}
-                      label="Foto desde Google Drive"
-                      onClick={() => {
-                        onOpenDrive('images');
-                        setOpenPopup(null);
-                      }}
-                    />
-                    <PopupMenuItem
-                      icon={<Flower2 className="w-4 h-4 text-[#eb9b9a]" />}
-                      label="Stickers Crochet"
-                      onClick={() => {
-                        onGoToSection('stickers');
-                        setOpenPopup(null);
-                      }}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Brocha Pop-up (Pinceles y Tizas + sliders) */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => togglePopup('brocha')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer whitespace-nowrap ${
-                openPopup === 'brocha' ||
-                (activeSection === 'cuaderno' && activeTool === 'draw')
-                  ? 'bg-[#6b3d1e] border-[#ebb96a]/70 text-white'
-                  : 'bg-[#2a160b]/80 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
-              }`}
-            >
-              <Brush className="w-3.5 h-3.5 text-[#f3cf8a]" />
-              <span>Brocha</span>
-              <ChevronDown className="w-3 h-3 opacity-75" />
-            </button>
-
-            <AnimatePresence>
-              {openPopup === 'brocha' && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute right-0 sm:left-0 top-full mt-2 rounded-xl leather-panel bg-[#221208] p-0.5 z-50 shadow-[0_22px_50px_rgba(0,0,0,0.9)] origin-top"
-                >
-                  <BrushStudioPanel
-                    brush={brush}
-                    onChangeBrush={(patch) => {
-                      onChangeBrush(patch);
-                      onGoToSection('cuaderno');
-                      onSelectTool('draw');
-                    }}
-                    onSelectEraser={() => {
-                      onGoToSection('cuaderno');
-                      onSelectTool('eraser');
-                      setOpenPopup('goma');
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Goma de Borrar Pop-up */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                onGoToSection('cuaderno');
-                onSelectTool('eraser');
-                togglePopup('goma');
-              }}
-              title="Goma de borrar trazos"
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer whitespace-nowrap ${
-                openPopup === 'goma' ||
-                (activeSection === 'cuaderno' && activeTool === 'eraser')
-                  ? 'bg-[#6b3d1e] border-[#ebb96a]/70 text-white'
-                  : 'bg-[#2a160b]/80 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
-              }`}
-            >
-              <Eraser className="w-3.5 h-3.5 text-[#f3cf8a]" />
-              <span className="hidden lg:inline">Goma</span>
-              <ChevronDown className="w-3 h-3 opacity-75" />
-            </button>
-
-            <AnimatePresence>
-              {openPopup === 'goma' && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute right-0 sm:left-0 top-full mt-2 rounded-xl leather-panel bg-[#221208] p-0.5 z-50 shadow-[0_22px_50px_rgba(0,0,0,0.9)] origin-top"
-                >
-                  <EraserStudioPanel
-                    brush={brush}
-                    onChangeBrush={(patch) => {
-                      onChangeBrush(patch);
-                      onGoToSection('cuaderno');
-                      onSelectTool('eraser');
-                    }}
-                    onClearPageStrokes={() => {
-                      onClearPageStrokes();
-                      setOpenPopup(null);
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Paleta de Colores Pop-up */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => togglePopup('color')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer whitespace-nowrap ${
-                openPopup === 'color' || activeTool === 'eyedropper'
-                  ? 'bg-[#6b3d1e] border-[#ebb96a]/70 text-white'
-                  : 'bg-[#2a160b]/80 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
-              }`}
-            >
-              <span
-                className="w-3.5 h-3.5 rounded-full border border-[#fff2d2]/80 shadow-inner shrink-0"
-                style={{ backgroundColor: brush.color }}
-              />
-              <span>Color</span>
-              <ChevronDown className="w-3 h-3 opacity-75" />
-            </button>
-
-            <AnimatePresence>
-              {openPopup === 'color' && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute right-0 top-full mt-2 rounded-xl leather-panel bg-[#221208] p-0.5 z-50 shadow-[0_22px_50px_rgba(0,0,0,0.9)] origin-top-right"
-                >
-                  <ColorPalettePanel
-                    color={brush.color}
-                    recentColors={recentColors}
-                    onSelectColor={(hex) => {
-                      onSelectColor(hex);
-                    }}
-                    onActivateEyedropper={() => {
-                      onGoToSection('cuaderno');
-                      onSelectTool('eyedropper');
-                      setOpenPopup(null);
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* Right: Drive, Audio, Config, Help, Cerrar Libro, Window Controls (pinned top-right) */}
-        <div className="ml-auto flex items-center gap-1 shrink-0">
+        {/* Right: Drive, Help, Portada & 3D Brass Window Controls */}
+        <div className="flex items-center justify-end gap-1.5 w-24 sm:w-44 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -590,89 +172,57 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
                 ? 'Google Drive conectado · Respaldos y Fotos'
                 : 'Conectar con Google Drive'
             }
-            className={`relative inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs border transition-colors cursor-pointer whitespace-nowrap ${
+            className={`relative hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] border transition-colors cursor-pointer whitespace-nowrap ${
               driveConnected
-                ? 'bg-[#2a3f2d] border-[#84c78d]/50 text-[#e4f7e6] hover:bg-[#36523a]'
-                : 'bg-[#2a160b]/80 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
+                ? 'bg-[#253b28]/90 border-[#84c78d]/60 text-[#e4f7e6] hover:bg-[#325136]'
+                : 'bg-[#2a1509]/85 border-[#c99552]/45 text-[#e8cfab] hover:bg-[#492713]'
             }`}
           >
             <Cloud className="w-3.5 h-3.5 text-[#f3cf8a]" />
-            <span className="hidden lg:inline">Drive</span>
-            {driveConnected && (
-              <span className="w-1.5 h-1.5 rounded-full bg-[#6fe381]" aria-hidden="true" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={onToggleMusic}
-            title={musicPlaying ? 'Silenciar música relajante' : 'Reproducir música relajante'}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              musicPlaying
-                ? 'bg-[#6f3d1d] text-[#ffdfa3] border border-[#e6b86a]/50'
-                : 'text-[#e7ca9c] hover:bg-[#5c361d]/60 hover:text-white'
-            }`}
-          >
-            {musicPlaying ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpenPopup(null);
-              onGoToSection('configuracion');
-            }}
-            title="Configuración y Windows .exe"
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              activeSection === 'configuracion'
-                ? 'bg-[#6f3d1d] text-[#ffdfa3] border border-[#e6b86a]/50'
-                : 'text-[#e7ca9c] hover:bg-[#5c361d]/60 hover:text-white'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
+            <span className="hidden xl:inline">Drive</span>
           </button>
 
           <button
             type="button"
             onClick={onOpenHelp}
             title="Guía rápida"
-            className="p-1.5 rounded-lg text-[#e7ca9c] hover:bg-[#5c361d]/60 hover:text-white transition-colors cursor-pointer"
+            className="hidden md:inline-flex p-1 rounded-lg bg-[#2a1509]/80 border border-[#c99552]/35 text-[#f0cf93] hover:bg-[#492713] cursor-pointer"
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle className="w-3.5 h-3.5" />
           </button>
 
           <button
             type="button"
             onClick={onReturnToCover}
-            title="Cerrar Libro y volver a la portada"
-            className="ml-0.5 inline-flex items-center gap-1.5 px-2 py-1 rounded border border-[#d49e58]/40 bg-[#2f1a0d] hover:bg-[#492915] text-xs text-[#f0d9b3] transition-colors cursor-pointer whitespace-nowrap"
+            title="Volver a la portada"
+            className="hidden md:inline-flex p-1 rounded-lg bg-[#2a1509]/80 border border-[#c99552]/35 text-[#f0cf93] hover:bg-[#492713] cursor-pointer"
           >
-            <BookMarked className="w-3.5 h-3.5 text-[#e6b668]" />
-            <span className="hidden xl:inline">Cerrar Libro</span>
+            <BookMarked className="w-3.5 h-3.5" />
           </button>
 
-          <div className="flex items-center gap-0.5 ml-0.5 bg-[#1e1007]/80 border border-[#b98241]/35 rounded-md p-0.5">
+          {/* 3D Brass Window Controls (-, □, ×) matching uploaded photo */}
+          <div className="carved-bar-3d flex items-center gap-0.5 rounded-lg px-1 py-0.5 mr-7">
             <button
               type="button"
               onClick={() => handleElectronAction('minimize')}
               title="Minimizar"
-              className="p-1 text-[#d7ba90] hover:text-white hover:bg-[#4b2b16] rounded cursor-pointer"
+              className="p-1 text-[#f3d49a] hover:text-white hover:bg-[#5b3319] rounded cursor-pointer"
             >
               <Minus className="w-3 h-3" />
             </button>
             <button
               type="button"
               onClick={() => handleElectronAction('maximize')}
-              title="Pantalla completa"
-              className="p-1 text-[#d7ba90] hover:text-white hover:bg-[#4b2b16] rounded cursor-pointer"
+              title="Maximizar / Pantalla completa"
+              className="p-1 text-[#f3d49a] hover:text-white hover:bg-[#5b3319] rounded cursor-pointer"
             >
               <Square className="w-3 h-3" />
             </button>
             <button
               type="button"
               onClick={() => handleElectronAction('close')}
-              title="Volver a la portada"
-              className="p-1 text-[#d7ba90] hover:text-white hover:bg-[#8c2d34] rounded cursor-pointer"
+              title="Cerrar / Volver a la portada"
+              className="p-1 text-[#f3d49a] hover:text-white hover:bg-[#8c2d34] rounded cursor-pointer"
             >
               <X className="w-3 h-3" />
             </button>
@@ -680,6 +230,251 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
         </div>
       </div>
 
+      {/* Row 2: Carved 3D Brass Horizontal Icon-Above-Label Toolbar */}
+      <div className="flex justify-center px-3 sm:px-6 pb-1">
+        <div className="carved-bar-3d rounded-2xl px-2 sm:px-3 py-1 flex items-center gap-0.5 sm:gap-1 max-w-full overflow-visible">
+          <ToolbarIconBtn
+            icon={<FilePlus2 className="w-4 h-4" />}
+            label="Nuevo"
+            onClick={() => {
+              setOpenPopup(null);
+              onNewPage();
+            }}
+          />
+
+          {/* Abrir Pop-up */}
+          <div className="relative">
+            <ToolbarIconBtn
+              icon={<FolderOpen className="w-4 h-4" />}
+              label="Abrir"
+              active={openPopup === 'abrir'}
+              onClick={() => togglePopup('abrir')}
+            />
+            <AnimatePresence>
+              {openPopup === 'abrir' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 top-full mt-2 w-52 rounded-xl leather-panel bg-[#221208] p-1.5 z-50 flex flex-col gap-0.5 shadow-[0_20px_45px_rgba(0,0,0,0.9)]"
+                >
+                  <PopupMenuItem
+                    icon={<FolderOpen className="w-4 h-4 text-[#f0c77c]" />}
+                    label="Abrir respaldo (.json)"
+                    onClick={() => {
+                      importInputRef.current?.click();
+                      setOpenPopup(null);
+                    }}
+                  />
+                  <PopupMenuItem
+                    icon={<Cloud className="w-4 h-4 text-[#f3cf8a]" />}
+                    label="Abrir desde Google Drive"
+                    onClick={() => {
+                      onOpenDrive('backups');
+                      setOpenPopup(null);
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <ToolbarIconBtn
+            icon={<Save className="w-4 h-4" />}
+            label="Guardar"
+            onClick={() => {
+              setOpenPopup(null);
+              onSaveNow();
+            }}
+          />
+
+          <ToolbarIconBtn
+            icon={<Undo2 className="w-4 h-4" />}
+            label="Deshacer"
+            disabled={!canUndo}
+            onClick={onUndo}
+          />
+
+          <ToolbarIconBtn
+            icon={<Redo2 className="w-4 h-4" />}
+            label="Rehacer"
+            disabled={!canRedo}
+            onClick={onRedo}
+          />
+
+          <div className="h-7 w-px bg-[#b88443]/30 mx-0.5 hidden sm:block" />
+
+          <ToolbarIconBtn
+            icon={<MousePointer className="w-4 h-4" />}
+            label="Mover"
+            active={activeSection === 'cuaderno' && activeTool === 'select'}
+            onClick={() => {
+              setOpenPopup(null);
+              onGoToSection('cuaderno');
+              onSelectTool('select');
+            }}
+          />
+
+          <ToolbarIconBtn
+            icon={<Type className="w-4 h-4" />}
+            label="Texto"
+            active={activeSection === 'cuaderno' && activeTool === 'text'}
+            onClick={() => {
+              setOpenPopup(null);
+              onGoToSection('cuaderno');
+              onSelectTool('text');
+            }}
+          />
+
+          <ToolbarIconBtn
+            icon={<PenTool className="w-4 h-4" />}
+            label="Dibujo"
+            active={activeSection === 'cuaderno' && activeTool === 'draw'}
+            onClick={() => {
+              setOpenPopup(null);
+              onGoToSection('cuaderno');
+              onSelectTool('draw');
+            }}
+          />
+
+          {/* Figuras */}
+          <div className="relative">
+            <ToolbarIconBtn
+              icon={<Shapes className="w-4 h-4" />}
+              label="Figuras"
+              active={openPopup === 'figuras' || activeTool === 'shape'}
+              onClick={() => togglePopup('figuras')}
+            />
+            <AnimatePresence>
+              {openPopup === 'figuras' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 rounded-xl leather-panel bg-[#221208] p-2.5 z-50 shadow-[0_22px_50px_rgba(0,0,0,0.92)]"
+                >
+                  <p className="px-1 pb-1.5 text-[10px] uppercase tracking-wider text-[#d9ba8b]">
+                    Figuras (Paint &amp; Crochet)
+                  </p>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(
+                      [
+                        { id: 'crochet-ring', label: 'Anillo', icon: <Shapes className="w-3.5 h-3.5" /> },
+                        { id: 'circle', label: 'Círculo', icon: <Circle className="w-3.5 h-3.5" /> },
+                        { id: 'square', label: 'Cuadro', icon: <Square className="w-3.5 h-3.5" /> },
+                        { id: 'arrow', label: 'Flecha', icon: <ArrowRight className="w-3.5 h-3.5" /> },
+                        { id: 'line', label: 'Línea', icon: <Minus className="w-3.5 h-3.5" /> },
+                        { id: 'heart', label: 'Corazón', icon: <Heart className="w-3.5 h-3.5" /> },
+                      ] as Array<{ id: ShapeKind; label: string; icon: React.ReactNode }>
+                    ).map((sh) => (
+                      <button
+                        key={sh.id}
+                        type="button"
+                        onClick={() => {
+                          onSelectShapeKind(sh.id);
+                          onGoToSection('cuaderno');
+                          onSelectTool('shape');
+                          setOpenPopup(null);
+                        }}
+                        className={`flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-[10px] border cursor-pointer transition-colors ${
+                          activeTool === 'shape' && selectedShapeKind === sh.id
+                            ? 'bg-[#6b3e1f] border-[#ebb86c] text-white'
+                            : 'bg-[#2c180c] border-[#8b5d31]/30 text-[#e8cfab] hover:bg-[#492915]'
+                        }`}
+                      >
+                        {sh.icon}
+                        <span>{sh.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Imagen */}
+          <div className="relative">
+            <ToolbarIconBtn
+              icon={<ImagePlus className="w-4 h-4" />}
+              label="Imagen"
+              active={openPopup === 'imagen'}
+              onClick={() => togglePopup('imagen')}
+            />
+            <AnimatePresence>
+              {openPopup === 'imagen' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-2 w-56 rounded-xl leather-panel bg-[#221208] p-1.5 z-50 flex flex-col gap-0.5 shadow-[0_22px_50px_rgba(0,0,0,0.92)]"
+                >
+                  <PopupMenuItem
+                    icon={<ImagePlus className="w-4 h-4 text-[#f3cf8a]" />}
+                    label="Subir foto desde equipo"
+                    onClick={() => {
+                      onOpenImageUpload();
+                      setOpenPopup(null);
+                    }}
+                  />
+                  <PopupMenuItem
+                    icon={<Cloud className="w-4 h-4 text-[#9fd3a6]" />}
+                    label="Foto desde Google Drive"
+                    onClick={() => {
+                      onOpenDrive('images');
+                      setOpenPopup(null);
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <ToolbarIconBtn
+            icon={<Flower2 className="w-4 h-4" />}
+            label="Sticker"
+            active={activeSection === 'stickers'}
+            onClick={() => {
+              setOpenPopup(null);
+              onGoToSection('stickers');
+            }}
+          />
+
+          <ToolbarIconBtn
+            icon={<Layers className="w-4 h-4" />}
+            label="Capa"
+            active={showRightDock}
+            onClick={() => {
+              setOpenPopup(null);
+              onGoToSection('cuaderno');
+              onToggleRightDock();
+            }}
+          />
+
+          <ToolbarIconBtn
+            icon={<Download className="w-4 h-4" />}
+            label="Exportar"
+            onClick={() => {
+              setOpenPopup(null);
+              onExportBackup();
+            }}
+          />
+
+          <ToolbarIconBtn
+            icon={<Settings className="w-4 h-4" />}
+            label="Ajustes"
+            active={activeSection === 'configuracion'}
+            onClick={() => {
+              setOpenPopup(null);
+              onGoToSection('configuracion');
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Floating Saved / Feedback Toast */}
       <AnimatePresence>
         {savedToast && (
           <motion.div
@@ -687,7 +482,7 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="pointer-events-none absolute right-4 top-full mt-2 z-50 text-xs text-[#ffebc2] bg-[#361e0f]/95 border border-[#d6a25e]/50 px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap"
+            className="pointer-events-none absolute right-6 top-full mt-1 z-50 text-xs text-[#ffebc2] bg-[#361e0f]/95 border border-[#d6a25e]/60 px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap"
           >
             {savedToast}
           </motion.div>
@@ -696,6 +491,30 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
     </header>
   );
 };
+
+const ToolbarIconBtn: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}> = ({ icon, label, active = false, disabled = false, onClick }) => (
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={onClick}
+    className={`flex flex-col items-center justify-center gap-0.5 px-2 sm:px-2.5 py-1 rounded-xl transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed shrink-0 ${
+      active
+        ? 'bg-gradient-to-b from-[#d49644]/85 to-[#8a511b]/90 text-[#fff8e8] shadow-[inset_0_1px_0_rgba(255,244,200,0.45),0_0_10px_rgba(235,181,86,0.4)] border border-[#f5d290]/75'
+        : 'text-[#f2d093] hover:bg-[#522c14]/75 hover:text-[#fff6e0] border border-transparent'
+    }`}
+  >
+    <span className="flex items-center justify-center">{icon}</span>
+    <span className="text-[10px] leading-none font-medium tracking-tight whitespace-nowrap">
+      {label}
+    </span>
+  </button>
+);
 
 const PopupMenuItem: React.FC<{
   icon: React.ReactNode;
