@@ -21,6 +21,7 @@ import {
   type StudioPhotoPack,
 } from '../data/menswearCrochetCatalog';
 import { VitruvianMan3D } from './VitruvianMan3D';
+import { ProfessionalAvatarViewer } from './ProfessionalAvatarViewer';
 import { audioEngine } from '../utils/audioEngine';
 import { compressImageFile } from '../utils/storage';
 
@@ -242,6 +243,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
 }) => {
   const [studioPack, setStudioPack] = useState<StudioPhotoPack | null>(null);
   const [slotFilter, setSlotFilter] = useState<SlotFilter>('all');
+  const [professionalViewer, setProfessionalViewer] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [visibleCount, setVisibleCount] = useState<number>(27);
   const [selectedTopId, setSelectedTopId] = useState<string | null>(null);
@@ -646,7 +648,9 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
         </div>
 
         {/* RIGHT COLUMN (5 cols): Full-Height Interactive 3D Vitruvian Model Dressed Live with Selected Top & Bottom */}
-        <aside className="lg:col-span-5 flex flex-col min-h-[520px] h-full">
+        <aside className="lg:col-span-5 flex flex-col min-h-[520px] h-full relative">
+          <button type="button" onClick={() => setProfessionalViewer(true)} className="absolute z-40 right-3 top-12 rounded-lg border border-[#e6bc6a] bg-[#734a16] px-3 py-1.5 text-xs font-bold text-[#fff4d8] shadow-lg">✦ Avatar GLB Pro</button>
+          {professionalViewer && <ProfessionalAvatarViewer onClose={() => setProfessionalViewer(false)} />}
           <VitruvianMan3D
             selectedTop={selectedTop}
             selectedBottom={selectedBottom}

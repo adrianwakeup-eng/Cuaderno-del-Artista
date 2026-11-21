@@ -2,7 +2,7 @@ name: Validar Cuaderno del Artista
 on:
   pull_request:
   push:
-    branches: [main, feature/desktop-focus-final]
+    branches: [main, feature/desktop-focus-final, feature/vestidor-glb-profesional]
 jobs:
   web:
     runs-on: ubuntu-latest
