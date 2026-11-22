@@ -354,10 +354,14 @@ export interface VestidorDecorElement {
   widthPct: number;
   /** Layer ordering within the decoration container */
   zIndex: number;
-  /** Rotation in degrees (-45..45) */
+  /** Rotation in degrees (-180..180) */
   rotationDeg: number;
   /** Horizontal flip */
   flipX?: boolean;
+  /** Lock element against dragging, resizing, rotation, or deletion */
+  locked?: boolean;
+  /** Hide element temporarily from stage (restorable in Visual Editor) */
+  hidden?: boolean;
   /** Independent per-element animation toggle */
   animated: boolean;
   /** Inherited CSS compositor animation style */

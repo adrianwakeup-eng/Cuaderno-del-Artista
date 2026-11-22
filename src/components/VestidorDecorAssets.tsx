@@ -1,4 +1,5 @@
 import React from 'react';
+import { Pause, Play } from 'lucide-react';
 import type {
   VestidorDecorAnimation,
   VestidorDecorElement,
@@ -22,10 +23,10 @@ export const DECOR_TEMPLATES: DecorTemplateDefinition[] = [
     label: 'Cortina de macramé',
     categoryLabel: 'Macramé',
     defaultWidthPct: 24,
-    aspectRatio: 0.76,
+    aspectRatio: 0.44,
     defaultAnimation: 'pendulum',
     defaultAnimated: true,
-    defaultTint: '#f3e5cf',
+    defaultTint: '#d8b56a',
   },
   {
     kind: 'dreamcatcher',
@@ -88,10 +89,10 @@ export const DECOR_TEMPLATES: DecorTemplateDefinition[] = [
     label: 'Máquina de coser',
     categoryLabel: 'Taller',
     defaultWidthPct: 26,
-    aspectRatio: 1.24,
+    aspectRatio: 1.05,
     defaultAnimation: 'none',
-    defaultAnimated: false,
-    defaultTint: '#e2b14a',
+    defaultAnimated: true,
+    defaultTint: '#d8b56a',
   },
   {
     kind: 'potted-plant',
@@ -176,82 +177,134 @@ export function getDecorAnimationClass(
   }
 }
 
-/** Hand-crafted Macramé Curtain SVG with turned walnut dowel, diamond knots & hanging fringes */
-const MacrameCurtainArt: React.FC<{ tint?: string }> = ({ tint = '#f3e5cf' }) => (
-  <svg viewBox="0 0 180 236" fill="none" className="w-full h-full drop-shadow-[0_8px_14px_rgba(68,34,14,0.28)]">
-    <defs>
-      <linearGradient id="macWood" x1="0" y1="0" x2="180" y2="0">
-        <stop offset="0%" stopColor="#6a3a1e" />
-        <stop offset="50%" stopColor="#9b5f35" />
-        <stop offset="100%" stopColor="#5e3218" />
-      </linearGradient>
-    </defs>
-    {/* Hanging twine */}
-    <path d="M90 4 L28 24 M90 4 L152 24" stroke="#b58d63" strokeWidth="2.4" strokeLinecap="round" />
-    <circle cx="90" cy="5" r="3.5" fill="#7c4523" stroke="#e9c896" strokeWidth="1.2" />
-    {/* Turned wooden dowel */}
-    <rect x="10" y="21" width="160" height="9" rx="4.5" fill="url(#macWood)" stroke="#4c2510" strokeWidth="1.2" />
-    <circle cx="11" cy="25.5" r="5.5" fill="#7c4724" stroke="#4c2510" strokeWidth="1" />
-    <circle cx="169" cy="25.5" r="5.5" fill="#7c4724" stroke="#4c2510" strokeWidth="1" />
-    {/* Top lark's head knots */}
-    {Array.from({ length: 11 }).map((_, i) => (
-      <rect
-        key={`k-${i}`}
-        x={22 + i * 13}
-        y="27"
-        width="7"
-        height="11"
-        rx="3.5"
-        fill={tint}
-        stroke="#b89b79"
-        strokeWidth="1"
+/**
+ * Photorealistic Golden-Champagne Macramé Curtain with real knots, wooden beads,
+ * woven flowers, swaying fringes & independently oscillating suspended dreamcatcher.
+ */
+const MacrameCurtainArt: React.FC<{
+  tint?: string;
+  animated?: boolean;
+  reducedMotion?: boolean;
+  mirrored?: boolean;
+}> = ({ animated = true, reducedMotion = false, mirrored = false }) => (
+  <div
+    className={`relative w-full h-full select-none ${
+      !animated || reducedMotion ? 'atelier-sewing-paused' : ''
+    }`}
+  >
+    <div className="relative w-full h-full atelier-anim-curtain">
+      <img
+        src="/vestidor/artisan/macrame-curtain-gold.webp"
+        alt="Cortina dorada artesanal de macramé"
+        draggable={false}
+        className={`w-full h-full object-contain object-top drop-shadow-[0_10px_18px_rgba(72,40,16,0.28)] ${
+          mirrored ? '-scale-x-100' : ''
+        }`}
       />
-    ))}
-    {/* Woven diamond lattice */}
-    <g stroke={tint} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M26 38 L52 72 L78 38 L104 72 L130 38 L156 72" />
-      <path d="M26 72 L52 38 L78 72 L104 38 L130 72 L156 38" />
-      <path d="M39 72 L65 112 L91 72 L117 112 L143 72" />
-      <path d="M39 112 L65 72 L91 112 L117 72 L143 112" />
-      <path d="M52 112 L90 158 L128 112" />
-      <path d="M65 112 L90 144 L115 112" />
-    </g>
-    {/* Subtle braid shadow lines */}
-    <g stroke="#b79670" strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round">
-      <path d="M26 38 L52 72 L78 38 L104 72 L130 38 L156 72" />
-      <path d="M39 72 L65 112 L91 72 L117 112 L143 72" />
-      <path d="M52 112 L90 158 L128 112" />
-    </g>
-    {/* Wooden macramé accent beads */}
-    {[
-      [52, 72],
-      [104, 72],
-      [65, 112],
-      [117, 112],
-      [90, 158],
-    ].map(([cx, cy], idx) => (
-      <circle key={`b-${idx}`} cx={cx} cy={cy} r="5.5" fill="#b97843" stroke="#6c3b19" strokeWidth="1.2" />
-    ))}
-    {/* Cascading soft fringe tassels */}
-    {[
-      [26, 74, 152],
-      [39, 114, 174],
-      [52, 114, 190],
-      [65, 114, 204],
-      [78, 134, 218],
-      [90, 162, 228],
-      [102, 134, 218],
-      [115, 114, 204],
-      [128, 114, 190],
-      [141, 114, 174],
-      [154, 74, 152],
-    ].map(([x, y1, y2], idx) => (
-      <g key={`f-${idx}`}>
-        <path d={`M${x} ${y1} Q${x + (idx % 2 === 0 ? -2 : 2)} ${(y1 + y2) / 2} ${x} ${y2}`} stroke={tint} strokeWidth="3.4" strokeLinecap="round" />
-        <path d={`M${x} ${y1} Q${x + (idx % 2 === 0 ? -2 : 2)} ${(y1 + y2) / 2} ${x} ${y2}`} stroke="#bfa07c" strokeOpacity="0.4" strokeWidth="1" strokeLinecap="round" />
-      </g>
-    ))}
-  </svg>
+      {/* Independently oscillating hanging dreamcatcher accent */}
+      <div
+        className={`pointer-events-none absolute top-[45%] ${
+          mirrored ? 'left-[7%]' : 'right-[7%]'
+        } w-[34%] max-w-[66px] atelier-anim-dreamcatcher`}
+        style={{ animationDelay: mirrored ? '0.95s' : '0.15s' }}
+      >
+        <svg
+          viewBox="0 0 90 190"
+          className="w-full h-auto drop-shadow-[0_5px_8px_rgba(74,42,14,0.32)]"
+          fill="none"
+          aria-hidden="true"
+        >
+          <line x1="45" y1="0" x2="45" y2="34" stroke="#c89a4a" strokeWidth="2.4" strokeDasharray="3 1.5" />
+          <circle cx="45" cy="18" r="4.5" fill="#8b5a34" stroke="#4f2d14" strokeWidth="1" />
+          <circle cx="45" cy="62" r="25" stroke="#b9863c" strokeWidth="4" />
+          <circle cx="45" cy="62" r="25" stroke="#f5dfa6" strokeWidth="1.2" strokeDasharray="4 3" />
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
+            const rad = (deg * Math.PI) / 180;
+            return (
+              <line
+                key={deg}
+                x1="45"
+                y1="62"
+                x2={45 + Math.cos(rad) * 23}
+                y2={62 + Math.sin(rad) * 23}
+                stroke="#f4e2bd"
+                strokeWidth="1.15"
+                strokeOpacity="0.9"
+              />
+            );
+          })}
+          <polygon
+            points="45,42 59,48 65,62 59,76 45,82 31,76 25,62 31,48"
+            stroke="#e9c882"
+            strokeWidth="1.1"
+            fill="none"
+          />
+          <circle cx="45" cy="62" r="5" fill="#d8a8af" stroke="#8f545e" strokeWidth="0.9" />
+          <circle cx="45" cy="62" r="2.1" fill="#fff8ed" />
+          <g className="atelier-anim-fringe" style={{ animationDelay: mirrored ? '0.6s' : '0s' }}>
+            {[
+              { x: 27, len: 66, beadY: 102 },
+              { x: 36, len: 80, beadY: 112 },
+              { x: 45, len: 92, beadY: 120 },
+              { x: 54, len: 80, beadY: 112 },
+              { x: 63, len: 66, beadY: 102 },
+            ].map((t, i) => (
+              <g key={i}>
+                <line
+                  x1={t.x}
+                  y1={84 + (i === 2 ? 4 : i === 1 || i === 3 ? 2 : -1)}
+                  x2={t.x}
+                  y2={84 + t.len}
+                  stroke={i % 2 === 0 ? '#d8b56a' : '#f5e8d3'}
+                  strokeWidth="2.1"
+                  strokeLinecap="round"
+                />
+                <circle cx={t.x} cy={t.beadY} r="3.1" fill="#7c4e2a" stroke="#452710" strokeWidth="0.8" />
+                <path
+                  d={`M ${t.x} ${82 + t.len - 10} L ${t.x - 3.8} ${86 + t.len} M ${t.x} ${82 + t.len - 10} L ${t.x + 3.8} ${86 + t.len}`}
+                  stroke="#c6933d"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </g>
+            ))}
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+);
+
+/**
+ * Framing Golden Macramé Curtain Pair for El Vestidor Dorado stage
+ * Frames both edges gracefully without ever obstructing the central photographic model.
+ */
+export const StageMacrameCurtains: React.FC<{
+  isOpen: boolean;
+  reducedMotion: boolean;
+}> = ({ isOpen, reducedMotion }) => (
+  <>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none select-none hidden sm:block absolute left-0 top-0 h-[82%] w-[26%] max-w-[186px] min-w-[92px] z-[12] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      style={{
+        transform: isOpen ? 'translateX(-10%)' : 'translateX(10%) scaleX(1.12)',
+        transformOrigin: 'top left',
+      }}
+    >
+      <MacrameCurtainArt animated={!reducedMotion} reducedMotion={reducedMotion} mirrored={false} />
+    </div>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none select-none hidden sm:block absolute right-0 top-0 h-[82%] w-[26%] max-w-[186px] min-w-[92px] z-[12] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      style={{
+        transform: isOpen ? 'translateX(10%)' : 'translateX(-10%) scaleX(1.12)',
+        transformOrigin: 'top right',
+      }}
+    >
+      <MacrameCurtainArt animated={!reducedMotion} reducedMotion={reducedMotion} mirrored={true} />
+    </div>
+  </>
 );
 
 /** Hand-crafted Crochet Mandala Dreamcatcher SVG with wooden hoop, beads & hanging woven feathers */
@@ -293,52 +346,133 @@ const DreamcatcherArt: React.FC<{ tint?: string }> = ({ tint = '#f4e3c7' }) => (
   </svg>
 );
 
-/** Classic Vintage Cast-Iron & Gold Filigree Sewing Machine SVG */
-const VintageSewingMachineArt: React.FC<{ tint?: string }> = ({ tint = '#e2b14a' }) => (
-  <svg viewBox="0 0 220 176" fill="none" className="w-full h-full drop-shadow-[0_10px_14px_rgba(52,24,10,0.34)]">
-    <defs>
-      <linearGradient id="sewWood" x1="0" y1="130" x2="220" y2="170">
-        <stop offset="0%" stopColor="#94582e" />
-        <stop offset="55%" stopColor="#6c3a1a" />
-        <stop offset="100%" stopColor="#46220c" />
-      </linearGradient>
-      <linearGradient id="sewIron" x1="20" y1="20" x2="180" y2="140">
-        <stop offset="0%" stopColor="#3c3430" />
-        <stop offset="45%" stopColor="#1e1917" />
-        <stop offset="100%" stopColor="#0f0c0b" />
-      </linearGradient>
-    </defs>
-    {/* Carved walnut base */}
-    <rect x="14" y="138" width="192" height="26" rx="7" fill="url(#sewWood)" stroke="#3f1e0a" strokeWidth="2" />
-    <rect x="24" y="145" width="172" height="10" rx="3" fill="#4f2811" opacity="0.55" />
-    {/* Cast-iron machine bed */}
-    <rect x="26" y="124" width="166" height="16" rx="5" fill="url(#sewIron)" stroke={tint} strokeWidth="1.2" />
-    {/* Machine neck, arm & needle head */}
-    <path
-      d="M168 124 V60 C168 38, 152 30, 128 30 H62 C46 30, 38 40, 38 56 V88 H62 V66 C62 56, 68 52, 82 52 H124 C134 52, 138 58, 138 72 V124 Z"
-      fill="url(#sewIron)"
-      stroke="#493f39"
-      strokeWidth="1.4"
+/**
+ * Photorealistic Vintage Ivory-Cream & Gold Sewing Machine on Carved Walnut Table
+ * with animated spoked flywheel, reciprocating needle, gliding crochet lace & golden thread.
+ */
+const VintageSewingMachineArt: React.FC<{
+  tint?: string;
+  animated?: boolean;
+  reducedMotion?: boolean;
+  onTogglePause?: () => void;
+  showInlineControl?: boolean;
+}> = ({
+  animated = true,
+  reducedMotion = false,
+  onTogglePause,
+  showInlineControl = false,
+}) => {
+  const isPaused = !animated || reducedMotion;
+  return (
+    <div className={`relative w-full h-full select-none ${isPaused ? 'atelier-sewing-paused' : ''}`}>
+      {/* Grounded contact shadow beneath carved walnut table legs */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[10%] right-[10%] bottom-[-2%] h-[11%] rounded-full bg-[#4a2b14]/34 blur-[6px]"
+      />
+      <img
+        src="/vestidor/artisan/sewing-machine-vintage.webp"
+        alt="Máquina de coser vintage crema y oro sobre mesa de madera de nogal"
+        draggable={false}
+        className="relative z-10 w-full h-full object-contain drop-shadow-[0_10px_16px_rgba(62,34,14,0.28)]"
+      />
+      {/* Precision-aligned animated mechanical SVG overlay (wheel, needle, lace feed, golden thread) */}
+      <svg
+        viewBox="0 0 862 820"
+        className="pointer-events-none absolute inset-0 z-20 w-full h-full"
+        fill="none"
+        aria-hidden="true"
+      >
+        <g className="atelier-anim-thread">
+          <path
+            d="M 556 122 L 246 168 L 210 198 L 218 408"
+            stroke="#f5cf74"
+            strokeWidth="2.4"
+            strokeOpacity="0.9"
+            strokeLinecap="round"
+          />
+          <circle cx="246" cy="168" r="3" fill="#fff4cf" />
+        </g>
+        <g className="atelier-anim-needle">
+          <rect x="218" y="346" width="5.5" height="62" rx="2" fill="#d9d5cc" stroke="#6c6258" strokeWidth="1.2" />
+          <line x1="220.8" y1="406" x2="220.8" y2="444" stroke="#f7f4ee" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="220.8" cy="436" r="2.2" fill="#ffe49c" />
+        </g>
+        <g className="atelier-anim-fabric">
+          <path
+            d="M 168 456 Q 212 446 258 454 Q 302 462 344 452"
+            stroke="#fff7e6"
+            strokeWidth="3.5"
+            strokeDasharray="6 4"
+            strokeLinecap="round"
+            strokeOpacity="0.85"
+          />
+          <path
+            d="M 182 465 Q 222 458 262 465"
+            stroke="#d8b56a"
+            strokeWidth="1.8"
+            strokeDasharray="4 4"
+            strokeOpacity="0.7"
+          />
+        </g>
+        <g transform="translate(744, 240)">
+          <g className="atelier-anim-wheel">
+            <g transform="scale(0.54, 1)">
+              <circle cx="0" cy="0" r="88" stroke="#e9cb85" strokeWidth="5.5" strokeOpacity="0.68" />
+              {[0, 60, 120, 180, 240, 300].map((deg) => (
+                <line
+                  key={deg}
+                  x1="0"
+                  y1="0"
+                  x2={Math.cos((deg * Math.PI) / 180) * 82}
+                  y2={Math.sin((deg * Math.PI) / 180) * 82}
+                  stroke="#f4dea4"
+                  strokeWidth="6"
+                  strokeOpacity="0.62"
+                  strokeLinecap="round"
+                />
+              ))}
+              <circle cx="0" cy="0" r="14" fill="#d8b56a" fillOpacity="0.8" stroke="#6c4516" strokeWidth="2.5" />
+            </g>
+          </g>
+        </g>
+      </svg>
+
+      {showInlineControl && onTogglePause && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePause();
+          }}
+          title={isPaused ? 'Reanudar máquina de coser' : 'Pausar máquina de coser'}
+          aria-label={isPaused ? 'Reanudar máquina de coser' : 'Pausar máquina de coser'}
+          className="pointer-events-auto absolute -bottom-2.5 left-1/2 -translate-x-1/2 z-30 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#5c341a]/90 hover:bg-[#774523] border border-[#e4bc78] text-[9.5px] font-bold text-[#fff3d8] shadow cursor-pointer opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap"
+        >
+          {isPaused ? <Play className="w-2.5 h-2.5 text-[#ffd96b]" /> : <Pause className="w-2.5 h-2.5 text-[#ffd96b]" />}
+          <span>{isPaused ? 'Coser' : 'Pausar'}</span>
+        </button>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Background-depth Animated Vintage Sewing Machine seated naturally on the atelier floor
+ */
+export const StageVintageSewingMachine: React.FC<{
+  paused: boolean;
+  reducedMotion: boolean;
+  onTogglePause: () => void;
+}> = ({ paused, reducedMotion, onTogglePause }) => (
+  <div className="hidden md:block absolute left-[2%] xl:left-[3.5%] bottom-[17.5%] w-[124px] lg:w-[144px] xl:w-[164px] aspect-[1.05/1] z-[11] pointer-events-none opacity-95">
+    <VintageSewingMachineArt
+      animated={!paused}
+      reducedMotion={reducedMotion}
+      onTogglePause={onTogglePause}
+      showInlineControl={true}
     />
-    {/* Gold filigree accents */}
-    <path d="M74 41 H134" stroke={tint} strokeWidth="2.4" strokeLinecap="round" strokeDasharray="8 4 2 4" />
-    <circle cx="152" cy="90" r="10" stroke={tint} strokeWidth="1.8" />
-    <circle cx="152" cy="90" r="4" fill={tint} />
-    {/* Hand wheel on right */}
-    <circle cx="182" cy="70" r="22" stroke="#241e1c" strokeWidth="6" />
-    <circle cx="182" cy="70" r="17" stroke="#d5cfc6" strokeWidth="2.4" />
-    <path d="M182 52 V88 M164 70 H200" stroke="#bab2a8" strokeWidth="2" />
-    <circle cx="182" cy="70" r="5" fill={tint} />
-    {/* Thread spool on top */}
-    <rect x="128" y="14" width="14" height="16" rx="2" fill="#c7435f" stroke="#7c1d34" strokeWidth="1.2" />
-    <rect x="125" y="12" width="20" height="3.5" rx="1.5" fill="#9c6030" />
-    <rect x="125" y="28" width="20" height="3.5" rx="1.5" fill="#9c6030" />
-    {/* Presser foot & needle */}
-    <path d="M50 88 V122" stroke="#ded9d2" strokeWidth="2.2" strokeLinecap="round" />
-    <path d="M44 121 H58" stroke="#cfc8be" strokeWidth="2.8" strokeLinecap="round" />
-    {/* Flowing golden thread */}
-    <path d="M128 19 C104 14, 72 22, 50 42 V88" stroke="#f7cf68" strokeWidth="1.3" strokeDasharray="3 2" />
-  </svg>
+  </div>
 );
 
 /** Warm Botanical Broadleaf Plant in Woven Wicker Basket SVG */
@@ -387,11 +521,23 @@ export const VestidorDecorVisual: React.FC<{
   const renderContent = () => {
     switch (item.kind) {
       case 'macrame-curtain':
-        return <MacrameCurtainArt tint={item.tintColor} />;
+        return (
+          <MacrameCurtainArt
+            tint={item.tintColor}
+            animated={item.animated}
+            reducedMotion={reducedMotion}
+          />
+        );
       case 'dreamcatcher':
         return <DreamcatcherArt tint={item.tintColor} />;
       case 'sewing-machine':
-        return <VintageSewingMachineArt tint={item.tintColor} />;
+        return (
+          <VintageSewingMachineArt
+            tint={item.tintColor}
+            animated={item.animated}
+            reducedMotion={reducedMotion}
+          />
+        );
       case 'potted-plant':
         return <PottedPlantArt />;
       case 'crochet-flowers':

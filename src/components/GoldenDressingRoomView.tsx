@@ -17,6 +17,7 @@ import {
   Minimize2,
   Palette,
   Pause,
+  Play,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -362,11 +363,14 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   const [detailInspectorOpen, setDetailInspectorOpen] = useState<boolean>(false);
   const [customStudioPhotoName, setCustomStudioPhotoName] = useState<string | null>(null);
 
-  // Visual Decoration Edit Mode (copy, paste, duplicate, move, resize & organize compatible decor)
+  // Visual Decoration Edit Mode (copy, paste, duplicate, move, resize, rotate, lock, hide & organize decor)
   const [decorEditMode, setDecorEditMode] = useState<boolean>(false);
   const [decorItems, setDecorItems] = useState<VestidorDecorElement[]>(() =>
     createDefaultStageDecorations()
   );
+  // Framing Golden Macramé Curtains & Animated Background Vintage Sewing Machine
+  const [curtainsOpen, setCurtainsOpen] = useState<boolean>(true);
+  const [sewingPaused, setSewingPaused] = useState<boolean>(false);
 
   const effectiveReducedMotion =
     systemReducedMotion || preferences.reduceMotion || preferences.performanceMode === 'ahorro';
@@ -1158,6 +1162,60 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             <button
               type="button"
               onClick={() => {
+                playSfx(curtainsOpen ? 'toggleOff' : 'toggleOn');
+                setCurtainsOpen((prev) => !prev);
+                onNotify(
+                  curtainsOpen
+                    ? 'Cortinas doradas de macramé cerradas parcialmente'
+                    : 'Cortinas doradas de macramé abiertas'
+                );
+              }}
+              title={
+                curtainsOpen
+                  ? 'Cerrar ligeramente cortinas de macramé'
+                  : 'Abrir cortinas de macramé'
+              }
+              aria-label="Abrir o cerrar cortinas de macramé"
+              className={`hidden md:flex w-8 h-8 rounded-full border-2 items-center justify-center shadow-md cursor-pointer transition-colors ${
+                !curtainsOpen
+                  ? 'bg-[#f8c432] border-[#9c6108] text-[#421f07]'
+                  : 'bg-[#fff5e4]/92 hover:bg-white border-[#c8945e] text-[#683718]'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playSfx(sewingPaused ? 'toggleOn' : 'toggleOff');
+                setSewingPaused((prev) => !prev);
+                onNotify(
+                  sewingPaused
+                    ? 'Máquina de coser vintage activada'
+                    : 'Máquina de coser vintage en pausa'
+                );
+              }}
+              title={
+                sewingPaused
+                  ? 'Reanudar animación de la máquina de coser'
+                  : 'Pausar animación de la máquina de coser'
+              }
+              aria-label={
+                sewingPaused
+                  ? 'Reanudar máquina de coser'
+                  : 'Pausar máquina de coser'
+              }
+              className={`hidden md:flex w-8 h-8 rounded-full border-2 items-center justify-center shadow-md cursor-pointer transition-colors ${
+                sewingPaused
+                  ? 'bg-[#e8d2b2] border-[#a87545] text-[#6b3f1e]'
+                  : 'bg-[#fff5e4]/92 hover:bg-white border-[#c8945e] text-[#683718]'
+              }`}
+            >
+              {sewingPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 playSfx('click');
                 setPoseDrawerOpen(false);
                 setSettingsDrawerOpen(false);
@@ -1384,6 +1442,12 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             cleanStageMode={cleanPhotoMode || decorEditMode}
             reducedMotion={effectiveReducedMotion}
             soundEnabled={preferences.soundEnabled}
+            curtainsOpen={curtainsOpen}
+            sewingPaused={sewingPaused}
+            onToggleSewingPaused={() => {
+              playSfx(sewingPaused ? 'toggleOn' : 'toggleOff');
+              setSewingPaused((prev) => !prev);
+            }}
             onToggleSpin360={() => {
               playSfx(isSpinning360 ? 'toggleOff' : 'toggleOn');
               setIsSpinning360((prev) => !prev);

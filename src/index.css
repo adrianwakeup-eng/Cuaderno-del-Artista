@@ -320,6 +320,71 @@
   }
 }
 
+@keyframes atelierCurtainSway {
+  0%, 100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(0.9deg) translate3d(1.5px, 0, 0);
+  }
+}
+
+@keyframes atelierDreamcatcherSwing {
+  0%, 100% {
+    transform: rotate(-3.2deg);
+  }
+  50% {
+    transform: rotate(3.2deg);
+  }
+}
+
+@keyframes atelierFringeWave {
+  0%, 100% {
+    transform: skewX(-1.6deg) scaleY(1);
+  }
+  50% {
+    transform: skewX(1.6deg) scaleY(1.015);
+  }
+}
+
+@keyframes atelierWheelSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes atelierNeedlePlunge {
+  0%, 100% {
+    transform: translate3d(0, 0px, 0);
+  }
+  45%, 55% {
+    transform: translate3d(0, 11px, 0);
+  }
+}
+
+@keyframes atelierFabricFeed {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-3px, 0.5px, 0);
+  }
+}
+
+@keyframes atelierThreadQuiver {
+  0%, 100% {
+    transform: scaleY(1) translate3d(0, 0, 0);
+    opacity: 0.88;
+  }
+  50% {
+    transform: scaleY(1.04) translate3d(0, 1.5px, 0);
+    opacity: 1;
+  }
+}
+
 .animate-mote {
   animation: floatMote 7s ease-in-out infinite;
 }
@@ -358,6 +423,51 @@
   animation: decorFloatSoft 6.5s ease-in-out infinite;
 }
 
+.atelier-anim-curtain {
+  transform-origin: top center;
+  animation: atelierCurtainSway 6.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.atelier-anim-dreamcatcher {
+  transform-origin: top center;
+  animation: atelierDreamcatcherSwing 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.atelier-anim-fringe {
+  transform-origin: top center;
+  animation: atelierFringeWave 5.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.atelier-anim-wheel {
+  transform-origin: center;
+  animation: atelierWheelSpin 1.35s linear infinite;
+  will-change: transform;
+}
+
+.atelier-anim-needle {
+  animation: atelierNeedlePlunge 0.56s ease-in-out infinite;
+  will-change: transform;
+}
+
+.atelier-anim-fabric {
+  animation: atelierFabricFeed 1.12s ease-in-out infinite;
+  will-change: transform;
+}
+
+.atelier-anim-thread {
+  transform-origin: top center;
+  animation: atelierThreadQuiver 0.56s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.atelier-sewing-paused,
+.atelier-sewing-paused * {
+  animation-play-state: paused !important;
+}
+
 .vestidor-reduced-motion *,
 .vestidor-reduced-motion *::before,
 .vestidor-reduced-motion *::after {
@@ -374,7 +484,14 @@
   .animate-crochet-sunflower,
   .animate-crochet-basket,
   .animate-decor-pendulum,
-  .animate-decor-float {
+  .animate-decor-float,
+  .atelier-anim-curtain,
+  .atelier-anim-dreamcatcher,
+  .atelier-anim-fringe,
+  .atelier-anim-wheel,
+  .atelier-anim-needle,
+  .atelier-anim-fabric,
+  .atelier-anim-thread {
     animation: none !important;
   }
 }

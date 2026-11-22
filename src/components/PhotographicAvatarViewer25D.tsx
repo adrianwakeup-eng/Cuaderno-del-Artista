@@ -28,6 +28,7 @@ import {
 } from '../data/vestidorPhotoManifest';
 import { audioEngine } from '../utils/audioEngine';
 import { CircularCrochetRug } from './ArtisanCrochetDecorations';
+import { StageMacrameCurtains, StageVintageSewingMachine } from './VestidorDecorAssets';
 
 export interface PhotographicAvatarViewerHandle {
   captureSnapshot: (options?: { clean?: boolean }) => string | null;
@@ -61,6 +62,9 @@ export interface PhotographicAvatarViewerProps {
   cleanStageMode?: boolean;
   reducedMotion?: boolean;
   soundEnabled?: boolean;
+  curtainsOpen?: boolean;
+  sewingPaused?: boolean;
+  onToggleSewingPaused?: () => void;
   onToggleSpin360: () => void;
   onStopSpin360: () => void;
   onYawChange?: (deg: number) => void;
@@ -91,8 +95,8 @@ const STUDIO_MOOD_MAP: Record<StudioLightPresetId, StudioMoodVisuals> = {
       'radial-gradient(ellipse 68% 66% at 50% 40%, rgba(255,248,236,0.58) 0%, rgba(247,219,198,0.22) 52%, rgba(214,174,154,0) 80%)',
     vignette:
       'radial-gradient(ellipse 88% 92% at 50% 50%, rgba(0,0,0,0) 64%, rgba(140,86,62,0.14) 100%)',
-    imageFilter: 'contrast(1.02) saturate(1.03) brightness(1.01)',
-    imageFilterFlat: 'contrast(1) saturate(1) brightness(1)',
+    imageFilter: 'none',
+    imageFilterFlat: 'none',
     rimTint: 'rgba(255, 245, 224, 0.45)',
     canvasWallTop: '#f3d8cc',
     canvasWallMid: '#e6c2b3',
@@ -178,6 +182,9 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       cleanStageMode = false,
       reducedMotion = false,
       soundEnabled = false,
+      curtainsOpen = true,
+      sewingPaused = false,
+      onToggleSewingPaused,
       onToggleSpin360,
       onStopSpin360,
       onYawChange,
@@ -755,6 +762,10 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
     const activeShadow = knitRelief
       ? 'drop-shadow(0 10px 14px rgba(72, 34, 14, 0.22))'
       : 'drop-shadow(0 6px 10px rgba(72, 34, 14, 0.14))';
+    const combinedImgFilter =
+      activeFilter && activeFilter !== 'none'
+        ? `${activeFilter} ${activeShadow}`
+        : activeShadow;
 
     const viewCount = resolved.availableFrames.length;
     const shortAngleLabel = resolved.activeFrame.label;
@@ -817,6 +828,18 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
             />
           )}
         </div>
+
+        {/* Framing Golden Macramé Curtains with Dreamcatchers (never obscuring the central model) */}
+        <StageMacrameCurtains isOpen={curtainsOpen} reducedMotion={reducedMotion} />
+
+        {/* Background-depth Animated Vintage Cream & Gold Sewing Machine (with Pause/Play) */}
+        {onToggleSewingPaused && (
+          <StageVintageSewingMachine
+            paused={sewingPaused}
+            reducedMotion={reducedMotion}
+            onTogglePause={onToggleSewingPaused}
+          />
+        )}
 
         {/* =================================================================
             BOUNDED PHOTOGRAPHIC FITTING STAGE (Rug + Contact Shadow + Model)
@@ -897,7 +920,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
                     className="absolute inset-0 w-full h-full object-contain object-bottom transition-opacity duration-300 ease-out"
                     style={{
                       opacity: isFading ? 0 : 1,
-                      filter: `${activeFilter} ${activeShadow}`,
+                      filter: combinedImgFilter,
                     }}
                   />
                 )}
@@ -912,7 +935,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
                   className="relative max-w-full max-h-full w-full h-full object-contain object-bottom transition-opacity duration-300 ease-out"
                   style={{
                     opacity: 1,
-                    filter: `${activeFilter} ${activeShadow}`,
+                    filter: combinedImgFilter,
                   }}
                 />
               </div>

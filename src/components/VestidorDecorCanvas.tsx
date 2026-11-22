@@ -5,16 +5,21 @@ import {
   Check,
   ClipboardPaste,
   Copy,
+  Eye,
+  EyeOff,
   FlipHorizontal2,
+  Lock,
   MoreHorizontal,
   Pause,
   Play,
   Plus,
   Redo2,
   RotateCcw,
+  RotateCw,
   Sparkles,
   Trash2,
   Undo2,
+  Unlock,
   Upload,
   X,
 } from 'lucide-react';
@@ -83,6 +88,7 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
   const [past, setPast] = useState<VestidorDecorElement[][]>([]);
   const [future, setFuture] = useState<VestidorDecorElement[][]>([]);
   const [paletteOpen, setPaletteOpen] = useState<boolean>(false);
+  const [hiddenDrawerOpen, setHiddenDrawerOpen] = useState<boolean>(false);
   const [contextMenu, setContextMenu] = useState<{
     itemId: string;
     x: number;
@@ -91,7 +97,7 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
 
   const dragStateRef = useRef<{
     active: boolean;
-    mode: 'move' | 'resize';
+    mode: 'move' | 'resize' | 'rotate';
     itemId: string;
     pointerId: number;
     startClientX: number;
@@ -99,6 +105,9 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
     origXPct: number;
     origYPct: number;
     origWidthPct: number;
+    origRotationDeg: number;
+    centerClientX: number;
+    centerClientY: number;
     snapshotBeforeDrag: VestidorDecorElement[];
     didMutate: boolean;
   } | null>(null);
@@ -108,6 +117,7 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
     if (!editMode) {
       setSelectedId(null);
       setPaletteOpen(false);
+      setHiddenDrawerOpen(false);
       setContextMenu(null);
     }
   }, [editMode]);
@@ -230,6 +240,10 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
     (targetId: string) => {
       const target = items.find((i) => i.id === targetId);
       if (!target) return;
+      if (target.locked) {
+        onNotify(`Desbloquea "${target.label}" antes de eliminarlo`);
+        return;
+      }
       commitChange(
         items.filter((i) => i.id !== targetId),
         true
@@ -240,6 +254,65 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
       onNotify(`Eliminado: ${target.label}`);
     },
     [items, selectedId, commitChange, onPlaySfx, onNotify]
+  );
+
+  const handleToggleLock = useCallback(
+    (targetId: string) => {
+      const target = items.find((i) => i.id === targetId);
+      if (!target) return;
+      const nextLocked = !target.locked;
+      commitChange(
+        items.map((el) => (el.id === targetId ? { ...el, locked: nextLocked } : el)),
+        true
+      );
+      setContextMenu(null);
+      onPlaySfx?.('click');
+      onNotify(
+        nextLocked
+          ? `Elemento bloqueado: ${target.label}`
+          : `Elemento desbloqueado: ${target.label}`
+      );
+    },
+    [items, commitChange, onPlaySfx, onNotify]
+  );
+
+  const handleToggleHidden = useCallback(
+    (targetId: string) => {
+      const target = items.find((i) => i.id === targetId);
+      if (!target) return;
+      const nextHidden = !target.hidden;
+      commitChange(
+        items.map((el) => (el.id === targetId ? { ...el, hidden: nextHidden } : el)),
+        true
+      );
+      if (nextHidden && selectedId === targetId) setSelectedId(null);
+      setContextMenu(null);
+      onPlaySfx?.('click');
+      onNotify(
+        nextHidden
+          ? `Ocultado: ${target.label} (puedes restaurarlo en "Ocultos")`
+          : `Mostrado nuevamente: ${target.label}`
+      );
+    },
+    [items, selectedId, commitChange, onPlaySfx, onNotify]
+  );
+
+  const handleRotateStep = useCallback(
+    (targetId: string, deltaDeg: number) => {
+      const target = items.find((i) => i.id === targetId);
+      if (!target) return;
+      if (target.locked) {
+        onNotify(`Desbloquea "${target.label}" para girarlo`);
+        return;
+      }
+      const nextDeg = ((target.rotationDeg + deltaDeg + 180) % 360) - 180;
+      commitChange(
+        items.map((el) => (el.id === targetId ? { ...el, rotationDeg: Math.round(nextDeg) } : el)),
+        true
+      );
+      onPlaySfx?.('click');
+    },
+    [items, commitChange, onPlaySfx, onNotify]
   );
 
   const handleShiftLayer = useCallback(
@@ -461,17 +534,19 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
     onExitEditMode,
   ]);
 
-  // Pointer drag (move) & corner resize handlers (Windows, Mac & touch compatible)
+  // Pointer drag (move), corner resize & rotation handlers (Windows, Mac & touch compatible)
   const startPointerInteraction = (
     e: React.PointerEvent<HTMLElement>,
     item: VestidorDecorElement,
-    mode: 'move' | 'resize'
+    mode: 'move' | 'resize' | 'rotate'
   ) => {
     if (!editMode) return;
     if (e.button === 2) return; // Right-click handled by onContextMenu
     e.stopPropagation();
     setSelectedId(item.id);
     setContextMenu(null);
+    if (item.locked) return;
+    const rect = containerRef.current?.getBoundingClientRect();
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStateRef.current = {
       active: true,
@@ -483,6 +558,9 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
       origXPct: item.xPct,
       origYPct: item.yPct,
       origWidthPct: item.widthPct,
+      origRotationDeg: item.rotationDeg,
+      centerClientX: rect ? rect.left + (item.xPct / 100) * rect.width : e.clientX,
+      centerClientY: rect ? rect.top + (item.yPct / 100) * rect.height : e.clientY,
       snapshotBeforeDrag: items,
       didMutate: false,
     };
@@ -509,6 +587,19 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
           el.id === st.itemId
             ? { ...el, xPct: Number(nextX.toFixed(2)), yPct: Number(nextY.toFixed(2)) }
             : el
+        )
+      );
+    } else if (st.mode === 'rotate') {
+      const startAng = Math.atan2(
+        st.startClientY - st.centerClientY,
+        st.startClientX - st.centerClientX
+      );
+      const curAng = Math.atan2(e.clientY - st.centerClientY, e.clientX - st.centerClientX);
+      const deltaDeg = ((curAng - startAng) * 180) / Math.PI;
+      const nextDeg = Math.round(st.origRotationDeg + deltaDeg);
+      onChangeItems(
+        itemsRef.current.map((el) =>
+          el.id === st.itemId ? { ...el, rotationDeg: nextDeg } : el
         )
       );
     } else {
@@ -554,9 +645,11 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
   };
 
   const sortedItems = useMemo(
-    () => [...items].sort((a, b) => a.zIndex - b.zIndex),
+    () => [...items].filter((i) => !i.hidden).sort((a, b) => a.zIndex - b.zIndex),
     [items]
   );
+
+  const hiddenItems = useMemo(() => items.filter((i) => Boolean(i.hidden)), [items]);
 
   const contextItem = contextMenu
     ? items.find((i) => i.id === contextMenu.itemId) ?? null
@@ -660,6 +753,21 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
+              {hiddenItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPlaySfx?.('click');
+                    setHiddenDrawerOpen((v) => !v);
+                    setPaletteOpen(false);
+                  }}
+                  title="Ver y restaurar elementos ocultos"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#733f20] hover:bg-[#8a4d28] border border-[#d6a25c]/60 text-[10.5px] font-bold text-[#ffefc8] cursor-pointer"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>Ocultos ({hiddenItems.length})</span>
+                </button>
+              )}
             </div>
 
             <button
@@ -674,6 +782,35 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
               <span>Listo</span>
             </button>
           </div>
+
+          {/* Hidden Items Restore Popover */}
+          {hiddenDrawerOpen && hiddenItems.length > 0 && (
+            <div className="w-full max-w-[260px] rounded-2xl border-2 border-[#d9a66c] bg-[#fbf0df]/98 backdrop-blur-md text-[#462310] shadow-[0_14px_34px_rgba(38,16,6,0.42)] p-2.5">
+              <div className="flex items-center justify-between mb-1.5 px-1">
+                <span className="text-[11px] font-extrabold">Elementos ocultos</span>
+                <button
+                  type="button"
+                  onClick={() => setHiddenDrawerOpen(false)}
+                  className="w-5 h-5 rounded-full hover:bg-[#e8d2b2] flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="space-y-1 max-h-[160px] overflow-y-auto studio-scroll">
+                {hiddenItems.map((h) => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => handleToggleHidden(h.id)}
+                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-[#fff9ef] hover:bg-[#f3dfc0] border border-[#dfc098] text-[11px] font-bold cursor-pointer"
+                  >
+                    <span className="truncate">{h.label}</span>
+                    <Eye className="w-3.5 h-3.5 text-[#7a4522] shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Compatible Decoration Picker Popover */}
           {paletteOpen && (
@@ -872,15 +1009,64 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
                       <ArrowDown className="w-3 h-3" />
                     </button>
 
+                    {/* Rotate -15° / +15° */}
+                    <button
+                      type="button"
+                      disabled={Boolean(item.locked)}
+                      onClick={() => handleRotateStep(item.id, -15)}
+                      title="Girar -15°"
+                      aria-label="Girar a la izquierda"
+                      className="w-6 h-6 rounded-lg hover:bg-white/15 disabled:opacity-30 flex items-center justify-center cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(item.locked)}
+                      onClick={() => handleRotateStep(item.id, 15)}
+                      title="Girar +15°"
+                      aria-label="Girar a la derecha"
+                      className="w-6 h-6 rounded-lg hover:bg-white/15 disabled:opacity-30 flex items-center justify-center cursor-pointer"
+                    >
+                      <RotateCw className="w-3 h-3" />
+                    </button>
+
                     {/* Horizontal Flip */}
                     <button
                       type="button"
+                      disabled={Boolean(item.locked)}
                       onClick={() => handleToggleFlip(item.id)}
                       title="Voltear horizontalmente"
                       aria-label="Voltear horizontalmente"
-                      className="w-6 h-6 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
+                      className="w-6 h-6 rounded-lg hover:bg-white/15 disabled:opacity-30 flex items-center justify-center cursor-pointer"
                     >
                       <FlipHorizontal2 className="w-3 h-3" />
+                    </button>
+
+                    {/* Lock / Unlock */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleLock(item.id)}
+                      title={item.locked ? 'Desbloquear elemento' : 'Bloquear elemento'}
+                      aria-label={item.locked ? 'Desbloquear' : 'Bloquear'}
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
+                        item.locked
+                          ? 'bg-[#f4c03b] text-[#3c1a04]'
+                          : 'hover:bg-white/15 text-[#f2d5a7]'
+                      }`}
+                    >
+                      {item.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                    </button>
+
+                    {/* Hide Element */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleHidden(item.id)}
+                      title="Ocultar elemento"
+                      aria-label={`Ocultar ${item.label}`}
+                      className="w-6 h-6 rounded-lg hover:bg-white/15 text-[#f2d5a7] flex items-center justify-center cursor-pointer"
+                    >
+                      <EyeOff className="w-3 h-3" />
                     </button>
 
                     {/* Touch-friendly Context Menu Button */}
@@ -943,20 +1129,37 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
                   )}
                 </div>
 
-                {/* Proportional Resize Handle (Bottom-Right Corner — Mouse & Touch) */}
-                <button
-                  type="button"
-                  onPointerDown={(e) => startPointerInteraction(e, item, 'resize')}
-                  onPointerMove={handlePointerMoveItem}
-                  onPointerUp={handlePointerUpItem}
-                  onPointerCancel={handlePointerUpItem}
-                  onClick={(e) => e.stopPropagation()}
-                  title="Arrastra para cambiar tamaño"
-                  aria-label={`Cambiar tamaño de ${item.label}`}
-                  className="absolute bottom-0.5 right-0.5 z-50 w-5 h-5 rounded-full bg-[#ffd862] hover:bg-[#ffea96] border-2 border-[#5a2c12] shadow cursor-nwse-resize flex items-center justify-center"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#5a2c12]" />
-                </button>
+                {/* Drag-to-Rotate Handle (Top-Right Corner) & Proportional Resize Handle (Bottom-Right Corner) */}
+                {!item.locked && (
+                  <>
+                    <button
+                      type="button"
+                      onPointerDown={(e) => startPointerInteraction(e, item, 'rotate')}
+                      onPointerMove={handlePointerMoveItem}
+                      onPointerUp={handlePointerUpItem}
+                      onPointerCancel={handlePointerUpItem}
+                      onClick={(e) => e.stopPropagation()}
+                      title={`Arrastra para girar (${item.rotationDeg}°)`}
+                      aria-label={`Girar ${item.label}`}
+                      className="absolute top-0.5 right-0.5 z-50 w-5 h-5 rounded-full bg-[#fff5d6] hover:bg-[#ffe26b] border-2 border-[#5a2c12] text-[#4c240c] shadow cursor-ew-resize flex items-center justify-center"
+                    >
+                      <RotateCw className="w-2.5 h-2.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={(e) => startPointerInteraction(e, item, 'resize')}
+                      onPointerMove={handlePointerMoveItem}
+                      onPointerUp={handlePointerUpItem}
+                      onPointerCancel={handlePointerUpItem}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Arrastra para cambiar tamaño"
+                      aria-label={`Cambiar tamaño de ${item.label}`}
+                      className="absolute bottom-0.5 right-0.5 z-50 w-5 h-5 rounded-full bg-[#ffd862] hover:bg-[#ffea96] border-2 border-[#5a2c12] shadow cursor-nwse-resize flex items-center justify-center"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#5a2c12]" />
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -1047,6 +1250,28 @@ export const VestidorDecorCanvas: React.FC<VestidorDecorCanvasProps> = ({
           >
             <FlipHorizontal2 className="w-3.5 h-3.5 text-[#7a4a24]" />
             <span>Voltear horizontal</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleToggleLock(contextItem.id)}
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-[#f3dfc0] font-semibold cursor-pointer text-left"
+          >
+            {contextItem.locked ? (
+              <Unlock className="w-3.5 h-3.5 text-[#7a4a24]" />
+            ) : (
+              <Lock className="w-3.5 h-3.5 text-[#7a4a24]" />
+            )}
+            <span>{contextItem.locked ? 'Desbloquear' : 'Bloquear'}</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleToggleHidden(contextItem.id)}
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-[#f3dfc0] font-semibold cursor-pointer text-left"
+          >
+            <EyeOff className="w-3.5 h-3.5 text-[#7a4a24]" />
+            <span>Ocultar elemento</span>
           </button>
           <div className="my-1 border-t border-[#e5c8a2]" />
           <button
