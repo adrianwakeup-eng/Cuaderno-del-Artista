@@ -1,0 +1,54 @@
+{
+  "library": "El Vestidor Dorado · Biblioteca de Poses Fotográficas",
+  "poses": [
+    {
+      "id": "natural",
+      "code": "01",
+      "title": "Natural",
+      "subtitle": "Postura erguida de estudio con rotación completa de 4 vistas",
+      "recommendedAngleDeg": 0
+    },
+    {
+      "id": "manos-bolsillos",
+      "code": "02",
+      "title": "Manos en los bolsillos",
+      "subtitle": "Pose editorial relajada con ambas manos en los bolsillos",
+      "recommendedAngleDeg": 0
+    },
+    {
+      "id": "brazos-cruzados",
+      "code": "03",
+      "title": "Brazos cruzados",
+      "subtitle": "Porte seguro de atelier (pendiente de sesión fotográfica)",
+      "recommendedAngleDeg": 0
+    },
+    {
+      "id": "perfil-moda",
+      "code": "04",
+      "title": "Perfil de moda",
+      "subtitle": "Silueta lateral fotográfica real (90° y 270°)",
+      "recommendedAngleDeg": 90
+    },
+    {
+      "id": "sentado",
+      "code": "05",
+      "title": "Sentado",
+      "subtitle": "Retrato editorial sentado (pendiente de sesión fotográfica)",
+      "recommendedAngleDeg": 0
+    },
+    {
+      "id": "caminando",
+      "code": "06",
+      "title": "Caminando",
+      "subtitle": "Movimiento de pasarela natural (pendiente de sesión fotográfica)",
+      "recommendedAngleDeg": 0
+    },
+    {
+      "id": "mirando-lado",
+      "code": "07",
+      "title": "Mirando hacia un lado",
+      "subtitle": "Giro sutil de rostro y hombros (pendiente de sesión fotográfica)",
+      "recommendedAngleDeg": 0
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "id": "cardigan-girasoles-shorts-verdes",
+  "name": "Cárdigan Crochet Girasoles Crema + Shorts Verde Bosque",
+  "collection": "Colección Crochet Fuentes Nazco",
+  "garments": {
+    "topId": "cardigan-girasoles-crema",
+    "bottomId": "shorts-crochet-verde-bosque"
+  },
+  "thumbnails": {
+    "top": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/thumb-cardigan.jpg",
+    "bottom": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/thumb-shorts.jpg"
+  },
+  "colors": {
+    "defaultColorId": "original",
+    "available": [
+      {
+        "id": "original",
+        "label": "Crema Girasol y Verde Bosque",
+        "palette": ["#F2E2C4", "#235A2A", "#F0B41C"]
+      }
+    ]
+  },
+  "canvas": {
+    "width": 720,
+    "height": 1080,
+    "headTopY": 48,
+    "feetBaselineY": 1044
+  },
+  "supportedAngles": 4,
+  "poses": {
+    "natural": {
+      "available": true,
+      "frames": [
+        {
+          "id": "frente",
+          "angleDeg": 0,
+          "label": "Frente (0°)",
+          "src": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/frente.png"
+        },
+        {
+          "id": "perfil-izquierdo",
+          "angleDeg": 90,
+          "label": "Perfil Izquierdo (90°)",
+          "src": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/perfil-izquierdo.png"
+        },
+        {
+          "id": "espalda",
+          "angleDeg": 180,
+          "label": "Espalda (180°)",
+          "src": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/espalda.png"
+        },
+        {
+          "id": "perfil-derecho",
+          "angleDeg": 270,
+          "label": "Perfil Derecho (270°)",
+          "src": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/perfil-derecho.png"
+        }
+      ]
+    },
+    "manos-bolsillos": {
+      "available": true,
+      "frames": [
+        {
+          "id": "frente",
+          "angleDeg": 0,
+          "label": "Frente · Manos en los bolsillos (0°)",
+          "src": "/vestidor/poses/cardigan-girasoles-shorts-verdes/manos-en-bolsillos.png"
+        }
+      ]
+    },
+    "perfil-moda": {
+      "available": true,
+      "frames": [
+        {
+          "id": "perfil-izquierdo",
+          "angleDeg": 90,
+          "label": "Perfil de Moda Izquierdo (90°)",
+          "src": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/perfil-izquierdo.png"
+        },
+        {
+          "id": "perfil-derecho",
+          "angleDeg": 270,
+          "label": "Perfil de Moda Derecho (270°)",
+          "src": "/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/perfil-derecho.png"
+        }
+      ]
+    },
+    "brazos-cruzados": {
+      "available": false,
+      "frames": []
+    },
+    "sentado": {
+      "available": false,
+      "frames": []
+    },
+    "caminando": {
+      "available": false,
+      "frames": []
+    },
+    "mirando-lado": {
+      "available": false,
+      "frames": []
+    }
+  }
+}

@@ -27,6 +27,26 @@ import botPantalonCacaoImg from '../assets/images/bot_pantalon_cacao_17951217750
 
 export const CURATED_STYLIZED_TOPS: DressingRoomGarment[] = [
   {
+    id: 'cardigan-girasoles-crema',
+    baseTemplateId: 'cardigan-girasoles-crema',
+    name: 'Cárdigan Girasoles Crema',
+    category: 'Cardigans',
+    garmentSlot: 'top',
+    silhouetteKind: 'cardigan',
+    stitchPattern: 'jacquard',
+    eyebrow: 'SESIÓN FOTOGRÁFICA OFICIAL 2.5D',
+    subtitle:
+      'Cárdigan camisa manga corta tejido a crochet en crema marfil con cuadros granny de girasoles amarillos, cuello polo y ribetes en verde bosque.',
+    fiber: '100% Algodón Mercerizado',
+    fiberDetail: 'Tejido granny artesanal',
+    hookSizeMm: '3.25 mm',
+    stitchNote:
+      'Cuadros granny con motivo girasol en relieve, botones de madera natural y cuello polo verde bosque.',
+    palette: ['#F2E2C4', '#235A2A', '#F0B41C'],
+    accentColor: '#F2E2C4',
+    photoDataUrl: '/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/thumb-cardigan.jpg',
+  },
+  {
     id: 'tunica-vitruvio-lino',
     baseTemplateId: 'tunica-vitruvio-lino',
     name: 'Túnica Vitruvio de Lino',
@@ -144,6 +164,26 @@ export const CURATED_STYLIZED_TOPS: DressingRoomGarment[] = [
 
 export const CURATED_STYLIZED_BOTTOMS: DressingRoomGarment[] = [
   {
+    id: 'shorts-crochet-verde-bosque',
+    baseTemplateId: 'shorts-crochet-verde-bosque',
+    name: 'Shorts Crochet Verde Bosque',
+    category: 'Bermudas',
+    garmentSlot: 'bottom',
+    silhouetteKind: 'shorts',
+    stitchPattern: 'waffle',
+    eyebrow: 'SESIÓN FOTOGRÁFICA OFICIAL 2.5D',
+    subtitle:
+      'Shorts masculinos tejidos a crochet en verde bosque profundo con textura artesanal aireada y cordón trenzado crema en la cintura.',
+    fiber: '100% Algodón Peinado',
+    fiberDetail: 'Caída estructurada fresca',
+    hookSizeMm: '3.5 mm',
+    stitchNote:
+      'Punto alto calado en hileras horizontales, cinturilla acanalada firme y cordón ajustable marfil.',
+    palette: ['#235A2A', '#F2E2C4', '#1A3E1E'],
+    accentColor: '#235A2A',
+    photoDataUrl: '/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/thumb-shorts.jpg',
+  },
+  {
     id: 'pantalon-sastre-marino',
     baseTemplateId: 'pantalon-sastre-marino',
     name: 'Pantalón Sastre Marino',
@@ -215,7 +255,7 @@ export const CURATED_STYLIZED_BOTTOMS: DressingRoomGarment[] = [
     fiberDetail: 'Tejido aireado',
     hookSizeMm: '3.0 mm',
     stitchNote: 'Punto calado fino, cinturilla acanalada y banda inferior en contraste azul prusia.',
-    palette: ['#EFE0C2', '#1B2D4C', '#1B2D4C'],
+    palette: ['#EFE0C2', '#1B2D4C', '#C8B08A'],
     accentColor: '#EFE0C2',
     photoDataUrl: botBermudaMarfilImg,
   },

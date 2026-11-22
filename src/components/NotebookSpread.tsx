@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronLeft,
@@ -14,7 +14,6 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   Copy,
-  ClipboardPaste,
   CopyPlus,
   ArrowUpToLine,
   ArrowDownToLine,
@@ -37,12 +36,18 @@ import {
   Wand2,
   Loader2,
   RotateCcw,
+  Type,
+  Palette,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import type {
   ActiveCanvasTool,
   BrushSettings,
   CopiedPatternData,
   CrochetPattern,
+  ElementEraseStroke,
+  ExtractedMandalaRecord,
   FontChoice,
   ImageFilters,
   ImageFrameStyle,
@@ -54,7 +59,6 @@ import type {
 import { CROCHET_ALPHABET } from '../data/crochetAlphabet';
 import {
   BrassBinderRings,
-  CornerCrochetFlower,
   CrochetStickerSvg,
 } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
@@ -64,9 +68,15 @@ import { MANDALA_GALLERY_PHOTOS } from '../data/mandalaGalleryPhotos';
 import { MannequinSvg } from './MannequinSvg';
 import { CrochetWardrobe3D } from './CrochetWardrobe3D';
 import { ImageCropModal } from './ImageCropModal';
+import { MandalaColorStudioModal } from './MandalaColorStudioModal';
 import { audioEngine } from '../utils/audioEngine';
 import { extractFigureMatting } from '../utils/aiImageMatting';
 import type { LayerAction, LayerVisibility, StackableLayerId } from './RightToolPanels';
+import {
+  CatalogSpreadMiniature,
+  EditableSpreadMiniature,
+  MandalaSpreadMiniature,
+} from './SpreadMiniaturePreview';
 
 interface NotebookSpreadProps {
   spreads: SpreadType[];
@@ -78,6 +88,16 @@ interface NotebookSpreadProps {
   mandalaSpreadIndex?: number;
   onChangeMandalaSpreadIndex?: (index: number) => void;
   onAddSpread: () => void;
+  onDeleteSpread?: (spreadId: string) => void;
+  hiddenCatalogSpreadIds?: string[];
+  hiddenMandalaSpreadIds?: string[];
+  onDeleteCatalogSpread?: (catalogSpreadId: string, visibleIdx: number) => void;
+  onDeleteMandalaSpread?: (
+    mandalaSpreadId: string,
+    visibleIdx: number,
+    totalVisible: number
+  ) => void;
+  onRestoreHiddenPages?: () => void;
   onUpdateSpread: (spread: SpreadType) => void;
   activeTool: ActiveCanvasTool;
   onSelectTool: (tool: ActiveCanvasTool) => void;
@@ -85,6 +105,9 @@ interface NotebookSpreadProps {
   brush: BrushSettings;
   onPickColorFromCanvas: (hex: string) => void;
   selectedFont: FontChoice;
+  extractedMandalas?: Record<string, ExtractedMandalaRecord>;
+  onSaveExtractedMandala?: (mandalaId: string, record: ExtractedMandalaRecord) => void;
+  onRestoreExtractedMandala?: (mandalaId: string) => void;
   copiedPattern: CopiedPatternData | null;
   onCopyPattern: (pat: CopiedPatternData) => void;
   onPastePatternOnSpread: (
@@ -92,6 +115,9 @@ interface NotebookSpreadProps {
     side?: 'left' | 'right',
     patternOverride?: CopiedPatternData
   ) => void;
+  onPasteExternalImage?: (file: File) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
   onPlayPageFlip: () => void;
   onEnterDressingRoom?: () => void;
   onNotify?: (msg: string) => void;
@@ -105,6 +131,8 @@ interface NotebookSpreadProps {
   cyclePaperSignal?: number;
   turnPageSignal?: { id: number; dir: 'prev' | 'next' } | null;
   toggleOverviewSignal?: number;
+  addTextSignal?: number;
+  onConsumeAddTextSignal?: () => void;
   rotateAllSignal?: {
     id: number;
     mode: 'set' | 'delta' | 'reset';
@@ -141,8 +169,8 @@ const DEFAULT_FILTERS: ImageFilters = {
   blur: 0,
 };
 
-const PAGE_W = 460;
-const PAGE_H = 600;
+const PAGE_W = 920;
+const PAGE_H = 1200;
 const PATTERNS_PER_CATALOG_PAGE = 4; // 4 left + 4 right = 8 patterns per spread
 const MANDALAS_PER_PAGE = 6; // 6 left + 6 right = 12 mandalas per spread
 
@@ -163,6 +191,12 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   mandalaSpreadIndex = 0,
   onChangeMandalaSpreadIndex,
   onAddSpread,
+  onDeleteSpread,
+  hiddenCatalogSpreadIds,
+  hiddenMandalaSpreadIds,
+  onDeleteCatalogSpread,
+  onDeleteMandalaSpread,
+  onRestoreHiddenPages,
   onUpdateSpread,
   activeTool,
   onSelectTool,
@@ -170,9 +204,15 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   brush,
   onPickColorFromCanvas,
   selectedFont,
+  extractedMandalas,
+  onSaveExtractedMandala,
+  onRestoreExtractedMandala,
   copiedPattern,
   onCopyPattern,
   onPastePatternOnSpread,
+  onPasteExternalImage,
+  onUndo,
+  onRedo,
   onPlayPageFlip,
   onEnterDressingRoom,
   onNotify,
@@ -186,6 +226,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   cyclePaperSignal = 0,
   turnPageSignal = null,
   toggleOverviewSignal = 0,
+  addTextSignal = 0,
+  onConsumeAddTextSignal,
   rotateAllSignal = null,
   zoom: controlledZoom,
   onChangeZoom,
@@ -230,8 +272,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         rightItems: slice.slice(PATTERNS_PER_CATALOG_PAGE, perSpread),
       });
     }
-    return chunks;
-  }, [patterns]);
+    const hiddenCat = new Set(hiddenCatalogSpreadIds ?? []);
+    return chunks.filter((c) => !hiddenCat.has(c.id));
+  }, [patterns, hiddenCatalogSpreadIds]);
 
   const allMandalaItems = useMemo<CopiedPatternData[]>(() => {
     const photoItems: CopiedPatternData[] = MANDALA_GALLERY_PHOTOS.map((p) => ({
@@ -269,8 +312,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         rightItems: slice.slice(MANDALAS_PER_PAGE, perSpread),
       });
     }
-    return chunks;
-  }, [allMandalaItems]);
+    const hiddenMandala = new Set(hiddenMandalaSpreadIds ?? []);
+    return chunks.filter((c) => !hiddenMandala.has(c.id));
+  }, [allMandalaItems, hiddenMandalaSpreadIds]);
 
   const isMandalaMode = notebookMode === 'mandalas';
   const catalogCount = catalogSpreads.length;
@@ -289,13 +333,18 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
 
   const [internalZoom, setInternalZoom] = useState(100);
   const zoom = controlledZoom ?? internalZoom;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   const setZoom = useCallback(
     (updater: number | ((z: number) => number)) => {
-      const next = typeof updater === 'function' ? updater(zoom) : updater;
+      const current = zoomRef.current;
+      const rawNext = typeof updater === 'function' ? updater(current) : updater;
+      const next = Math.max(25, Math.min(500, Math.round(rawNext)));
+      zoomRef.current = next;
       if (onChangeZoom) onChangeZoom(next);
       else setInternalZoom(next);
     },
-    [zoom, onChangeZoom]
+    [onChangeZoom]
   );
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedCatalogPattern, setSelectedCatalogPattern] = useState<CopiedPatternData | null>(null);
@@ -320,7 +369,30 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   const [mattingElementId, setMattingElementId] = useState<string | null>(null);
   const [mattingProgress, setMattingProgress] = useState<number>(0);
   const [mattingMandalaId, setMattingMandalaId] = useState<string | null>(null);
-  const [mattedMandalaMap, setMattedMandalaMap] = useState<Record<string, string>>({});
+  const mattedMandalaMap = useMemo<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    if (extractedMandalas) {
+      for (const [id, rec] of Object.entries(extractedMandalas)) {
+        out[id] = rec.coloredDataUrl || rec.baseDataUrl;
+      }
+    }
+    return out;
+  }, [extractedMandalas]);
+  const mattedBaseMandalaMap = useMemo<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    if (extractedMandalas) {
+      for (const [id, rec] of Object.entries(extractedMandalas)) {
+        out[id] = rec.baseDataUrl;
+      }
+    }
+    return out;
+  }, [extractedMandalas]);
+  const extractedElementBaseRef = useRef<Record<string, string>>({});
+  const [colorStudioTarget, setColorStudioTarget] = useState<
+    | { kind: 'mandala'; item: CopiedPatternData; baseImageSrc: string }
+    | { kind: 'element'; elementId: string; title: string; baseImageSrc: string }
+    | null
+  >(null);
   const [copiedElement, setCopiedElement] = useState<Omit<PageElement, 'id'> | null>(null);
   const [clipboardMode, setClipboardMode] = useState<'element' | 'pattern' | null>(null);
   const pasteCountRef = useRef(0);
@@ -336,7 +408,296 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     width: number;
   } | null>(null);
 
+  const bookViewportRef = useRef<HTMLDivElement>(null);
   const bookContainerRef = useRef<HTMLDivElement>(null);
+  const bookContentRef = useRef<HTMLDivElement>(null);
+  const lastActiveSideRef = useRef<'left' | 'right'>('right');
+  const [bookBaseSize, setBookBaseSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [isSpacePanning, setIsSpacePanning] = useState(false);
+  const skipAutoCenterZoomRef = useRef(false);
+  const prevZoomForCenterRef = useRef(zoom);
+  const zoomAnchorRef = useRef<{
+    bookX: number;
+    bookY: number;
+    anchorX: number;
+    anchorY: number;
+  } | null>(null);
+
+  // Measure unscaled intrinsic book size (w-max inner cover) so zooming 25%-500% has ZERO feedback loop
+  useEffect(() => {
+    const node = bookContentRef.current;
+    if (!node) return;
+    const updateSize = () => {
+      const w = node.offsetWidth;
+      const h = node.offsetHeight;
+      if (w > 0 && h > 0) {
+        setBookBaseSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+      }
+    };
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(node);
+    window.addEventListener('resize', updateSize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, [showOverview, isMandalaMode, isCatalogSpread, dockedMode, focusMode]);
+
+  // Synchronously keep scroll anchored to the exact viewport center or cursor point BEFORE paint (zero jump/drift)
+  useLayoutEffect(() => {
+    const prevZoom = prevZoomForCenterRef.current;
+    prevZoomForCenterRef.current = zoom;
+    if (prevZoom === zoom) return;
+    if (skipAutoCenterZoomRef.current) {
+      skipAutoCenterZoomRef.current = false;
+      zoomAnchorRef.current = null;
+      return;
+    }
+    const viewport = bookViewportRef.current;
+    if (!viewport || bookBaseSize.w <= 0 || bookBaseSize.h <= 0) {
+      zoomAnchorRef.current = null;
+      return;
+    }
+
+    const nextScale = zoom / 100;
+    const nextScaledW = bookBaseSize.w * nextScale;
+    const nextScaledH = bookBaseSize.h * nextScale;
+    const nextOffsetX = Math.max(0, (viewport.clientWidth - nextScaledW) / 2);
+    const nextOffsetY = Math.max(0, (viewport.clientHeight - nextScaledH) / 2);
+
+    const customAnchor = zoomAnchorRef.current;
+    zoomAnchorRef.current = null;
+
+    let bookX: number;
+    let bookY: number;
+    let anchorX: number;
+    let anchorY: number;
+
+    if (customAnchor) {
+      bookX = customAnchor.bookX;
+      bookY = customAnchor.bookY;
+      anchorX = customAnchor.anchorX;
+      anchorY = customAnchor.anchorY;
+    } else {
+      const prevScale = prevZoom / 100;
+      const prevScaledW = bookBaseSize.w * prevScale;
+      const prevScaledH = bookBaseSize.h * prevScale;
+      const prevOffsetX = Math.max(0, (viewport.clientWidth - prevScaledW) / 2);
+      const prevOffsetY = Math.max(0, (viewport.clientHeight - prevScaledH) / 2);
+      anchorX = viewport.clientWidth / 2;
+      anchorY = viewport.clientHeight / 2;
+      bookX = (viewport.scrollLeft + anchorX - prevOffsetX) / prevScale;
+      bookY = (viewport.scrollTop + anchorY - prevOffsetY) / prevScale;
+    }
+
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    viewport.scrollLeft = Math.max(0, Math.min(maxScrollLeft, bookX * nextScale + nextOffsetX - anchorX));
+    viewport.scrollTop = Math.max(0, Math.min(maxScrollTop, bookY * nextScale + nextOffsetY - anchorY));
+  }, [zoom, bookBaseSize.w, bookBaseSize.h]);
+
+  // Space-key pan mode + Middle-mouse pan + 2-Finger Touch Pinch-to-Zoom + Trackpad/Ctrl+Wheel Zoom (25%-500%)
+  useEffect(() => {
+    const onSpaceDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      setIsSpacePanning(true);
+    };
+    const onSpaceUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setIsSpacePanning(false);
+    };
+    const onBlur = () => setIsSpacePanning(false);
+    window.addEventListener('keydown', onSpaceDown);
+    window.addEventListener('keyup', onSpaceUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onSpaceDown);
+      window.removeEventListener('keyup', onSpaceUp);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
+
+  useEffect(() => {
+    const viewport = bookViewportRef.current;
+    if (!viewport || showOverview) return;
+
+    let pinchState: {
+      startDist: number;
+      startZoom: number;
+      bookX: number;
+      bookY: number;
+    } | null = null;
+
+    let panState: {
+      startX: number;
+      startY: number;
+      scrollLeft: number;
+      scrollTop: number;
+    } | null = null;
+
+    const getTouchDist = (t1: Touch, t2: Touch) =>
+      Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+    const getBookOffset = (scale: number) => {
+      const baseW = bookContentRef.current?.offsetWidth || bookBaseSize.w || viewport.clientWidth;
+      const baseH = bookContentRef.current?.offsetHeight || bookBaseSize.h || viewport.clientHeight;
+      return {
+        offsetX: Math.max(0, (viewport.clientWidth - baseW * scale) / 2),
+        offsetY: Math.max(0, (viewport.clientHeight - baseH * scale) / 2),
+      };
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.max(12, getTouchDist(t1, t2));
+        const rect = viewport.getBoundingClientRect();
+        const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+        const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
+        const startZoom = zoomRef.current;
+        const startScale = startZoom / 100;
+        const { offsetX, offsetY } = getBookOffset(startScale);
+        pinchState = {
+          startDist: dist,
+          startZoom,
+          bookX: (viewport.scrollLeft + midX - offsetX) / startScale,
+          bookY: (viewport.scrollTop + midY - offsetY) / startScale,
+        };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchState) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.max(12, getTouchDist(t1, t2));
+        const nextZoom = Math.max(
+          25,
+          Math.min(500, Math.round(pinchState.startZoom * (dist / pinchState.startDist)))
+        );
+        const rect = viewport.getBoundingClientRect();
+        const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+        const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
+        zoomAnchorRef.current = {
+          bookX: pinchState.bookX,
+          bookY: pinchState.bookY,
+          anchorX: midX,
+          anchorY: midY,
+        };
+        setZoom(nextZoom);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2 && pinchState) {
+        pinchState = null;
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const prevZoom = zoomRef.current;
+      const clampedDelta = Math.max(-120, Math.min(120, e.deltaY));
+      const factor = Math.exp(-clampedDelta * 0.0028);
+      let nextZoom = Math.max(25, Math.min(500, Math.round(prevZoom * factor)));
+      if (nextZoom === prevZoom && clampedDelta !== 0) {
+        nextZoom = Math.max(25, Math.min(500, prevZoom + (clampedDelta < 0 ? 2 : -2)));
+      }
+      if (nextZoom === prevZoom) return;
+      const rect = viewport.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+      const prevScale = prevZoom / 100;
+      const { offsetX, offsetY } = getBookOffset(prevScale);
+      zoomAnchorRef.current = {
+        bookX: (viewport.scrollLeft + cursorX - offsetX) / prevScale,
+        bookY: (viewport.scrollTop + cursorY - offsetY) / prevScale,
+        anchorX: cursorX,
+        anchorY: cursorY,
+      };
+      setZoom(nextZoom);
+    };
+
+    const onPointerDownPan = (e: PointerEvent) => {
+      if (e.button === 1 || (e.button === 0 && isSpacePanning)) {
+        e.preventDefault();
+        e.stopPropagation();
+        panState = {
+          startX: e.clientX,
+          startY: e.clientY,
+          scrollLeft: viewport.scrollLeft,
+          scrollTop: viewport.scrollTop,
+        };
+      }
+    };
+
+    const onPointerMovePan = (e: PointerEvent) => {
+      if (!panState) return;
+      viewport.scrollLeft = Math.max(0, panState.scrollLeft - (e.clientX - panState.startX));
+      viewport.scrollTop = Math.max(0, panState.scrollTop - (e.clientY - panState.startY));
+    };
+
+    const onPointerUpPan = () => {
+      if (panState) {
+        panState = null;
+      }
+    };
+
+    viewport.addEventListener('touchstart', onTouchStart, { passive: false });
+    viewport.addEventListener('touchmove', onTouchMove, { passive: false });
+    viewport.addEventListener('touchend', onTouchEnd);
+    viewport.addEventListener('touchcancel', onTouchEnd);
+    viewport.addEventListener('wheel', onWheel, { passive: false });
+    viewport.addEventListener('pointerdown', onPointerDownPan, { capture: true });
+    window.addEventListener('pointermove', onPointerMovePan);
+    window.addEventListener('pointerup', onPointerUpPan);
+
+    return () => {
+      viewport.removeEventListener('touchstart', onTouchStart);
+      viewport.removeEventListener('touchmove', onTouchMove);
+      viewport.removeEventListener('touchend', onTouchEnd);
+      viewport.removeEventListener('touchcancel', onTouchEnd);
+      viewport.removeEventListener('wheel', onWheel);
+      viewport.removeEventListener('pointerdown', onPointerDownPan, { capture: true });
+      window.removeEventListener('pointermove', onPointerMovePan);
+      window.removeEventListener('pointerup', onPointerUpPan);
+    };
+  }, [showOverview, setZoom, isSpacePanning, bookBaseSize.w, bookBaseSize.h]);
+
+  // Smoothly zoom and center directly on any selected object, image, mandala, or text box
+  const zoomToElement = useCallback(
+    (el: PageElement) => {
+      const viewport = bookViewportRef.current;
+      if (!viewport || bookBaseSize.w <= 0 || bookBaseSize.h <= 0) return;
+      const targetZoom = zoomRef.current >= 220 ? 100 : 240;
+      const halfW = bookBaseSize.w / 2;
+      const elCenterXBase =
+        (el.side === 'right' ? halfW : 0) + (el.x / 100) * halfW + Math.min(el.width, halfW) * 0.45;
+      const elCenterYBase = (el.y / 100) * bookBaseSize.h + 60;
+      zoomAnchorRef.current = {
+        bookX: elCenterXBase,
+        bookY: elCenterYBase,
+        anchorX: viewport.clientWidth / 2,
+        anchorY: viewport.clientHeight / 2,
+      };
+      setZoom(targetZoom);
+    },
+    [bookBaseSize, setZoom]
+  );
 
   const canPrev = activeSafeIndex > 0;
   const canNext = activeSafeIndex < activeTotalSpreads - 1;
@@ -464,8 +825,18 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   }, [copiedPattern]);
 
   const deleteElement = useCallback(
-    (id: string) => {
-      if (!activeUserSpread) return;
+    (id: string): boolean => {
+      if (!activeUserSpread) return false;
+      const target = activeUserSpread.elements.find((el) => el.id === id);
+      if (!target) return false;
+      if (isPermanentElement(target)) {
+        onNotify?.('Este maniquí es permanente en esta página y no se puede eliminar');
+        return false;
+      }
+      if (target.locked) {
+        onNotify?.('Objeto bloqueado — desbloquéalo para eliminarlo');
+        return false;
+      }
       audioEngine.playEraseBrush();
       onUpdateSpread({
         ...activeUserSpread,
@@ -474,13 +845,38 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       });
       if (selectedElementId === id) setSelectedElementId(null);
       if (editingTextId === id) setEditingTextId(null);
+      return true;
     },
-    [activeUserSpread, onUpdateSpread, selectedElementId, editingTextId]
+    [activeUserSpread, onUpdateSpread, selectedElementId, editingTextId, onNotify]
+  );
+
+  const toggleElementLock = useCallback(
+    (el: PageElement) => {
+      if (!activeUserSpread) return;
+      const nextLocked = !el.locked;
+      audioEngine.playStitchClick();
+      onUpdateSpread({
+        ...activeUserSpread,
+        elements: activeUserSpread.elements.map((item) =>
+          item.id === el.id ? { ...item, locked: nextLocked } : item
+        ),
+        updatedAt: new Date().toISOString(),
+      });
+      if (nextLocked && editingTextId === el.id) {
+        setEditingTextId(null);
+      }
+      onNotify?.(
+        nextLocked
+          ? 'Objeto bloqueado (no se puede mover ni eliminar)'
+          : 'Objeto desbloqueado'
+      );
+    },
+    [activeUserSpread, onUpdateSpread, editingTextId, onNotify]
   );
 
   const copySelectedElement = useCallback(
     (el: PageElement) => {
-      const { id: _ignored, ...rest } = el;
+      const { id: _ignored, permanent: _perm, locked: _lock, ...rest } = el;
       setCopiedElement({ ...rest });
       setClipboardMode('element');
       pasteCountRef.current = 0;
@@ -497,7 +893,15 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   const cutSelectedElement = useCallback(
     (el: PageElement) => {
       if (!activeUserSpread) return;
-      const { id: _ignored, ...rest } = el;
+      if (isPermanentElement(el)) {
+        onNotify?.('Este maniquí es permanente en esta página y no se puede cortar');
+        return;
+      }
+      if (el.locked) {
+        onNotify?.('Objeto bloqueado — desbloquéalo primero');
+        return;
+      }
+      const { id: _ignored, permanent: _perm, locked: _lock, ...rest } = el;
       setCopiedElement({ ...rest });
       setClipboardMode('element');
       pasteCountRef.current = 0;
@@ -505,8 +909,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         skipNextPatternSyncRef.current = true;
         onCopyPattern(el.patternData);
       }
-      deleteElement(el.id);
-      onNotify?.('Objeto cortado (Ctrl+V para pegar)');
+      if (deleteElement(el.id)) {
+        onNotify?.('Objeto cortado (Ctrl+V para pegar)');
+      }
     },
     [activeUserSpread, deleteElement, onCopyPattern, onNotify]
   );
@@ -517,6 +922,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     const step = ((pasteCountRef.current - 1) % 5 + 1) * 4;
     const newEl: PageElement = {
       ...copiedElement,
+      permanent: undefined,
+      locked: undefined,
       id: `el-${Date.now()}-${pasteCountRef.current}`,
       x: Math.min(78, copiedElement.x + step),
       y: Math.min(84, copiedElement.y + step),
@@ -532,7 +939,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     onNotify?.('Objeto pegado');
   }, [activeUserSpread, copiedElement, onUpdateSpread, onSelectTool, onNotify]);
 
-  // Keyboard Ctrl+C / Ctrl+X / Ctrl+V and Delete shortcuts for all objects & patterns
+  // Keyboard Ctrl+C / Ctrl+X / Ctrl+V / Ctrl+Z / Ctrl+Y / Zoom / Delete shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -575,26 +982,117 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
             pasteCopiedElement();
           } else if (copiedPattern) {
             e.preventDefault();
-            onPastePatternOnSpread(activeUserSpread.id, 'left');
+            onPastePatternOnSpread(activeUserSpread.id, lastActiveSideRef.current);
           } else if (copiedElement) {
             e.preventDefault();
             pasteCopiedElement();
           }
+        } else if (isCatalogView && copiedPattern) {
+          // Pressing Ctrl+V while browsing catalog pastes straight onto active editable spread
+          const targetSpread = spreads[0];
+          if (targetSpread) {
+            e.preventDefault();
+            onChangeNotebookMode?.('book');
+            onChangeSpreadIndex(catalogCount);
+            onPastePatternOnSpread(targetSpread.id, lastActiveSideRef.current, copiedPattern);
+          }
         }
+      } else if (mod && key === 'z' && !e.shiftKey) {
+        if (onUndo) {
+          e.preventDefault();
+          onUndo();
+        }
+      } else if (mod && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        if (onRedo) {
+          e.preventDefault();
+          onRedo();
+        }
+      } else if (
+        mod &&
+        (key === '=' || key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')
+      ) {
+        e.preventDefault();
+        setZoom((z) => z + 20);
+      } else if (
+        mod &&
+        (key === '-' || key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract')
+      ) {
+        e.preventDefault();
+        setZoom((z) => z - 20);
+      } else if (mod && (key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
+        e.preventDefault();
+        setZoom(100);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) {
         if (!isCatalogView && activeUserSpread && selectedElementId && !editingTextId) {
           e.preventDefault();
-          deleteElement(selectedElementId);
-          onNotify?.('Objeto eliminado');
+          if (deleteElement(selectedElementId)) {
+            onNotify?.('Objeto eliminado');
+          }
+        }
+      } else if (
+        !mod &&
+        !e.altKey &&
+        !editingTextId &&
+        !croppingElement &&
+        !colorStudioTarget &&
+        !previewMandala &&
+        !showOverview
+      ) {
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setZoom((z) => z + 20);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setZoom((z) => z - 20);
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          commitPageTurn('prev');
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          commitPageTurn('next');
         }
       }
     };
+
+    const onSystemPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!onPasteExternalImage || isCatalogView || !activeUserSpread) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            onPasteExternalImage(file);
+            return;
+          }
+        }
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('paste', onSystemPaste);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('paste', onSystemPaste);
+    };
   }, [
     isCatalogView,
     selectedCatalogPattern,
     activeUserSpread,
+    spreads,
+    catalogCount,
     selectedElementId,
     editingTextId,
     clipboardMode,
@@ -606,38 +1104,105 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     deleteElement,
     onCopyPattern,
     onPastePatternOnSpread,
+    onPasteExternalImage,
+    onChangeNotebookMode,
+    onChangeSpreadIndex,
+    onUndo,
+    onRedo,
+    setZoom,
+    commitPageTurn,
+    croppingElement,
+    colorStudioTarget,
+    previewMandala,
+    showOverview,
     onNotify,
   ]);
+
+  const finishEditingText = useCallback(() => {
+    if (editingTextId && activeUserSpread) {
+      const targetEl = activeUserSpread.elements.find((el) => el.id === editingTextId);
+      if (targetEl && targetEl.type === 'text' && targetEl.content.trim() === '') {
+        onUpdateSpread({
+          ...activeUserSpread,
+          elements: activeUserSpread.elements.filter((el) => el.id !== editingTextId),
+          updatedAt: new Date().toISOString(),
+        });
+        setSelectedElementId((prev) => (prev === editingTextId ? null : prev));
+      }
+    }
+    setEditingTextId(null);
+  }, [editingTextId, activeUserSpread, onUpdateSpread]);
+
+  const insertPresetText = useCallback(
+    (preset: 'title' | 'note' | 'card', customSide?: 'left' | 'right', xPct?: number, yPct?: number) => {
+      if (!activeUserSpread) return;
+      let side: 'left' | 'right' = customSide ?? lastActiveSideRef.current;
+      if (!customSide && xPct === undefined) {
+        const otherSide: 'left' | 'right' = side === 'left' ? 'right' : 'left';
+        const sideHasWardrobe = activeUserSpread.elements.some(
+          (e) => e.side === side && e.type === 'wardrobe'
+        );
+        const otherHasWardrobe = activeUserSpread.elements.some(
+          (e) => e.side === otherSide && e.type === 'wardrobe'
+        );
+        if (sideHasWardrobe && !otherHasWardrobe) {
+          side = otherSide;
+          lastActiveSideRef.current = side;
+        }
+      }
+
+      const cleanedElements = activeUserSpread.elements.filter(
+        (e) => !(e.type === 'text' && e.content.trim() === '')
+      );
+      const existingOnSide = cleanedElements.filter(
+        (e) => e.side === side && e.type === 'text'
+      ).length;
+      const defaultX = xPct ?? (preset === 'title' ? 10 : 12 + (existingOnSide % 3) * 6);
+      const defaultY = yPct ?? (preset === 'title' ? 8 : 14 + (existingOnSide % 5) * 13);
+
+      const newEl: PageElement = {
+        id: `el-${Date.now()}`,
+        side,
+        type: 'text',
+        x: Math.max(5, Math.min(68, defaultX)),
+        y: Math.max(6, Math.min(82, defaultY)),
+        width: preset === 'title' ? 290 : preset === 'card' ? 240 : 230,
+        content: '',
+        color: brush.color,
+        fontSize:
+          preset === 'title'
+            ? 26
+            : preset === 'card'
+              ? 16
+              : selectedFont === 'caveat'
+                ? 22
+                : 17,
+        fontFamily: preset === 'title' ? 'cormorant' : selectedFont,
+        fontWeight: preset === 'title' ? 'bold' : 'normal',
+        fontStyle: 'normal',
+        textDecoration: 'none',
+        textAlign: preset === 'title' ? 'center' : 'left',
+        backgroundColor: preset === 'card' ? 'rgba(251, 236, 206, 0.92)' : 'transparent',
+      };
+      onUpdateSpread({
+        ...activeUserSpread,
+        elements: [...cleanedElements, newEl],
+        updatedAt: new Date().toISOString(),
+      });
+      setSelectedElementId(newEl.id);
+      setEditingTextId(newEl.id);
+      onSelectTool('select');
+      audioEngine.playStitchClick();
+    },
+    [activeUserSpread, brush.color, selectedFont, onUpdateSpread, onSelectTool]
+  );
 
   const handlePlaceElement = useCallback(
     (side: 'left' | 'right', xPct: number, yPct: number) => {
       if (!activeUserSpread) return;
+      lastActiveSideRef.current = side;
       if (activeTool === 'text') {
-        const newEl: PageElement = {
-          id: `el-${Date.now()}`,
-          side,
-          type: 'text',
-          x: Math.max(6, Math.min(68, xPct)),
-          y: Math.max(8, Math.min(82, yPct)),
-          width: 215,
-          content: 'Escribe aquí tu nota o punto…',
-          color: brush.color,
-          fontSize: selectedFont === 'caveat' ? 22 : 17,
-          fontFamily: selectedFont,
-          fontWeight: 'normal',
-          fontStyle: 'normal',
-          textDecoration: 'none',
-          textAlign: 'left',
-          backgroundColor: 'transparent',
-        };
-        onUpdateSpread({
-          ...activeUserSpread,
-          elements: [...activeUserSpread.elements, newEl],
-          updatedAt: new Date().toISOString(),
-        });
-        setSelectedElementId(newEl.id);
-        setEditingTextId(newEl.id);
-        onSelectTool('select');
+        insertPresetText('note', side, xPct, yPct);
       } else if (activeTool === 'shape') {
         const newEl: PageElement = {
           id: `el-${Date.now()}`,
@@ -665,7 +1230,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       activeTool,
       selectedShapeKind,
       brush.color,
-      selectedFont,
+      insertPresetText,
       onUpdateSpread,
       onSelectTool,
     ]
@@ -689,6 +1254,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     if (!activeUserSpread) return;
     const copy: PageElement = {
       ...el,
+      permanent: undefined,
+      locked: undefined,
       id: `el-${Date.now()}`,
       x: Math.min(76, el.x + 5),
       y: Math.min(82, el.y + 5),
@@ -725,6 +1292,20 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   const handleExtractElementFigure = useCallback(
     async (el: PageElement) => {
       if (el.type !== 'image' || mattingElementId) return;
+      const existingExtracted =
+        el.extractedBaseContent ||
+        extractedElementBaseRef.current[el.id] ||
+        (el.originalContent && el.content !== el.originalContent ? el.content : null);
+      if (existingExtracted) {
+        setSelectedElementId(el.id);
+        setColorStudioTarget({
+          kind: 'element',
+          elementId: el.id,
+          title: el.title || 'Figura extraída',
+          baseImageSrc: existingExtracted,
+        });
+        return;
+      }
       const sourceToMat = el.originalContent || el.content;
       setSelectedElementId(el.id);
       setMattingElementId(el.id);
@@ -734,13 +1315,20 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         const extractedUrl = await extractFigureMatting(sourceToMat, (pct) => {
           setMattingProgress(pct);
         });
+        extractedElementBaseRef.current[el.id] = extractedUrl;
         updateElement(el.id, {
           originalContent: sourceToMat,
+          extractedBaseContent: extractedUrl,
           content: extractedUrl,
           frameStyle: 'minimal',
         });
         audioEngine.playSaveChime();
-        onNotify?.('Figura extraída con IA');
+        setColorStudioTarget({
+          kind: 'element',
+          elementId: el.id,
+          title: el.title || 'Figura extraída',
+          baseImageSrc: extractedUrl,
+        });
       } catch {
         onNotify?.('No se pudo extraer la figura de esta imagen');
       } finally {
@@ -755,9 +1343,11 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     (el: PageElement) => {
       if (!el.originalContent) return;
       audioEngine.playUndoRedo(false);
+      delete extractedElementBaseRef.current[el.id];
       updateElement(el.id, {
         content: el.originalContent,
         originalContent: undefined,
+        extractedBaseContent: undefined,
       });
       onNotify?.('Imagen original restaurada');
     },
@@ -768,6 +1358,16 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     async (item: CopiedPatternData) => {
       const sourceUrl = item.imagePath;
       if (!sourceUrl || mattingMandalaId) return;
+      const cachedBase = mattedBaseMandalaMap[item.id];
+      if (cachedBase) {
+        audioEngine.playStitchClick();
+        setColorStudioTarget({
+          kind: 'mandala',
+          item,
+          baseImageSrc: cachedBase,
+        });
+        return;
+      }
       setMattingMandalaId(item.id);
       setMattingProgress(5);
       audioEngine.playStitchClick();
@@ -775,7 +1375,11 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         const extractedUrl = await extractFigureMatting(sourceUrl, (pct) => {
           setMattingProgress(pct);
         });
-        setMattedMandalaMap((prev) => ({ ...prev, [item.id]: extractedUrl }));
+        onSaveExtractedMandala?.(item.id, {
+          baseDataUrl: extractedUrl,
+          coloredDataUrl: extractedUrl,
+          updatedAt: new Date().toISOString(),
+        });
         const extractedPattern: CopiedPatternData = {
           ...item,
           imagePath: extractedUrl,
@@ -786,7 +1390,12 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
           prev && prev.id === item.id ? { ...prev, imagePath: extractedUrl } : prev
         );
         audioEngine.playSaveChime();
-        onNotify?.(`Figura extraída y copiada: ${item.name}`);
+        onNotify?.(`Figura extraída y guardada: ${item.name}`);
+        setColorStudioTarget({
+          kind: 'mandala',
+          item,
+          baseImageSrc: extractedUrl,
+        });
       } catch {
         onNotify?.('No se pudo extraer la figura de este diseño');
       } finally {
@@ -794,7 +1403,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         setMattingProgress(0);
       }
     },
-    [mattingMandalaId, onCopyPattern, onNotify]
+    [mattingMandalaId, mattedBaseMandalaMap, onSaveExtractedMandala, onCopyPattern, onNotify]
   );
 
   const rotateAllElements = useCallback(
@@ -802,6 +1411,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       if (!activeUserSpread || activeUserSpread.elements.length === 0) return;
       const normalize = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
       const nextElements = activeUserSpread.elements.map((el) => {
+        if (el.locked || el.type === 'wardrobe') return el;
         if (mode === 'reset') return { ...el, rotation: 0 };
         if (mode === 'set') return { ...el, rotation: normalize(value) };
         return { ...el, rotation: normalize((el.rotation || 0) + value) };
@@ -896,6 +1506,17 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     setShowOverview((v) => !v);
   }, [toggleOverviewSignal]);
 
+  // Clicking the "Texto" button opens a writable text box immediately on the page
+  const lastHandledAddTextRef = useRef(0);
+  useEffect(() => {
+    if (!addTextSignal || addTextSignal === lastHandledAddTextRef.current) return;
+    if (isCatalogView || !activeUserSpread) return;
+    lastHandledAddTextRef.current = addTextSignal;
+    setShowOverview(false);
+    insertPresetText('note');
+    onConsumeAddTextSignal?.();
+  }, [addTextSignal, isCatalogView, activeUserSpread, insertPresetText, onConsumeAddTextSignal]);
+
   // Respond to Rotate All signal from RightStudioDock
   const prevRotateAllSignalIdRef = useRef<number | null>(null);
   useEffect(() => {
@@ -917,38 +1538,15 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       }
       const target = spreads[0];
       if (!isCatalogSpread && activeUserSpread) {
-        const newEl: PageElement = {
-          id: `el-${Date.now()}`,
-          side: 'left',
-          type: 'text',
-          x: 12,
-          y: 18,
-          width: 215,
-          content: 'Escribe aquí tu nota o punto…',
-          color: brush.color,
-          fontSize: selectedFont === 'caveat' ? 22 : 17,
-          fontFamily: selectedFont,
-          fontWeight: 'normal',
-          fontStyle: 'normal',
-          textDecoration: 'none',
-          textAlign: 'left',
-          backgroundColor: 'transparent',
-        };
-        onUpdateSpread({
-          ...activeUserSpread,
-          elements: [...activeUserSpread.elements, newEl],
-          updatedAt: new Date().toISOString(),
-        });
-        setSelectedElementId(newEl.id);
-        setEditingTextId(newEl.id);
-        onSelectTool('select');
+        insertPresetText('note', lastActiveSideRef.current);
       } else if (target) {
         onSelectTool('text');
       }
     } else if (action.type === 'delete-active' && !isCatalogSpread && activeUserSpread) {
       if (selectedElementId) {
-        deleteElement(selectedElementId);
-        onNotify?.('Objeto eliminado');
+        if (deleteElement(selectedElementId)) {
+          onNotify?.('Objeto eliminado');
+        }
       } else if (activeUserSpread.leftDrawingDataUrl || activeUserSpread.rightDrawingDataUrl) {
         onUpdateSpread({
           ...activeUserSpread,
@@ -1015,13 +1613,58 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     onNotify,
   ]);
 
+  const commitPageEraseResults = useCallback(
+    (
+      side: 'left' | 'right',
+      drawingDataUrl: string | undefined,
+      elementStrokeUpdates: Record<string, ElementEraseStroke[]>,
+      fullyErasedIds: string[]
+    ) => {
+      if (!activeUserSpread) return;
+      const erasedSet = new Set(fullyErasedIds);
+      const hasElementChanges =
+        Object.keys(elementStrokeUpdates).length > 0 || erasedSet.size > 0;
+      const nextElements = hasElementChanges
+        ? activeUserSpread.elements
+            .filter((el) => {
+              if (el.locked || isPermanentElement(el)) return true;
+              return !erasedSet.has(el.id);
+            })
+            .map((el) => {
+              if (el.locked || isPermanentElement(el)) return el;
+              return elementStrokeUpdates[el.id]
+                ? { ...el, eraseStrokes: elementStrokeUpdates[el.id] }
+                : el;
+            })
+        : activeUserSpread.elements;
+
+      if (
+        selectedElementId &&
+        erasedSet.has(selectedElementId) &&
+        !nextElements.some((el) => el.id === selectedElementId)
+      ) {
+        setSelectedElementId(null);
+        setEditingTextId(null);
+      }
+
+      onUpdateSpread({
+        ...activeUserSpread,
+        ...(side === 'left'
+          ? { leftDrawingDataUrl: drawingDataUrl }
+          : { rightDrawingDataUrl: drawingDataUrl }),
+        elements: nextElements,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [activeUserSpread, onUpdateSpread, selectedElementId]
+  );
+
   return (
-    <div className="relative flex-1 flex flex-col items-center justify-center p-0.5 sm:p-1 overflow-hidden bg-transparent">
-      {/* Contextual Animated Floating Paint + Word + Photo Editor Toolbar (only visible when actively needed) */}
+    <div className="relative flex-1 min-h-0 min-w-0 w-full h-full flex flex-col overflow-hidden bg-transparent">
+      {/* Contextual Animated Floating Editor Toolbar (never pops up on copy; shows for active selection, Texto mode, Eyedropper, or Draw clear) */}
       <AnimatePresence>
         {(selectedElement ||
-          (isCatalogView && selectedCatalogPattern) ||
-          (!isCatalogView && (copiedPattern || copiedElement)) ||
+          (!isCatalogView && activeTool === 'text') ||
           (!isCatalogView &&
             activeUserSpread &&
             (activeUserSpread.leftDrawingDataUrl || activeUserSpread.rightDrawingDataUrl) &&
@@ -1033,6 +1676,13 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            onMouseDown={(e) => {
+              // Keep active textarea focus when clicking typography controls
+              const target = e.target as HTMLElement | null;
+              if (target && target.tagName !== 'SELECT' && target.tagName !== 'OPTION' && target.tagName !== 'INPUT') {
+                e.preventDefault();
+              }
+            }}
             className="absolute top-2 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl leather-panel bg-[#221208]/95 backdrop-blur-md shadow-[0_14px_34px_rgba(0,0,0,0.85)] max-w-[96vw]"
           >
             {activeTool === 'eyedropper' && (
@@ -1052,64 +1702,46 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               </div>
             )}
 
-            {/* Catalog Pattern or Mandala Selected -> Already Auto-Copied on Click */}
-            {isCatalogView && selectedCatalogPattern && (
-              <>
-                <span className="inline-flex items-center gap-1.5 text-xs text-[#f6e3c2] px-2 font-medium truncate max-w-[230px]">
-                  <Check className="w-3.5 h-3.5 text-[#7fe0aa] shrink-0" />
-                  <span className="truncate">
-                    Copiado: <strong className="text-[#ffdfa3]">{selectedCatalogPattern.name}</strong>
-                  </span>
+            {/* Intuitive Text Placement Quick Bar when Texto tool is active */}
+            {!isCatalogView && activeTool === 'text' && !selectedElement && (
+              <div className="flex flex-wrap items-center justify-center gap-1.5 px-1">
+                <span className="inline-flex items-center gap-1.5 text-xs text-[#ffdfa3] font-medium pr-1">
+                  <Type className="w-3.5 h-3.5 text-[#f0c77c]" />
+                  <span>Toca en la hoja para escribir o añade:</span>
                 </span>
-                {copiedPattern && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const activeUserIdx =
-                        safeIndex >= catalogCount ? safeIndex - catalogCount : 0;
-                      const targetSpread = spreads[activeUserIdx] ?? spreads[0];
-                      onChangeNotebookMode?.('book');
-                      onChangeSpreadIndex(catalogCount + activeUserIdx);
-                      if (targetSpread) {
-                        onPastePatternOnSpread(targetSpread.id, 'left', copiedPattern);
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
-                  >
-                    <ClipboardPaste className="w-3.5 h-3.5" />
-                    <span>Pegar en Mis Hojas</span>
-                  </button>
-                )}
-              </>
-            )}
-
-            {/* Copied Object or Symbol/Mandala Paste Bar on User Editable Pages */}
-            {!isCatalogView && activeUserSpread && (clipboardMode === 'element' ? copiedElement : copiedPattern || copiedElement) && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (clipboardMode === 'element' && copiedElement) {
-                    pasteCopiedElement();
-                  } else if (copiedPattern) {
-                    onPastePatternOnSpread(activeUserSpread.id, 'left');
-                  } else if (copiedElement) {
-                    pasteCopiedElement();
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
-                title="Pegar en esta hoja (Ctrl+V)"
-              >
-                <ClipboardPaste className="w-3.5 h-3.5" />
-                <span>
-                  {clipboardMode === 'element' && copiedElement
-                    ? 'Pegar objeto (Ctrl+V)'
-                    : copiedPattern
-                      ? copiedPattern.mandalaId || copiedPattern.imagePath
-                        ? `Pegar mandala: ${copiedPattern.name}`
-                        : `Pegar símbolo: ${copiedPattern.abbreviation || copiedPattern.name}`
-                      : 'Pegar objeto (Ctrl+V)'}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => insertPresetText('title')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] hover:brightness-110 text-xs font-semibold text-white cursor-pointer shadow"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Título</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertPresetText('note')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#3b2110] hover:bg-[#522e17] border border-[#c99552]/55 text-xs font-medium text-[#ffebc2] cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Nota libre</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertPresetText('card')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#3b2110] hover:bg-[#522e17] border border-[#c99552]/55 text-xs font-medium text-[#ffebc2] cursor-pointer"
+                >
+                  <Highlighter className="w-3 h-3 text-[#f0c77c]" />
+                  <span>Tarjeta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectTool('select')}
+                  aria-label="Salir de modo texto"
+                  className="p-1 rounded-lg bg-[#4b2914] hover:bg-[#6a3a1d] text-[#ffe8be] cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             )}
 
             {/* Selected Element Paint + Word + Photo Editor Controls */}
@@ -1136,17 +1768,42 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     </span>
                   </button>
 
-                  {selectedElement.originalContent &&
-                    selectedElement.content !== selectedElement.originalContent && (
-                      <button
-                        type="button"
-                        onClick={() => handleRestoreElementFigure(selectedElement)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
-                        title="Restaurar imagen original"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span className="hidden md:inline">Original</span>
-                      </button>
+                  {(selectedElement.extractedBaseContent ||
+                    (selectedElement.originalContent &&
+                      selectedElement.content !== selectedElement.originalContent)) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setColorStudioTarget({
+                              kind: 'element',
+                              elementId: selectedElement.id,
+                              title: selectedElement.title || 'Figura extraída',
+                              baseImageSrc:
+                                selectedElement.extractedBaseContent ||
+                                extractedElementBaseRef.current[selectedElement.id] ||
+                                selectedElement.content,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-b from-[#9c5a2b] to-[#6d3816] hover:brightness-110 border border-[#f2c478]/55 text-xs font-medium text-[#fff4de] cursor-pointer shadow"
+                          title="Cambiar colores y tonos de la figura extraída"
+                        >
+                          <Palette className="w-3.5 h-3.5" />
+                          <span>Colores y tonos</span>
+                        </button>
+                        {selectedElement.originalContent &&
+                          selectedElement.content !== selectedElement.originalContent && (
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreElementFigure(selectedElement)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                              title="Restaurar imagen original"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span className="hidden md:inline">Original</span>
+                            </button>
+                          )}
+                      </>
                     )}
 
                   <button
@@ -1241,14 +1898,27 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               {/* Word Typography Toolbar when Text is Selected */}
               {selectedElement.type === 'text' && (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => setEditingTextId(selectedElement.id)}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Editar</span>
-                  </button>
+                  {editingTextId === selectedElement.id ? (
+                    <button
+                      type="button"
+                      onClick={() => finishEditingText()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-b from-[#3d7c6b] to-[#265448] border border-[#8ce0c5]/45 text-xs font-semibold text-white cursor-pointer shadow"
+                      title="Terminar de escribir (Esc)"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Listo</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditingTextId(selectedElement.id)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
+                      title="Editar texto (o haz doble clic sobre el texto)"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Escribir</span>
+                    </button>
+                  )}
 
                   <select
                     value={selectedElement.fontFamily || 'lora'}
@@ -1350,7 +2020,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     type="button"
                     onClick={() =>
                       updateElement(selectedElement.id, {
-                        fontSize: Math.max(11, (selectedElement.fontSize || 17) - 2),
+                        fontSize: Math.max(10, (selectedElement.fontSize || 17) - 2),
                       })
                     }
                     className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
@@ -1358,11 +2028,14 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                   >
                     A-
                   </button>
+                  <span className="text-[11px] font-mono-tab text-[#f3dcb3] px-1">
+                    {selectedElement.fontSize || 17}
+                  </span>
                   <button
                     type="button"
                     onClick={() =>
                       updateElement(selectedElement.id, {
-                        fontSize: Math.min(44, (selectedElement.fontSize || 17) + 2),
+                        fontSize: Math.min(72, (selectedElement.fontSize || 17) + 2),
                       })
                     }
                     className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
@@ -1732,6 +2405,33 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                 </div>
               )}
 
+              {selectedElement.eraseStrokes && selectedElement.eraseStrokes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateElement(selectedElement.id, { eraseStrokes: undefined });
+                    onNotify?.('Borrados del objeto restaurados');
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#ffdfa3] hover:bg-[#522f18] cursor-pointer"
+                  title="Restaurar trazos borrados de este objeto"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Restaurar</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => zoomToElement(selectedElement)}
+                className="p-1.5 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                title={zoom >= 220 ? 'Volver a vista general (100%)' : 'Hacer zoom directo a este objeto'}
+              >
+                {zoom >= 220 ? (
+                  <ZoomOut className="w-3.5 h-3.5" />
+                ) : (
+                  <ZoomIn className="w-3.5 h-3.5" />
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => reorderElement(selectedElement.id, 'front')}
@@ -1750,20 +2450,52 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => toggleElementLock(selectedElement)}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                  selectedElement.locked
+                    ? 'bg-[#7a4b17] border-[#f6cb75] text-[#fff6e0] shadow-sm'
+                    : 'bg-[#361d0e] border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18]'
+                }`}
+                title={
+                  selectedElement.locked
+                    ? 'Desbloquear objeto para poder moverlo o eliminarlo'
+                    : 'Bloquear objeto para que no se pueda mover ni eliminar'
+                }
+              >
+                {selectedElement.locked ? (
+                  <Lock className="w-3.5 h-3.5 text-[#ffe19e]" />
+                ) : (
+                  <Unlock className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {selectedElement.locked ? 'Bloqueado' : 'Bloquear'}
+                </span>
+              </button>
+
+              {isPermanentElement(selectedElement) && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#2d1a0c] border border-[#d69f56]/45 text-[11px] text-[#f3d49b]">
+                  Permanente
+                </span>
+              )}
+
+              <button
+                type="button"
                 onClick={() => copySelectedElement(selectedElement)}
                 className="p-1.5 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
                 title="Copiar objeto (Ctrl+C)"
               >
                 <Copy className="w-3.5 h-3.5" />
               </button>
-              <button
-                type="button"
-                onClick={() => cutSelectedElement(selectedElement)}
-                className="p-1.5 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
-                title="Cortar objeto (Ctrl+X)"
-              >
-                <Scissors className="w-3.5 h-3.5" />
-              </button>
+              {!selectedElement.locked && !isPermanentElement(selectedElement) && (
+                <button
+                  type="button"
+                  onClick={() => cutSelectedElement(selectedElement)}
+                  className="p-1.5 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                  title="Cortar objeto (Ctrl+X)"
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => duplicateElement(selectedElement)}
@@ -1773,18 +2505,21 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                 <CopyPlus className="w-3.5 h-3.5" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  deleteElement(selectedElement.id);
-                  onNotify?.('Objeto eliminado');
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#7a202a] border border-[#f29aa2]/50 text-xs font-medium text-[#ffecee] hover:bg-[#992a36] cursor-pointer shadow-sm"
-                title="Eliminar objeto seleccionado (Supr)"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Eliminar</span>
-              </button>
+              {!selectedElement.locked && !isPermanentElement(selectedElement) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (deleteElement(selectedElement.id)) {
+                      onNotify?.('Objeto eliminado');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#7a202a] border border-[#f29aa2]/50 text-xs font-medium text-[#ffecee] hover:bg-[#992a36] cursor-pointer shadow-sm"
+                  title="Eliminar objeto seleccionado (Supr)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar</span>
+                </button>
+              )}
             </>
           )}
 
@@ -1841,21 +2576,38 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
 
       {/* Overview Grid Modal Overlay */}
       {showOverview ? (
-        <div className="w-full max-w-[1120px] flex-1 overflow-y-auto studio-scroll p-4 rounded-2xl leather-panel bg-[#221208]">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display text-lg text-[#f7e2b9]">
-              {isMandalaMode
-                ? `Índice de Mandalas (${mandalaSpreads.length} pliegos · ${allMandalaItems.length} diseños)`
-                : `Índice Visual del Libro (${totalBookSpreads} pliegos)`}
-            </h3>
+        <div className="w-full max-w-[1200px] flex-1 overflow-y-auto studio-scroll p-4 sm:p-5 rounded-2xl leather-panel bg-[#221208]">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-[#b98241]/25">
+            <div>
+              <h3 className="font-display text-lg text-[#f7e2b9]">
+                {isMandalaMode
+                  ? `Índice de Mandalas (${mandalaSpreads.length} pliegos · ${allMandalaItems.length} diseños)`
+                  : `Índice Visual del Libro (${totalBookSpreads} pliegos)`}
+              </h3>
+              <p className="text-xs text-[#e7cc9f]/70 mt-0.5">
+                Haz clic en cualquier miniatura para abrir esas dos páginas o usa la papelera para eliminarlas
+              </p>
+            </div>
             <div className="flex items-center gap-2">
+              {onRestoreHiddenPages &&
+                ((hiddenCatalogSpreadIds?.length ?? 0) > 0 ||
+                  (hiddenMandalaSpreadIds?.length ?? 0) > 0) && (
+                  <button
+                    type="button"
+                    onClick={onRestoreHiddenPages}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2e1a0d] hover:bg-[#492914] border border-[#b98241]/45 text-xs font-medium text-[#f1d39f] cursor-pointer whitespace-nowrap"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Restaurar catálogo</span>
+                  </button>
+                )}
               <button
                 type="button"
                 onClick={() => {
                   onAddSpread();
                   setShowOverview(false);
                 }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#523017] hover:bg-[#6e4120] border border-[#d6a25e]/45 text-xs font-medium text-[#ffebc2] cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#523017] hover:bg-[#6e4120] border border-[#d6a25e]/45 text-xs font-medium text-[#ffebc2] cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Nueva hoja</span>
@@ -1863,161 +2615,301 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               <button
                 type="button"
                 onClick={() => setShowOverview(false)}
-                className="px-3 py-1.5 rounded-lg bg-[#9a6127] text-xs font-medium text-white cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg bg-[#9a6127] hover:bg-[#b2712f] text-xs font-medium text-white cursor-pointer whitespace-nowrap"
               >
                 Volver al Cuaderno
               </button>
             </div>
           </div>
 
-          {isMandalaMode && (
-            <div className="mb-5">
-              <h4 className="font-editorial text-sm font-bold text-[#f0c77c] uppercase tracking-wider mb-2">
-                Apartado Mandalas ({mandalaSpreads.length} pliegos)
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {mandalaSpreads.map((ms, idx) => {
-                  const thumbs = [...ms.leftItems, ...ms.rightItems].slice(0, 4);
-                  return (
+          {isMandalaMode && mandalaSpreads.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-editorial text-sm font-semibold text-[#f0c77c]">
+                  Apartado Mandalas · {mandalaSpreads.length} pliegos
+                </h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {mandalaSpreads.map((ms, idx) => (
+                  <div
+                    key={ms.id}
+                    className={`group rounded-xl border p-3 transition-colors ${
+                      idx === safeMandalaIndex
+                        ? 'border-[#f0c577] bg-[#4a2a15]/90'
+                        : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
+                    }`}
+                  >
                     <button
-                      key={ms.id}
                       type="button"
                       onClick={() => {
                         onChangeNotebookMode?.('mandalas');
                         onChangeMandalaSpreadIndex?.(idx);
                         setShowOverview(false);
                       }}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                        idx === safeMandalaIndex
-                          ? 'border-[#f0c577] bg-[#4a2a15]'
-                          : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
-                      }`}
+                      className="w-full text-left cursor-pointer block transition-transform duration-150 group-hover:scale-[1.01]"
                     >
-                      <div className="h-24 rounded-lg parchment-page border border-[#966a35]/50 mb-2 p-1.5 grid grid-cols-4 gap-1 items-center">
-                        {thumbs.map((t) =>
-                          t.imagePath ? (
-                            <div
-                              key={t.id}
-                              className="w-full h-full bg-white rounded overflow-hidden flex items-center justify-center p-0.5"
-                            >
-                              <img
-                                src={t.imagePath}
-                                alt={t.name}
-                                loading="lazy"
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div
-                              key={t.id}
-                              className="w-full h-full flex items-center justify-center"
-                            >
-                              <CrochetMandalaSvg
-                                mandalaId={t.mandalaId || t.id}
-                                className="w-10 h-10"
-                              />
-                            </div>
-                          )
-                        )}
-                      </div>
-                      <div className="text-xs font-medium text-[#ffebc2] truncate">{ms.title}</div>
-                      <div className="flex items-center justify-between text-[11px] text-[#e7cc9f]/80 mt-0.5">
-                        <span>Pliego {idx + 1}</span>
-                        <span>{ms.leftItems.length + ms.rightItems.length} mandalas</span>
-                      </div>
+                      <MandalaSpreadMiniature
+                        leftItems={ms.leftItems}
+                        rightItems={ms.rightItems}
+                        mattedMap={mattedMandalaMap}
+                      />
                     </button>
-                  );
-                })}
+                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChangeNotebookMode?.('mandalas');
+                          onChangeMandalaSpreadIndex?.(idx);
+                          setShowOverview(false);
+                        }}
+                        className="min-w-0 flex-1 text-left cursor-pointer"
+                      >
+                        <div className="text-xs font-medium text-[#ffebc2] truncate">{ms.title}</div>
+                        <div className="text-[11px] font-mono-tab text-[#e7cc9f]/75 mt-0.5">
+                          Pliego {idx + 1} · {ms.leftItems.length + ms.rightItems.length} mandalas
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onDeleteMandalaSpread?.(ms.id, idx, mandalaSpreads.length)
+                        }
+                        aria-label={`Eliminar ${ms.title}`}
+                        title="Eliminar estas dos páginas"
+                        className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#3b1512] hover:bg-[#6e211b] border border-[#e07a68]/55 text-[11px] font-medium text-[#ffd5cc] cursor-pointer transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {catalogSpreads.map((cs, idx) => (
-              <button
-                key={cs.id}
-                type="button"
-                onClick={() => {
-                  onChangeNotebookMode?.('book');
-                  onChangeSpreadIndex(idx);
-                  setShowOverview(false);
-                }}
-                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                  !isMandalaMode && idx === safeIndex
-                    ? 'border-[#f0c577] bg-[#4a2a15]'
-                    : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
-                }`}
-              >
-                <div className="h-24 rounded-lg parchment-page parchment-grid border border-[#966a35]/50 mb-2 flex flex-col items-center justify-center text-[#5c361d] font-editorial italic text-sm px-3 text-center">
-                  <span className="text-[10px] uppercase tracking-wider text-[#7a202a] font-sans font-semibold not-italic">
-                    Catálogo A–Z
-                  </span>
-                  <span>{cs.title}</span>
+          {/* Main Book Spreads (Editable + Catalog + Mandalas) */}
+          <div className="space-y-6">
+            {/* Editable Notebook Pages first or in book order? Keep exact book order: Catalog -> Editable -> Mandalas */}
+            {catalogSpreads.length > 0 && (
+              <div>
+                <h4 className="font-editorial text-sm font-semibold text-[#f0c77c] mb-3">
+                  Catálogo de Patrones A–Z · {catalogSpreads.length} pliegos
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {catalogSpreads.map((cs, idx) => (
+                    <div
+                      key={cs.id}
+                      className={`group rounded-xl border p-3 transition-colors ${
+                        !isMandalaMode && idx === safeIndex
+                          ? 'border-[#f0c577] bg-[#4a2a15]/90'
+                          : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChangeNotebookMode?.('book');
+                          onChangeSpreadIndex(idx);
+                          setShowOverview(false);
+                        }}
+                        className="w-full text-left cursor-pointer block transition-transform duration-150 group-hover:scale-[1.01]"
+                      >
+                        <CatalogSpreadMiniature
+                          leftItems={cs.leftItems}
+                          rightItems={cs.rightItems}
+                        />
+                      </button>
+                      <div className="mt-2.5 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onChangeNotebookMode?.('book');
+                            onChangeSpreadIndex(idx);
+                            setShowOverview(false);
+                          }}
+                          className="min-w-0 flex-1 text-left cursor-pointer"
+                        >
+                          <div className="text-xs font-medium text-[#ffebc2] truncate">
+                            {cs.title}
+                          </div>
+                          <div className="text-[11px] font-mono-tab text-[#e7cc9f]/75 mt-0.5">
+                            Pliego {idx + 1} · {cs.leftItems.length + cs.rightItems.length} patrones
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteCatalogSpread?.(cs.id, idx)}
+                          aria-label={`Eliminar ${cs.title}`}
+                          title="Eliminar estas dos páginas"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#3b1512] hover:bg-[#6e211b] border border-[#e07a68]/55 text-[11px] font-medium text-[#ffd5cc] cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Eliminar</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between text-xs text-[#e7cc9f]">
-                  <span>Pliego {idx + 1}</span>
-                  <span>{cs.leftItems.length + cs.rightItems.length} patrones</span>
+              </div>
+            )}
+
+            <div>
+              <h4 className="font-editorial text-sm font-semibold text-[#f0c77c] mb-3">
+                Hojas del Cuaderno · {spreads.length} pliegos editables
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {spreads.map((sp, idx) => {
+                  const globalIdx = catalogCount + idx;
+                  const canDeleteThis = Boolean(onDeleteSpread) && spreads.length > 1;
+                  return (
+                    <div
+                      key={sp.id}
+                      className={`group rounded-xl border p-3 transition-colors ${
+                        !isMandalaMode && globalIdx === safeIndex
+                          ? 'border-[#f0c577] bg-[#4a2a15]/90'
+                          : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChangeNotebookMode?.('book');
+                          onChangeSpreadIndex(globalIdx);
+                          setShowOverview(false);
+                        }}
+                        className="w-full text-left cursor-pointer block transition-transform duration-150 group-hover:scale-[1.01]"
+                      >
+                        <EditableSpreadMiniature spread={sp} />
+                      </button>
+                      <div className="mt-2.5 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onChangeNotebookMode?.('book');
+                            onChangeSpreadIndex(globalIdx);
+                            setShowOverview(false);
+                          }}
+                          className="min-w-0 flex-1 text-left cursor-pointer"
+                        >
+                          <div className="text-xs font-medium text-[#ffebc2] truncate">
+                            {sp.title}
+                          </div>
+                          <div className="text-[11px] font-mono-tab text-[#e7cc9f]/75 mt-0.5">
+                            Pliego {globalIdx + 1} · {sp.elements.length} elementos
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canDeleteThis}
+                          onClick={() => onDeleteSpread?.(sp.id)}
+                          aria-label={`Eliminar ${sp.title}`}
+                          title={
+                            canDeleteThis
+                              ? 'Eliminar estas dos páginas'
+                              : 'Debe quedar al menos una hoja editable'
+                          }
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#3b1512] hover:bg-[#6e211b] border border-[#e07a68]/55 text-[11px] font-medium text-[#ffd5cc] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Eliminar</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {!isMandalaMode && mandalaSpreads.length > 0 && (
+              <div>
+                <h4 className="font-editorial text-sm font-semibold text-[#f0c77c] mb-3">
+                  Apartado Mandalas · {mandalaSpreads.length} pliegos
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {mandalaSpreads.map((ms, idx) => (
+                    <div
+                      key={ms.id}
+                      className="group rounded-xl border border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62] p-3 transition-colors"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChangeNotebookMode?.('mandalas');
+                          onChangeMandalaSpreadIndex?.(idx);
+                          setShowOverview(false);
+                        }}
+                        className="w-full text-left cursor-pointer block transition-transform duration-150 group-hover:scale-[1.01]"
+                      >
+                        <MandalaSpreadMiniature
+                          leftItems={ms.leftItems}
+                          rightItems={ms.rightItems}
+                          mattedMap={mattedMandalaMap}
+                        />
+                      </button>
+                      <div className="mt-2.5 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onChangeNotebookMode?.('mandalas');
+                            onChangeMandalaSpreadIndex?.(idx);
+                            setShowOverview(false);
+                          }}
+                          className="min-w-0 flex-1 text-left cursor-pointer"
+                        >
+                          <div className="text-xs font-medium text-[#ffebc2] truncate">
+                            {ms.title}
+                          </div>
+                          <div className="text-[11px] font-mono-tab text-[#e7cc9f]/75 mt-0.5">
+                            Mandalas {idx + 1} · {ms.leftItems.length + ms.rightItems.length} diseños
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onDeleteMandalaSpread?.(ms.id, idx, mandalaSpreads.length)
+                          }
+                          aria-label={`Eliminar ${ms.title}`}
+                          title="Eliminar estas dos páginas"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#3b1512] hover:bg-[#6e211b] border border-[#e07a68]/55 text-[11px] font-medium text-[#ffd5cc] cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Eliminar</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </button>
-            ))}
-
-            {!isMandalaMode &&
-              mandalaSpreads.map((ms, idx) => (
-                <button
-                  key={ms.id}
-                  type="button"
-                  onClick={() => {
-                    onChangeNotebookMode?.('mandalas');
-                    onChangeMandalaSpreadIndex?.(idx);
-                    setShowOverview(false);
-                  }}
-                  className="p-3 rounded-xl border text-left transition-all cursor-pointer border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]"
-                >
-                  <div className="h-24 rounded-lg parchment-page parchment-grid border border-[#966a35]/50 mb-2 flex flex-col items-center justify-center text-[#5c361d] font-editorial italic text-sm px-3 text-center">
-                    <span className="text-[10px] uppercase tracking-wider text-[#7a202a] font-sans font-semibold not-italic">
-                      Apartado Mandalas
-                    </span>
-                    <span>{ms.title}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-[#e7cc9f]">
-                    <span>Pliego {idx + 1}</span>
-                    <span>{ms.leftItems.length + ms.rightItems.length} mandalas</span>
-                  </div>
-                </button>
-              ))}
-
-            {spreads.map((sp, idx) => {
-              const globalIdx = catalogCount + idx;
-              return (
-                <button
-                  key={sp.id}
-                  type="button"
-                  onClick={() => {
-                    onChangeNotebookMode?.('book');
-                    onChangeSpreadIndex(globalIdx);
-                    setShowOverview(false);
-                  }}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    !isMandalaMode && globalIdx === safeIndex
-                      ? 'border-[#f0c577] bg-[#4a2a15]'
-                      : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
-                  }`}
-                >
-                  <div className="h-24 rounded-lg parchment-page parchment-grid border border-[#966a35]/50 mb-2 flex items-center justify-center text-[#5c361d] font-editorial italic text-sm px-3 text-center">
-                    {sp.title}
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-[#e7cc9f]">
-                    <span>Pliego {globalIdx + 1} · Editable</span>
-                    <span>{sp.elements.length} elementos</span>
-                  </div>
-                </button>
-              );
-            })}
+              </div>
+            )}
           </div>
         </div>
       ) : (
-        /* Open Book 3D Stage centered & maximized */
-        <div className="flex-1 w-full flex items-center justify-center overflow-auto studio-scroll p-0.5">
+        /* Open Book Stage with crisp 25%-500% whole-sheet zoom, 2-finger pinch & Space/Middle-click pan */
+        <div
+          ref={bookViewportRef}
+          className={`flex-1 min-h-0 min-w-0 w-full h-full flex overflow-auto studio-scroll p-1 sm:p-2 ${
+            isSpacePanning ? 'cursor-grab active:cursor-grabbing' : ''
+          }`}
+          style={{ touchAction: 'pan-x pan-y' }}
+        >
+          <div
+            style={
+              bookBaseSize.w > 0
+                ? {
+                    width: Math.round(bookBaseSize.w * (zoom / 100)),
+                    height: Math.round(bookBaseSize.h * (zoom / 100)),
+                    margin: 'auto',
+                    flexShrink: 0,
+                    position: 'relative',
+                  }
+                : {
+                    margin: 'auto',
+                    flexShrink: 0,
+                    position: 'relative',
+                  }
+            }
+          >
           <div
             ref={bookContainerRef}
             onPointerDownCapture={(e) => {
@@ -2029,15 +2921,20 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               onPickColorFromCanvas(picked);
             }}
             style={{
+              position: bookBaseSize.w > 0 ? 'absolute' : 'relative',
+              top: 0,
+              left: 0,
+              width: bookBaseSize.w > 0 ? bookBaseSize.w : undefined,
+              height: bookBaseSize.h > 0 ? bookBaseSize.h : undefined,
               transform: zoom === 100 ? undefined : `scale(${zoom / 100})`,
-              transformOrigin: 'center center',
+              transformOrigin: 'top left',
             }}
-            className={`relative book-stage transition-transform duration-200 select-none ${
-              activeTool === 'eyedropper' ? 'cursor-crosshair' : ''
-            }`}
+            className={`select-none ${
+              isAnimatingFlip || flipDir ? 'book-stage' : ''
+            } ${activeTool === 'eyedropper' ? 'cursor-crosshair' : ''}`}
           >
-            {/* Outer 3D Leather Book Cover Frame */}
-            <div className="relative flex rounded-2xl p-1.5 sm:p-2 book-cover-3d">
+            {/* Outer 3D Leather Book Cover Frame (intrinsic w-max measured by ResizeObserver) */}
+            <div ref={bookContentRef} className="relative flex w-max rounded-2xl p-1.5 sm:p-2 book-cover-3d">
               {/* Stitched Leather Inner Trim */}
               <div className="pointer-events-none absolute inset-1 rounded-[14px] border border-dashed border-[#d6a25e]/45" />
 
@@ -2119,6 +3016,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       onSaveDrawing={(url) =>
                         onUpdateSpread({ ...activeUserSpread, leftDrawingDataUrl: url })
                       }
+                      onCommitEraseResults={(url, elUpdates, removedIds) =>
+                        commitPageEraseResults('left', url, elUpdates, removedIds)
+                      }
                       activeTool={activeTool}
                       brush={brush}
                       onPickColor={onPickColorFromCanvas}
@@ -2127,13 +3027,21 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       editingTextId={editingTextId}
                       mattingElementId={mattingElementId}
                       mattingProgress={mattingProgress}
-                      onSelectElement={setSelectedElementId}
-                      onEditText={setEditingTextId}
+                      onSelectElement={(id) => {
+                        lastActiveSideRef.current = 'left';
+                        setSelectedElementId(id);
+                      }}
+                      onEditText={(id) => {
+                        if (id === null) finishEditingText();
+                        else setEditingTextId(id);
+                      }}
                       onUpdateElement={updateElement}
                       onDeleteElement={(id) => {
-                        deleteElement(id);
-                        onNotify?.('Objeto eliminado');
+                        if (deleteElement(id)) {
+                          onNotify?.('Objeto eliminado');
+                        }
                       }}
+                      onToggleLockElement={toggleElementLock}
                       onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
                       onRestoreElementFigure={handleRestoreElementFigure}
                       onEnterDressingRoom={onEnterDressingRoom}
@@ -2153,6 +3061,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       onSaveDrawing={(url) =>
                         onUpdateSpread({ ...activeUserSpread, rightDrawingDataUrl: url })
                       }
+                      onCommitEraseResults={(url, elUpdates, removedIds) =>
+                        commitPageEraseResults('right', url, elUpdates, removedIds)
+                      }
                       activeTool={activeTool}
                       brush={brush}
                       onPickColor={onPickColorFromCanvas}
@@ -2161,13 +3072,21 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       editingTextId={editingTextId}
                       mattingElementId={mattingElementId}
                       mattingProgress={mattingProgress}
-                      onSelectElement={setSelectedElementId}
-                      onEditText={setEditingTextId}
+                      onSelectElement={(id) => {
+                        lastActiveSideRef.current = 'right';
+                        setSelectedElementId(id);
+                      }}
+                      onEditText={(id) => {
+                        if (id === null) finishEditingText();
+                        else setEditingTextId(id);
+                      }}
                       onUpdateElement={updateElement}
                       onDeleteElement={(id) => {
-                        deleteElement(id);
-                        onNotify?.('Objeto eliminado');
+                        if (deleteElement(id)) {
+                          onNotify?.('Objeto eliminado');
+                        }
                       }}
+                      onToggleLockElement={toggleElementLock}
                       onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
                       onRestoreElementFigure={handleRestoreElementFigure}
                       onEnterDressingRoom={onEnterDressingRoom}
@@ -2227,6 +3146,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               </div>
             </div>
           </div>
+          </div>
         </div>
       )}
 
@@ -2244,6 +3164,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               disabled={!canPrev}
               onClick={() => commitPageTurn('prev')}
               aria-label="Página anterior"
+              title="Página anterior (←)"
               className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] disabled:opacity-35 cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -2256,6 +3177,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               disabled={!canNext}
               onClick={() => commitPageTurn('next')}
               aria-label="Página siguiente"
+              title="Página siguiente (→)"
               className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] disabled:opacity-35 cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
@@ -2265,27 +3187,54 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               type="button"
               onClick={() => {
                 audioEngine.playStitchClick();
-                setZoom((z) => Math.max(70, z - 10));
+                setZoom((z) => Math.max(25, z - 20));
               }}
               aria-label="Alejar"
+              title="Alejar (↓)"
               className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-[11px] font-mono-tab text-[#f8e6c4] w-9 text-center">
-              {zoom}%
-            </span>
             <button
               type="button"
               onClick={() => {
                 audioEngine.playStitchClick();
-                setZoom((z) => Math.min(130, z + 10));
+                setZoom(100);
+              }}
+              title="Restablecer zoom al 100%"
+              className="text-[11px] font-mono-tab text-[#f8e6c4] hover:text-[#ffe39f] w-10 text-center cursor-pointer"
+            >
+              {zoom}%
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playStitchClick();
+                setZoom((z) => Math.min(500, z + 20));
               }}
               aria-label="Acercar"
+              title="Acercar (↑)"
               className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
+            {onDeleteSpread &&
+              activeUserSpread &&
+              !isCatalogView &&
+              spreads.length > 1 && (
+                <>
+                  <div className="w-px h-4 bg-[#b88443]/40 mx-0.5" />
+                  <button
+                    type="button"
+                    onClick={() => onDeleteSpread(activeUserSpread.id)}
+                    aria-label="Eliminar estas dos páginas"
+                    title="Eliminar estas dos páginas"
+                    className="p-1 rounded-full bg-[#4e1a15] text-[#ffd4cb] hover:bg-[#73231c] cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             {onToggleFocusMode && (
               <button
                 type="button"
@@ -2299,6 +3248,54 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                 <Minimize2 className="w-3.5 h-3.5" />
               </button>
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick on-canvas Zoom Pill when zoomed in/out in docked mode */}
+      <AnimatePresence>
+        {!focusMode && !showOverview && zoom !== 100 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="absolute bottom-2.5 right-2.5 z-40 flex items-center gap-1 px-2 py-1 rounded-full carved-bar-3d shadow-xl select-none"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playStitchClick();
+                setZoom((z) => Math.max(25, z - 20));
+              }}
+              aria-label="Alejar"
+              title="Alejar (↓ / Ctrl -)"
+              className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playStitchClick();
+                setZoom(100);
+              }}
+              title="Restablecer zoom al 100% (Ctrl 0)"
+              className="text-[11px] font-mono-tab text-[#f8e6c4] hover:text-[#ffe39f] w-10 text-center cursor-pointer"
+            >
+              {zoom}%
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playStitchClick();
+                setZoom((z) => Math.min(500, z + 20));
+              }}
+              aria-label="Acercar"
+              title="Acercar (↑ / Ctrl +)"
+              className="p-1 rounded-full text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2336,18 +3333,45 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       disabled={Boolean(mattingMandalaId)}
                       onClick={() => void handleExtractMandalaFigure(previewMandala)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#3d7c6b] to-[#265448] hover:brightness-110 border border-[#8ce0c5]/45 text-xs font-medium text-white cursor-pointer shadow disabled:opacity-60"
-                      title="AI Image Matting: extraer la figura sin fondo"
+                      title={
+                        mattedBaseMandalaMap[previewMandala.id]
+                          ? 'Cambiar colores y tonos de la figura extraída'
+                          : 'Extraer la figura sin fondo y personalizar sus colores y tonos'
+                      }
                     >
                       {mattingMandalaId === previewMandala.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : mattedBaseMandalaMap[previewMandala.id] ? (
+                        <Palette className="w-3.5 h-3.5" />
                       ) : (
                         <Wand2 className="w-3.5 h-3.5" />
                       )}
                       <span>
                         {mattingMandalaId === previewMandala.id
                           ? `Extrayendo ${mattingProgress}%`
-                          : 'Extraer figura'}
+                          : mattedBaseMandalaMap[previewMandala.id]
+                            ? 'Colores y tonos'
+                            : 'Extraer figura'}
                       </span>
+                    </button>
+                  )}
+                  {previewMandala.imagePath && mattedBaseMandalaMap[previewMandala.id] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioEngine.playUndoRedo(false);
+                        onRestoreExtractedMandala?.(previewMandala.id);
+                        const originalItem = allMandalaItems.find((m) => m.id === previewMandala.id);
+                        if (originalItem) {
+                          setPreviewMandala(originalItem);
+                        }
+                        onNotify?.('Mandala restaurado a su imagen original');
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#3c2110] hover:bg-[#5b3319] border border-[#d69f56]/45 text-xs font-medium text-[#ffebc2] cursor-pointer"
+                      title="Restaurar imagen original sin extraer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Original</span>
                     </button>
                   )}
                   <button
@@ -2358,34 +3382,13 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                         : previewMandala;
                       setSelectedCatalogPattern(effective);
                       onCopyPattern(effective);
+                      setPreviewMandala(null);
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3c2110] hover:bg-[#5b3319] border border-[#d69f56]/50 text-xs font-medium text-[#ffebc2] cursor-pointer"
+                    title="Copiar al portapapeles (Ctrl+V para pegar en tus hojas)"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Copiar</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const effective = mattedMandalaMap[previewMandala.id]
-                        ? { ...previewMandala, imagePath: mattedMandalaMap[previewMandala.id] }
-                        : previewMandala;
-                      setSelectedCatalogPattern(effective);
-                      onCopyPattern(effective);
-                      const activeUserIdx =
-                        safeIndex >= catalogCount ? safeIndex - catalogCount : 0;
-                      const targetSpread = spreads[activeUserIdx] ?? spreads[0];
-                      setPreviewMandala(null);
-                      if (targetSpread) {
-                        onChangeNotebookMode?.('book');
-                        onChangeSpreadIndex(catalogCount + activeUserIdx);
-                        onPastePatternOnSpread(targetSpread.id, 'left', effective);
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
-                  >
-                    <ClipboardPaste className="w-3.5 h-3.5" />
-                    <span>Pegar en Mis Hojas</span>
+                    <span>Copiar (Ctrl+V)</span>
                   </button>
                   <button
                     type="button"
@@ -2451,6 +3454,57 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Mandala & Extracted Figure Color & Tone Studio Modal */}
+      <AnimatePresence>
+        {colorStudioTarget && (
+          <MandalaColorStudioModal
+            title={
+              colorStudioTarget.kind === 'mandala'
+                ? colorStudioTarget.item.name
+                : colorStudioTarget.title
+            }
+            baseImageSrc={colorStudioTarget.baseImageSrc}
+            initialColor={brush.color}
+            applyLabel={
+              colorStudioTarget.kind === 'mandala'
+                ? 'Aplicar color y copiar (Ctrl+V)'
+                : 'Aplicar colores en la hoja'
+            }
+            onApply={(recoloredDataUrl) => {
+              if (colorStudioTarget.kind === 'mandala') {
+                const { item, baseImageSrc } = colorStudioTarget;
+                onSaveExtractedMandala?.(item.id, {
+                  baseDataUrl: baseImageSrc,
+                  coloredDataUrl: recoloredDataUrl,
+                  updatedAt: new Date().toISOString(),
+                });
+                const coloredPattern: CopiedPatternData = {
+                  ...item,
+                  imagePath: recoloredDataUrl,
+                };
+                setSelectedCatalogPattern(coloredPattern);
+                onCopyPattern(coloredPattern);
+                setPreviewMandala((prev) =>
+                  prev && prev.id === item.id ? { ...prev, imagePath: recoloredDataUrl } : prev
+                );
+                onNotify?.(`Color guardado y copiado: ${item.name}`);
+              } else {
+                extractedElementBaseRef.current[colorStudioTarget.elementId] =
+                  colorStudioTarget.baseImageSrc;
+                updateElement(colorStudioTarget.elementId, {
+                  extractedBaseContent: colorStudioTarget.baseImageSrc,
+                  content: recoloredDataUrl,
+                  frameStyle: 'minimal',
+                });
+                onNotify?.('Colores y tonos guardados en la hoja');
+              }
+              setColorStudioTarget(null);
+            }}
+            onClose={() => setColorStudioTarget(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Image Crop Modal */}
       {croppingElement && (
         <ImageCropModal
@@ -2492,20 +3546,8 @@ const PatternCatalogPage: React.FC<{
     const pageNum = (spreadNumber - 1) * 2 + (side === 'left' ? 1 : 2);
     return (
       <div className={`relative ${pageSizeClass} parchment-page parchment-grid overflow-hidden flex flex-col px-6 py-4`}>
-        {side === 'left' ? (
-          <>
-            <CornerCrochetFlower position="top-left" className="absolute top-0.5 left-0.5 w-24 h-24 opacity-90" />
-            <CornerCrochetFlower position="bottom-left" showYarnOrnament className="absolute bottom-0.5 left-0.5 w-24 h-24 opacity-85" />
-          </>
-        ) : (
-          <>
-            <CornerCrochetFlower position="top-right" className="absolute top-0.5 right-3 w-20 h-20 opacity-90" />
-            <CornerCrochetFlower position="bottom-right" showYarnOrnament className="absolute bottom-0.5 right-3 w-24 h-24 opacity-85" />
-          </>
-        )}
-
         {/* Header */}
-        <div className="relative z-10 flex items-baseline justify-between border-b border-[#8e6233]/35 pb-1.5 mb-2.5 pl-8 pr-6">
+        <div className="relative z-10 flex items-baseline justify-between border-b border-[#8e6233]/35 pb-1.5 mb-2.5">
           <div>
             <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#4a220d]">
               {side === 'left' ? 'Índice de Patrones Crochet' : 'Alfabeto y Diagramas'}
@@ -2647,20 +3689,8 @@ const MandalaCatalogPage: React.FC<{
     const hasPhotos = items.some((it) => Boolean(it.imagePath));
     return (
       <div className={`relative ${pageSizeClass} parchment-page parchment-grid overflow-hidden flex flex-col px-5 py-3.5`}>
-        {side === 'left' ? (
-          <>
-            <CornerCrochetFlower position="top-left" className="absolute top-0.5 left-0.5 w-20 h-20 opacity-85" />
-            <CornerCrochetFlower position="bottom-left" showYarnOrnament className="absolute bottom-0.5 left-0.5 w-20 h-20 opacity-80" />
-          </>
-        ) : (
-          <>
-            <CornerCrochetFlower position="top-right" className="absolute top-0.5 right-3 w-18 h-18 opacity-85" />
-            <CornerCrochetFlower position="bottom-right" showYarnOrnament className="absolute bottom-0.5 right-3 w-20 h-20 opacity-80" />
-          </>
-        )}
-
         {/* Header */}
-        <div className="relative z-10 flex items-baseline justify-between border-b border-[#8e6233]/35 pb-1.5 mb-2 pl-7 pr-5">
+        <div className="relative z-10 flex items-baseline justify-between border-b border-[#8e6233]/35 pb-1.5 mb-2">
           <div>
             <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#4a220d]">
               {side === 'left'
@@ -2729,21 +3759,37 @@ const MandalaCatalogPage: React.FC<{
                   <button
                     type="button"
                     disabled={Boolean(mattingId)}
-                    title="AI Image Matting: Extraer figura sin fondo"
+                    title={
+                      mattedMap[item.id]
+                        ? 'Cambiar colores y tonos de la figura extraída'
+                        : 'Extraer figura sin fondo y cambiar colores y tonos'
+                    }
                     onClick={(e) => {
                       e.stopPropagation();
                       onExtractFigure(item);
                     }}
-                    className={`absolute bottom-7 right-1.5 z-20 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#265448]/92 hover:bg-[#327060] border border-[#8ce0c5]/50 text-[9px] font-medium text-white shadow transition-opacity cursor-pointer disabled:opacity-60 ${
+                    className={`absolute bottom-7 right-1.5 z-20 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-medium text-white shadow transition-opacity cursor-pointer disabled:opacity-60 ${
+                      mattedMap[item.id]
+                        ? 'bg-[#8c4b1e]/95 hover:bg-[#ad5e26] border-[#f2c478]/65'
+                        : 'bg-[#265448]/92 hover:bg-[#327060] border-[#8ce0c5]/50'
+                    } ${
                       isMatting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
                   >
                     {isMatting ? (
                       <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                    ) : mattedMap[item.id] ? (
+                      <Palette className="w-2.5 h-2.5" />
                     ) : (
                       <Wand2 className="w-2.5 h-2.5" />
                     )}
-                    <span>{isMatting ? `${mattingProgress}%` : 'Extraer figura'}</span>
+                    <span>
+                      {isMatting
+                        ? `${mattingProgress}%`
+                        : mattedMap[item.id]
+                          ? 'Colores y tonos'
+                          : 'Extraer figura'}
+                    </span>
                   </button>
                 )}
 
@@ -3117,6 +4163,134 @@ const ShapeSvg: React.FC<{
   );
 };
 
+/* ---------- Per-Object Stroke Eraser Mask & Brush Helpers ---------- */
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const clean = (hex || '#4e2712').replace('#', '').trim();
+  if (clean.length === 3) {
+    const r = parseInt(clean[0] + clean[0], 16);
+    const g = parseInt(clean[1] + clean[1], 16);
+    const b = parseInt(clean[2] + clean[2], 16);
+    return [Number.isNaN(r) ? 78 : r, Number.isNaN(g) ? 39 : g, Number.isNaN(b) ? 18 : b];
+  }
+  if (clean.length !== 6) return [78, 39, 18];
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return [Number.isNaN(r) ? 78 : r, Number.isNaN(g) ? 39 : g, Number.isNaN(b) ? 18 : b];
+}
+
+function buildEraseMaskDataUri(strokes?: ElementEraseStroke[]): string | undefined {
+  if (!strokes || strokes.length === 0) return undefined;
+  const vbH = Math.max(10, strokes[strokes.length - 1]?.vbH || 100);
+  const hasSoft = strokes.some((s) => s.soft);
+  const shapes: string[] = [];
+
+  for (const stroke of strokes) {
+    if (!stroke.points.length) continue;
+    const scaleY = vbH / Math.max(10, stroke.vbH || vbH);
+    const w = Math.max(1.2, stroke.width);
+    const filterAttr = stroke.soft ? ' filter="url(#f)"' : '';
+    if (stroke.points.length === 1) {
+      const [px, py] = stroke.points[0];
+      shapes.push(
+        `<circle cx="${px.toFixed(1)}" cy="${(py * scaleY).toFixed(1)}" r="${(w / 2).toFixed(1)}" fill="black"${filterAttr}/>`
+      );
+    } else {
+      const d = stroke.points
+        .map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${px.toFixed(1)} ${(py * scaleY).toFixed(1)}`)
+        .join(' ');
+      shapes.push(
+        `<path d="${d}" stroke="black" stroke-width="${w.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" fill="none"${filterAttr}/>`
+      );
+    }
+  }
+
+  if (shapes.length === 0) return undefined;
+  const filterDef = hasSoft
+    ? `<filter id="f" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.4"/></filter>`
+    : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH.toFixed(1)}" preserveAspectRatio="none"><defs>${filterDef}<mask id="m"><rect x="0" y="0" width="100" height="${vbH.toFixed(1)}" fill="white"/>${shapes.join('')}</mask></defs><rect x="0" y="0" width="100" height="${vbH.toFixed(1)}" fill="white" mask="url(#m)"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+function distSqToSegment(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq <= 0.0001) return (px - x1) * (px - x1) + (py - y1) * (py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const cx = x1 + t * dx;
+  const cy = y1 + t * dy;
+  return (px - cx) * (px - cx) + (py - cy) * (py - cy);
+}
+
+function isElementFullyErased(strokes: ElementEraseStroke[]): boolean {
+  if (strokes.length === 0) return false;
+  const vbH = Math.max(10, strokes[strokes.length - 1]?.vbH || 100);
+  const cols = 6;
+  const rows = 6;
+  let covered = 0;
+  const total = cols * rows;
+
+  for (let r = 0; r < rows; r++) {
+    const sy = ((r + 0.5) / rows) * vbH * 0.84 + vbH * 0.08;
+    for (let c = 0; c < cols; c++) {
+      const sx = ((c + 0.5) / cols) * 84 + 8;
+      let hit = false;
+      for (const stroke of strokes) {
+        const scaleY = vbH / Math.max(10, stroke.vbH || vbH);
+        const radSq = (stroke.width * 0.52) * (stroke.width * 0.52);
+        const pts = stroke.points;
+        if (pts.length === 1) {
+          const dx = sx - pts[0][0];
+          const dy = sy - pts[0][1] * scaleY;
+          if (dx * dx + dy * dy <= radSq) {
+            hit = true;
+            break;
+          }
+        } else {
+          for (let i = 1; i < pts.length; i++) {
+            if (
+              distSqToSegment(
+                sx,
+                sy,
+                pts[i - 1][0],
+                pts[i - 1][1] * scaleY,
+                pts[i][0],
+                pts[i][1] * scaleY
+              ) <= radSq
+            ) {
+              hit = true;
+              break;
+            }
+          }
+          if (hit) break;
+        }
+      }
+      if (hit) covered++;
+    }
+  }
+  return covered / total >= 0.94;
+}
+
+function isPermanentElement(el: PageElement): boolean {
+  return Boolean(
+    el.permanent ||
+      el.type === 'wardrobe' ||
+      el.id === 'el-armario-mannequin-front' ||
+      el.id === 'el-armario-mannequin-back'
+  );
+}
+
 /* ---------- Memoized Page Element Item (Fast Drag, Resize & Free Rotate) ---------- */
 
 const PageElementItem = memo<{
@@ -3127,12 +4301,14 @@ const PageElementItem = memo<{
   isMatting?: boolean;
   mattingProgress?: number;
   liveOverride?: { x: number; y: number; width: number; rotation?: number };
+  liveEraseStrokes?: ElementEraseStroke[];
   onStartDrag: (el: PageElement, e: React.PointerEvent) => void;
   onStartResize: (el: PageElement, e: React.PointerEvent) => void;
   onStartRotate: (el: PageElement, e: React.PointerEvent) => void;
   onDoubleClick: (el: PageElement, e: React.MouseEvent) => void;
   onUpdateElement: (id: string, patch: Partial<PageElement>) => void;
   onDeleteElement: (id: string) => void;
+  onToggleLockElement: (el: PageElement) => void;
   onExtractFigure?: (el: PageElement) => void;
   onRestoreFigure?: (el: PageElement) => void;
   onEnterDressingRoom?: () => void;
@@ -3146,17 +4322,44 @@ const PageElementItem = memo<{
     isMatting = false,
     mattingProgress = 0,
     liveOverride,
+    liveEraseStrokes,
     onStartDrag,
     onStartResize,
     onStartRotate,
     onDoubleClick,
     onUpdateElement,
     onDeleteElement,
+    onToggleLockElement,
     onExtractFigure,
     onRestoreFigure,
     onEnterDressingRoom,
     onEditTextDone,
   }) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const isLocked = Boolean(el.locked);
+    const isPermanent = isPermanentElement(el);
+    const activeEraseStrokes = liveEraseStrokes ?? el.eraseStrokes;
+    const eraseMaskUri = useMemo(
+      () => buildEraseMaskDataUri(activeEraseStrokes),
+      [activeEraseStrokes]
+    );
+
+    useEffect(() => {
+      if (isEditing && el.type === 'text') {
+        const raf = requestAnimationFrame(() => {
+          const ta = textareaRef.current;
+          if (ta) {
+            ta.focus();
+            ta.style.height = 'auto';
+            ta.style.height = `${ta.scrollHeight}px`;
+            const len = ta.value.length;
+            ta.setSelectionRange(len, len);
+          }
+        });
+        return () => cancelAnimationFrame(raf);
+      }
+    }, [isEditing, el.type]);
+
     const x = liveOverride ? liveOverride.x : el.x;
     const y = liveOverride ? liveOverride.y : el.y;
     const width = liveOverride ? liveOverride.width : el.width;
@@ -3172,7 +4375,9 @@ const PageElementItem = memo<{
       ? `brightness(${el.filters.brightness}%) contrast(${el.filters.contrast}%) saturate(${el.filters.saturate}%) sepia(${el.filters.sepia}%) blur(${el.filters.blur}px)`
       : undefined;
 
-    const isMattedCutout = Boolean(el.originalContent && el.content !== el.originalContent);
+    const isMattedCutout = Boolean(
+      el.extractedBaseContent || (el.originalContent && el.content !== el.originalContent)
+    );
     const isMinimalPngCutout =
       el.frameStyle === 'minimal' && el.content.startsWith('data:image/png');
     const isMinimalAssetDiagram =
@@ -3227,16 +4432,49 @@ const PageElementItem = memo<{
         }}
         onPointerDown={(e) => onStartDrag(el, e)}
         onDoubleClick={(e) => onDoubleClick(el, e)}
-        className={`group absolute pointer-events-auto ${
-          isDrawLocked ? 'pointer-events-none' : 'cursor-move'
+        className={`group absolute ${
+          isDrawLocked
+            ? 'pointer-events-none'
+            : isLocked
+              ? 'pointer-events-auto cursor-default'
+              : 'pointer-events-auto cursor-move'
         } ${
-          isSelected
-            ? 'ring-2 ring-[#b95b37] ring-offset-2 ring-offset-[#fbf2de]/70 rounded-lg'
+          isSelected && !isDrawLocked
+            ? isLocked
+              ? 'ring-2 ring-[#d99f44] ring-offset-2 ring-offset-[#fbf2de]/70 rounded-lg'
+              : 'ring-2 ring-[#b95b37] ring-offset-2 ring-offset-[#fbf2de]/70 rounded-lg'
             : ''
         }`}
       >
-        {/* Top-Center Free Rotation Handle when selected */}
-        {isSelected && !isEditing && (
+        {/* Top-Left Direct Lock / Unlock Button on EVERY object */}
+        {!isEditing && !isDrawLocked && (isSelected || isLocked) && (
+          <button
+            type="button"
+            aria-label={isLocked ? 'Desbloquear objeto' : 'Bloquear objeto'}
+            title={
+              isLocked
+                ? 'Desbloquear objeto (permitir mover y editar)'
+                : 'Bloquear objeto (no se podrá mover ni eliminar)'
+            }
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleLockElement(el);
+            }}
+            className={`absolute -top-3 -left-3 z-30 w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-md transition-all hover:scale-110 cursor-pointer ${
+              isLocked
+                ? isSelected
+                  ? 'bg-[#8c5416] hover:bg-[#a8661d] border-[#ffe3a3] text-[#fff6dc]'
+                  : 'bg-[#3a200d]/85 hover:bg-[#8c5416] border-[#e6b35e]/80 text-[#f7d894] opacity-85 hover:opacity-100'
+                : 'bg-[#361d0e] hover:bg-[#5a3217] border-[#f2c672] text-[#ffebc2]'
+            }`}
+          >
+            {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+          </button>
+        )}
+
+        {/* Top-Center Free Rotation Handle when selected and unlocked */}
+        {isSelected && !isEditing && !isDrawLocked && !isLocked && (
           <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto z-30">
             <button
               type="button"
@@ -3256,8 +4494,8 @@ const PageElementItem = memo<{
           </div>
         )}
 
-        {/* Top-Right Direct Delete Button for ALL selected objects */}
-        {isSelected && !isEditing && (
+        {/* Top-Right Direct Delete Button (hidden when locked or permanent) */}
+        {isSelected && !isEditing && !isDrawLocked && !isLocked && !isPermanent && (
           <button
             type="button"
             aria-label="Eliminar objeto"
@@ -3273,14 +4511,48 @@ const PageElementItem = memo<{
           </button>
         )}
 
+        {/* Erasable Visual Content Wrapper (supports true stroke-based erasing on images, text, stickers, mandalas, shapes & mannequins) */}
+        <div
+          data-erasable-content={el.id}
+          style={
+            eraseMaskUri
+              ? {
+                  maskImage: eraseMaskUri,
+                  WebkitMaskImage: eraseMaskUri,
+                  maskSize: '100% 100%',
+                  WebkitMaskSize: '100% 100%',
+                  maskRepeat: 'no-repeat',
+                  WebkitMaskRepeat: 'no-repeat',
+                }
+              : undefined
+          }
+          className="w-full"
+        >
         {el.type === 'text' &&
           (isEditing ? (
             <textarea
+              ref={textareaRef}
               autoFocus
               value={el.content}
-              onChange={(e) => onUpdateElement(el.id, { content: e.target.value })}
+              placeholder="Escribe aquí..."
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+                  e.preventDefault();
+                  onEditTextDone();
+                }
+              }}
+              onChange={(e) => {
+                e.currentTarget.style.height = 'auto';
+                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                onUpdateElement(el.id, { content: e.target.value });
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.height = 'auto';
+                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+              }}
               onBlur={onEditTextDone}
-              rows={4}
+              rows={2}
               style={{
                 color: el.color || '#4e2712',
                 fontSize: el.fontSize || 17,
@@ -3288,9 +4560,9 @@ const PageElementItem = memo<{
                 fontStyle: el.fontStyle || 'normal',
                 textDecoration: el.textDecoration || 'none',
                 textAlign: el.textAlign || 'left',
-                backgroundColor: hasTextBg ? el.backgroundColor : 'rgba(255,250,240,0.95)',
+                backgroundColor: hasTextBg ? el.backgroundColor : 'rgba(255,250,240,0.92)',
               }}
-              className={`w-full border border-[#b98241] rounded p-1.5 leading-snug focus:outline-none ${
+              className={`w-full min-h-[2.2em] resize-none overflow-hidden border-2 border-dashed border-[#b98241] rounded-lg px-2 py-1.5 leading-snug focus:outline-none placeholder:text-[#8c6740]/60 placeholder:italic shadow-sm ${
                 FONT_CLASS_MAP[el.fontFamily || 'lora']
               }`}
             />
@@ -3304,14 +4576,16 @@ const PageElementItem = memo<{
                 textDecoration: el.textDecoration || 'none',
                 textAlign: el.textAlign || 'left',
                 backgroundColor: hasTextBg ? el.backgroundColor : undefined,
-                padding: hasTextBg ? '4px 8px' : undefined,
-                borderRadius: hasTextBg ? '6px' : undefined,
+                padding: hasTextBg ? '6px 10px' : '2px 4px',
+                borderRadius: hasTextBg ? '8px' : undefined,
               }}
-              className={`whitespace-pre-wrap leading-snug ${
+              className={`whitespace-pre-wrap leading-snug break-words ${
                 FONT_CLASS_MAP[el.fontFamily || 'lora']
               }`}
             >
-              {el.content}
+              {el.content || (
+                <span className="italic opacity-55">Doble clic para escribir…</span>
+              )}
             </p>
           ))}
 
@@ -3335,7 +4609,7 @@ const PageElementItem = memo<{
               referrerPolicy="no-referrer"
               decoding="async"
               style={{ filter: cssFilter }}
-              className={`w-full h-auto object-contain max-h-72 ${
+              className={`w-full h-auto object-contain ${
                 el.frameStyle === 'rounded' ? 'rounded-xl' : 'rounded'
               } ${isMinimalAssetDiagram ? 'mix-blend-multiply' : ''} ${
                 isMattedCutout || isMinimalPngCutout
@@ -3362,18 +4636,34 @@ const PageElementItem = memo<{
                     e.stopPropagation();
                     onExtractFigure(el);
                   }}
-                  title="AI Image Matting: extraer la figura con fondo transparente"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#244e43]/92 hover:bg-[#2f695a] border border-[#8ce0c5]/60 text-[10px] font-medium text-white shadow-md cursor-pointer disabled:opacity-75"
+                  title={
+                    isMattedCutout
+                      ? 'Cambiar colores y tonos de la figura extraída'
+                      : 'Extraer la figura sin fondo y cambiar colores y tonos'
+                  }
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium text-white shadow-md cursor-pointer disabled:opacity-75 ${
+                    isMattedCutout
+                      ? 'bg-[#8c4b1e]/95 hover:bg-[#ad5e26] border-[#f2c478]/65'
+                      : 'bg-[#244e43]/92 hover:bg-[#2f695a] border-[#8ce0c5]/60'
+                  }`}
                 >
                   {isMatting ? (
                     <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  ) : isMattedCutout ? (
+                    <Palette className="w-2.5 h-2.5" />
                   ) : (
                     <Wand2 className="w-2.5 h-2.5" />
                   )}
-                  <span>{isMatting ? `${mattingProgress}%` : 'Extraer figura'}</span>
+                  <span>
+                    {isMatting
+                      ? `${mattingProgress}%`
+                      : isMattedCutout
+                        ? 'Colores y tonos'
+                        : 'Extraer figura'}
+                  </span>
                 </button>
 
-                {isMattedCutout && onRestoreFigure && (
+                {isMattedCutout && el.originalContent && onRestoreFigure && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -3435,9 +4725,10 @@ const PageElementItem = memo<{
             className="w-full h-auto drop-shadow-[0_4px_10px_rgba(64,33,12,0.22)] select-none"
           />
         )}
+        </div>
 
-        {/* Corner Resize Handle when selected */}
-        {isSelected && !isEditing && (
+        {/* Corner Resize Handle when selected and unlocked */}
+        {isSelected && !isEditing && !isDrawLocked && !isLocked && (
           <button
             type="button"
             aria-label="Cambiar tamaño"
@@ -3461,6 +4752,11 @@ interface SinglePageProps {
   layerOrder: StackableLayerId[];
   drawingDataUrl?: string;
   onSaveDrawing: (dataUrl: string) => void;
+  onCommitEraseResults: (
+    drawingDataUrl: string | undefined,
+    elementStrokeUpdates: Record<string, ElementEraseStroke[]>,
+    fullyErasedIds: string[]
+  ) => void;
   activeTool: ActiveCanvasTool;
   brush: BrushSettings;
   onPickColor: (hex: string) => void;
@@ -3473,6 +4769,7 @@ interface SinglePageProps {
   onEditText: (id: string | null) => void;
   onUpdateElement: (id: string, patch: Partial<PageElement>) => void;
   onDeleteElement: (id: string) => void;
+  onToggleLockElement: (el: PageElement) => void;
   onExtractElementFigure?: (el: PageElement) => void;
   onRestoreElementFigure?: (el: PageElement) => void;
   onEnterDressingRoom?: () => void;
@@ -3489,6 +4786,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     layerOrder,
     drawingDataUrl,
     onSaveDrawing,
+    onCommitEraseResults,
     activeTool,
     brush,
     onPickColor,
@@ -3501,6 +4799,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     onEditText,
     onUpdateElement,
     onDeleteElement,
+    onToggleLockElement,
     onExtractElementFigure,
     onRestoreElementFigure,
     onEnterDressingRoom,
@@ -3511,6 +4810,15 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     const lastCommittedUrlRef = useRef<string | undefined>(undefined);
     const isDrawingRef = useRef(false);
     const lastPosRef = useRef<{ x: number; y: number } | null>(null);
+    const prevMidRef = useRef<{ x: number; y: number } | null>(null);
+    const lastStrokeTimeRef = useRef<number>(0);
+    const smoothWidthRef = useRef<number>(0);
+    const lastClientPosRef = useRef<{ x: number; y: number } | null>(null);
+    const liveEraseRef = useRef<Record<string, ElementEraseStroke[]>>({});
+    const activeEraseIndexRef = useRef<Record<string, number>>({});
+    const eraseDirtyRef = useRef(false);
+    const eraseRafRef = useRef<number | null>(null);
+    const [liveEraseMap, setLiveEraseMap] = useState<Record<string, ElementEraseStroke[]>>({});
 
     // Lightweight transient drag/resize/rotate state (avoids mutating React workspace & undoStack on every mousemove!)
     const [liveTransform, setLiveTransform] = useState<{
@@ -3528,7 +4836,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       rotation?: number;
     } | null>(null);
 
-    const [eraserCursor, setEraserCursor] = useState<{ x: number; y: number } | null>(null);
+    const eraserCursorRef = useRef<HTMLDivElement>(null);
 
     const dragElRef = useRef<{
       mode: 'drag' | 'resize' | 'rotate';
@@ -3582,6 +4890,139 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       };
     };
 
+    const scheduleErasePreviewFlush = useCallback(() => {
+      if (eraseRafRef.current !== null) return;
+      eraseRafRef.current = requestAnimationFrame(() => {
+        eraseRafRef.current = null;
+        setLiveEraseMap({ ...liveEraseRef.current });
+      });
+    }, []);
+
+    const eraseElementsAlongSegment = useCallback(
+      (x1: number, y1: number, x2: number, y2: number) => {
+        const pageNode = pageRef.current;
+        if (!pageNode) return;
+        const pageRect = pageNode.getBoundingClientRect();
+        const baseW = pageNode.offsetWidth || pageRect.width || 1;
+        const zoomScale = pageRect.width / baseW || 1;
+        const resScale = PAGE_W / 460;
+        const eraseRadiusCanvas = Math.max(
+          4 * resScale,
+          Math.max(1.5, brush.size * 0.9) * resScale * 0.72
+        );
+        const eraserDiameterPagePx = Math.max(10, eraseRadiusCanvas * 2 * (baseW / PAGE_W));
+        const eraserDiameterScreenPx = eraserDiameterPagePx * zoomScale;
+        const isSoft = brush.softness > 35;
+
+        const distScreen = Math.hypot(x2 - x1, y2 - y1);
+        const stepPx = Math.max(3, eraserDiameterScreenPx * 0.35);
+        const steps = Math.max(1, Math.min(48, Math.ceil(distScreen / stepPx)));
+
+        let touchedAny = false;
+
+        for (const el of elements) {
+          if (el.locked || isPermanentElement(el)) continue;
+          const isNoteEl = el.type === 'text' || el.type === 'pattern-note';
+          if (isNoteEl && !layerVisibility.notes) continue;
+          if (!isNoteEl && !layerVisibility.images) continue;
+
+          const contentNode = pageNode.querySelector(
+            `[data-erasable-content="${el.id}"]`
+          ) as HTMLElement | null;
+          if (!contentNode) continue;
+
+          const rect = contentNode.getBoundingClientRect();
+          const pad = eraserDiameterScreenPx * 0.65;
+          const segMinX = Math.min(x1, x2) - pad;
+          const segMaxX = Math.max(x1, x2) + pad;
+          const segMinY = Math.min(y1, y2) - pad;
+          const segMaxY = Math.max(y1, y2) + pad;
+          if (
+            segMaxX < rect.left ||
+            segMinX > rect.right ||
+            segMaxY < rect.top ||
+            segMinY > rect.bottom
+          ) {
+            continue;
+          }
+
+          const unrotW = Math.max(8, (contentNode.offsetWidth || el.width || 60) * zoomScale);
+          const unrotH = Math.max(8, (contentNode.offsetHeight || 40) * zoomScale);
+          const vbH = Math.max(12, Math.round((unrotH / unrotW) * 1000) / 10);
+          const cx = (rect.left + rect.right) / 2;
+          const cy = (rect.top + rect.bottom) / 2;
+          const rotRad = -((el.rotation || 0) * Math.PI) / 180;
+          const cosR = Math.cos(rotRad);
+          const sinR = Math.sin(rotRad);
+          const strokeWidthLocal = Math.max(3, (eraserDiameterScreenPx / unrotW) * 100);
+          const margin = strokeWidthLocal * 0.6;
+
+          for (let s = 0; s <= steps; s++) {
+            const t = steps === 0 ? 1 : s / steps;
+            const px = x1 + (x2 - x1) * t;
+            const py = y1 + (y2 - y1) * t;
+            const dx = px - cx;
+            const dy = py - cy;
+            let rx = dx * cosR - dy * sinR;
+            let ry = dx * sinR + dy * cosR;
+            if (el.flipX) rx = -rx;
+            if (el.flipY) ry = -ry;
+
+            const u = (rx / unrotW + 0.5) * 100;
+            const v = (ry / unrotH + 0.5) * vbH;
+
+            if (u < -margin || u > 100 + margin || v < -margin || v > vbH + margin) {
+              continue;
+            }
+
+            let list = liveEraseRef.current[el.id];
+            if (!list) {
+              list = [...(el.eraseStrokes || [])];
+              liveEraseRef.current[el.id] = list;
+            }
+
+            let strokeIdx = activeEraseIndexRef.current[el.id];
+            if (strokeIdx === undefined || !list[strokeIdx]) {
+              const newStroke: ElementEraseStroke = {
+                points: [[Math.round(u * 10) / 10, Math.round(v * 10) / 10]],
+                vbH,
+                width: Math.round(strokeWidthLocal * 10) / 10,
+                soft: isSoft,
+              };
+              list = [...list, newStroke];
+              liveEraseRef.current[el.id] = list;
+              activeEraseIndexRef.current[el.id] = list.length - 1;
+              touchedAny = true;
+            } else {
+              const currStroke = list[strokeIdx];
+              const lastPt = currStroke.points[currStroke.points.length - 1];
+              const du = u - lastPt[0];
+              const dv = v - lastPt[1];
+              if (du * du + dv * dv >= 0.64) {
+                const updatedStroke: ElementEraseStroke = {
+                  ...currStroke,
+                  points: [
+                    ...currStroke.points,
+                    [Math.round(u * 10) / 10, Math.round(v * 10) / 10],
+                  ],
+                };
+                const nextList = list.slice();
+                nextList[strokeIdx] = updatedStroke;
+                liveEraseRef.current[el.id] = nextList;
+                touchedAny = true;
+              }
+            }
+          }
+        }
+
+        if (touchedAny) {
+          eraseDirtyRef.current = true;
+          scheduleErasePreviewFlush();
+        }
+      },
+      [elements, brush.size, brush.softness, layerVisibility.images, layerVisibility.notes, scheduleErasePreviewFlush]
+    );
+
     const drawSegment = (
       p1: { x: number; y: number },
       p2: { x: number; y: number },
@@ -3592,114 +5033,254 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const alpha = brush.opacity / 100;
-      const size = Math.max(1.5, brush.size * 0.45);
+      const resScale = PAGE_W / 460;
+      const alpha = Math.max(0.05, Math.min(1, brush.opacity / 100));
+      const size = Math.max(1.5, brush.size * 0.9) * resScale;
       ctx.save();
 
       if (isErasing || brush.preset === 'borrador-suave') {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        if (brush.softness > 35) {
-          // Fast soft-edge erase using two concentric passes (no slow shadowBlur!)
-          ctx.globalAlpha = alpha * 0.45;
-          ctx.lineWidth = size * 1.9;
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
+        if (!layerVisibility.drawing) {
+          ctx.restore();
+          return;
         }
-        ctx.globalAlpha = alpha;
-        ctx.lineWidth = size * 1.35;
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-        ctx.restore();
-        return;
-      }
-
-      if (brush.preset === 'difuminador') {
-        ctx.fillStyle = brush.color;
-        ctx.globalAlpha = alpha * 0.12;
-        ctx.beginPath();
-        ctx.arc(p2.x, p2.y, size * 1.05, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = alpha * 0.22;
-        ctx.beginPath();
-        ctx.arc(p2.x, p2.y, size * 0.6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        return;
-      }
-
-      const isChalk =
-        brush.preset === 'tiza-suave' ||
-        brush.preset === 'tiza-pastel' ||
-        brush.preset === 'tiza-gruesa' ||
-        brush.preset === 'carboncillo';
-
-      if (isChalk) {
-        const grainColor = brush.preset === 'carboncillo' ? '#2c2825' : brush.color;
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.setLineDash([]);
+        const radius = Math.max(4 * resScale, size * 0.72);
         const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        const steps = Math.max(1, Math.min(12, Math.ceil(dist / 3.5)));
-        const spreadRadius =
-          brush.preset === 'tiza-gruesa' ? size * 0.72 : size * 0.52;
-        ctx.fillStyle = grainColor;
-        const particles = brush.preset === 'tiza-gruesa' ? 8 : 5;
+        const stepSize = Math.max(1.5 * resScale, radius * 0.28);
+        const steps = Math.max(1, Math.ceil(dist / stepSize));
+        const isSoft = brush.softness > 35;
 
         for (let s = 0; s <= steps; s++) {
-          const t = s / steps;
+          const t = steps === 0 ? 1 : s / steps;
           const cx = p1.x + (p2.x - p1.x) * t;
           const cy = p1.y + (p2.y - p1.y) * t;
-          for (let k = 0; k < particles; k++) {
-            const rx = (Math.random() - 0.5) * spreadRadius * 2;
-            const ry = (Math.random() - 0.5) * spreadRadius * 2;
-            ctx.globalAlpha = alpha * (0.22 + Math.random() * 0.35);
-            ctx.fillRect(cx + rx, cy + ry, 2, 2);
+
+          if (isSoft) {
+            const innerR = radius * 0.35;
+            const outerR = radius * 1.15;
+            const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
+            grad.addColorStop(0, `rgba(0,0,0,${alpha})`);
+            grad.addColorStop(0.65, `rgba(0,0,0,${alpha * 0.55})`);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
           }
         }
         ctx.restore();
         return;
       }
 
-      // Smooth pen / crochet stitch dashed / watercolor (fast multi-pass without shadowBlur)
-      ctx.strokeStyle = brush.color;
+      // Makeup Powder Brush (Tizas): ultra-soft, airy, buildable cosmetic facial brush sweep
+      const isMakeupChalk =
+        brush.category === 'tizas' ||
+        brush.preset === 'tiza-suave' ||
+        brush.preset === 'tiza-pastel' ||
+        brush.preset === 'tiza-gruesa' ||
+        brush.preset === 'tiza-velo' ||
+        brush.preset === 'difuminador' ||
+        brush.preset === 'carboncillo';
+
+      if (isMakeupChalk) {
+        const pigmentHex = brush.preset === 'carboncillo' ? '#36312d' : brush.color;
+        const [r, g, b] = hexToRgbTuple(pigmentHex);
+        const softNorm = Math.max(0.35, Math.min(1, brush.softness / 100));
+
+        const radiusMult =
+          brush.preset === 'tiza-gruesa'
+            ? 1.28
+            : brush.preset === 'difuminador'
+              ? 1.18
+              : brush.preset === 'tiza-velo'
+                ? 1.12
+                : 0.96;
+        const outerR = Math.max(9 * resScale, size * radiusMult * (0.72 + softNorm * 0.45));
+
+        const presetStrength =
+          brush.preset === 'difuminador'
+            ? 0.026
+            : brush.preset === 'tiza-velo'
+              ? 0.032
+              : brush.preset === 'tiza-pastel'
+                ? 0.038
+                : brush.preset === 'tiza-gruesa'
+                  ? 0.044
+                  : brush.preset === 'carboncillo'
+                    ? 0.048
+                    : 0.04;
+
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const stepSize = Math.max(2.2 * resScale, outerR * 0.2);
+        const steps = Math.max(1, Math.min(36, Math.ceil(dist / stepSize)));
+        const stampAlpha = Math.min(0.14, alpha * presetStrength);
+
+        for (let s = 0; s <= steps; s++) {
+          const t = steps === 0 ? 1 : s / steps;
+          const cx = p1.x + (p2.x - p1.x) * t;
+          const cy = p1.y + (p2.y - p1.y) * t;
+
+          // Primary silky feathered powder dome (zero hard edge)
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR);
+          grad.addColorStop(0, `rgba(${r},${g},${b},${stampAlpha.toFixed(4)})`);
+          grad.addColorStop(0.36, `rgba(${r},${g},${b},${(stampAlpha * 0.56).toFixed(4)})`);
+          grad.addColorStop(0.7, `rgba(${r},${g},${b},${(stampAlpha * 0.18).toFixed(4)})`);
+          grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Subtle airy micro-bristle powder veil for organic cosmetic softness
+          for (let k = 0; k < 2; k++) {
+            const angle = Math.random() * Math.PI * 2;
+            const offsetDist = Math.random() * outerR * 0.32;
+            const sx = cx + Math.cos(angle) * offsetDist;
+            const sy = cy + Math.sin(angle) * offsetDist;
+            const subR = outerR * (0.45 + Math.random() * 0.25);
+            const subA = stampAlpha * 0.42;
+            const subGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, subR);
+            subGrad.addColorStop(0, `rgba(${r},${g},${b},${subA.toFixed(4)})`);
+            subGrad.addColorStop(0.6, `rgba(${r},${g},${b},${(subA * 0.25).toFixed(4)})`);
+            subGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+            ctx.fillStyle = subGrad;
+            ctx.beginPath();
+            ctx.arc(sx, sy, subR, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+        return;
+      }
+
+      // Fine Acrylic Precision Brushes (Pinceles): slender, tapered, silky smooth acrylic strokes
+      const [r, g, b] = hexToRgbTuple(brush.color);
+      const now = performance.now();
+      const dt = Math.max(4, now - (lastStrokeTimeRef.current || now));
+      lastStrokeTimeRef.current = now;
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const velocity = dist / dt; // px per ms
+
+      const fineMultiplier =
+        brush.preset === 'pluma-fina'
+          ? 0.18
+          : brush.preset === 'acrilico-detalle'
+            ? 0.24
+            : brush.preset === 'hilo-crochet'
+              ? 0.26
+              : brush.preset === 'acrilico-fino'
+                ? 0.3
+                : brush.preset === 'acuarela'
+                  ? 0.36
+                  : 0.34; // acrilico-satinado
+
+      const minFineWidth =
+        brush.preset === 'pluma-fina' ? 0.9 * resScale : 1.2 * resScale;
+      const targetBase = Math.max(minFineWidth, size * fineMultiplier);
+      // Gentle artistic velocity taper (faster flicks gracefully narrow the acrylic tip)
+      const taperFactor = Math.max(0.68, Math.min(1.12, 1.08 - velocity * 0.16));
+      const targetWidth = targetBase * taperFactor;
+      const prevW = smoothWidthRef.current || targetWidth;
+      const strokeW = prevW * 0.65 + targetWidth * 0.35;
+      smoothWidthRef.current = strokeW;
+
+      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      const fromPt = prevMidRef.current || p1;
+      const isSingleTap = p1.x === p2.x && p1.y === p2.y;
+
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      const baseWidth =
-        brush.preset === 'pluma-fina' ? Math.max(1.5, size * 0.35) : size;
 
       if (brush.preset === 'hilo-crochet') {
-        ctx.setLineDash([size * 1.4, size * 0.9]);
+        ctx.setLineDash([Math.max(5 * resScale, strokeW * 2.2), Math.max(4 * resScale, strokeW * 1.6)]);
+      } else {
+        ctx.setLineDash([]);
       }
 
-      if (brush.softness > 30) {
-        ctx.globalAlpha = (brush.preset === 'acuarela' ? alpha * 0.25 : alpha * 0.28);
-        ctx.lineWidth = baseWidth + (brush.softness / 100) * 6;
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
+      const acrylicAlpha =
+        brush.preset === 'acuarela'
+          ? alpha * 0.38
+          : brush.preset === 'acrilico-satinado'
+            ? alpha * 0.78
+            : alpha * 0.88;
+
+      const strokeCurve = (
+        offsetX: number,
+        offsetY: number,
+        widthPx: number,
+        a: number
+      ) => {
+        ctx.strokeStyle = `rgba(${r},${g},${b},${Math.max(0.02, Math.min(1, a)).toFixed(3)})`;
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.lineWidth = Math.max(0.75, widthPx);
+        if (isSingleTap) {
+          ctx.beginPath();
+          ctx.arc(p1.x + offsetX, p1.y + offsetY, Math.max(0.6, widthPx / 2), 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(fromPt.x + offsetX, fromPt.y + offsetY);
+          ctx.quadraticCurveTo(p1.x + offsetX, p1.y + offsetY, mid.x + offsetX, mid.y + offsetY);
+          ctx.stroke();
+        }
+      };
+
+      // Delicate satin acrylic edge sheen (controlled & subtle, never bloated)
+      if (brush.softness > 15 && brush.preset !== 'hilo-crochet') {
+        const sheenSpread = strokeW * (1.28 + (brush.softness / 100) * 0.35);
+        strokeCurve(0, 0, sheenSpread, acrylicAlpha * 0.14);
       }
 
-      ctx.globalAlpha = brush.preset === 'acuarela' ? alpha * 0.42 : alpha;
-      ctx.lineWidth = baseWidth;
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
+      // Main crisp fine acrylic stroke
+      strokeCurve(0, 0, strokeW, acrylicAlpha);
+
+      // Subtle micro-bristle acrylic filaments on fine acrylic brushes
+      if (
+        !isSingleTap &&
+        dist > 0.5 &&
+        (brush.preset === 'acrilico-fino' ||
+          brush.preset === 'acrilico-detalle' ||
+          brush.preset === 'acrilico-satinado')
+      ) {
+        const nx = -(p2.y - p1.y) / dist;
+        const ny = (p2.x - p1.x) / dist;
+        const bristleShift = strokeW * 0.28;
+        strokeCurve(nx * bristleShift, ny * bristleShift, strokeW * 0.42, acrylicAlpha * 0.28);
+        strokeCurve(-nx * bristleShift, -ny * bristleShift, strokeW * 0.36, acrylicAlpha * 0.2);
+      }
+
+      prevMidRef.current = mid;
       ctx.restore();
     };
 
     const handleCanvasPointerDown = (e: React.PointerEvent) => {
+      if (!e.isPrimary || e.button === 1) return;
       if (activeTool === 'draw' || activeTool === 'eraser') {
         e.stopPropagation();
         isDrawingRef.current = true;
         const pt = getCanvasPoint(e);
         lastPosRef.current = pt;
+        prevMidRef.current = pt;
+        lastStrokeTimeRef.current = performance.now();
+        smoothWidthRef.current = 0;
+        lastClientPosRef.current = { x: e.clientX, y: e.clientY };
+
+        if (activeTool === 'eraser') {
+          activeEraseIndexRef.current = {};
+          eraseElementsAlongSegment(e.clientX, e.clientY, e.clientX, e.clientY);
+        }
         drawSegment(pt, pt, activeTool === 'eraser');
-        (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+        try {
+          (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+        } catch {
+          // ignore pointer capture issues on synthetic pointers
+        }
       }
     };
 
@@ -3783,12 +5364,16 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
             width: origWidth,
           };
         } else {
-          const maxResizeW = dragElRef.current.elementType === 'wardrobe' ? 460 : 400;
+          const maxResizeW = 700;
+          const zoomScale = rect.width / (pageRef.current.offsetWidth || rect.width) || 1;
           nextTransform = {
             id,
             x: origXPct,
             y: origYPct,
-            width: Math.max(22, Math.min(maxResizeW, Math.round(origWidth + (clientX - startX)))),
+            width: Math.max(
+              24,
+              Math.min(maxResizeW, Math.round(origWidth + (clientX - startX) / zoomScale))
+            ),
           };
         }
         liveTransformRef.current = nextTransform;
@@ -3798,18 +5383,39 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     );
 
     const handleCanvasPointerMove = (e: React.PointerEvent) => {
-      if (activeTool === 'eraser' && pageRef.current) {
+      if (activeTool === 'eraser' && pageRef.current && eraserCursorRef.current) {
         const rect = pageRef.current.getBoundingClientRect();
-        setEraserCursor({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      } else if (eraserCursor) {
-        setEraserCursor(null);
+        const baseW = pageRef.current.offsetWidth || rect.width || 1;
+        const zoomScale = rect.width / baseW || 1;
+        const x = (e.clientX - rect.left) / zoomScale;
+        const y = (e.clientY - rect.top) / zoomScale;
+        const resScale = PAGE_W / 460;
+        const eraseRadiusCanvas = Math.max(
+          4 * resScale,
+          Math.max(1.5, brush.size * 0.9) * resScale * 0.72
+        );
+        const diameterPagePx = Math.max(10, eraseRadiusCanvas * 2 * (baseW / PAGE_W));
+        const node = eraserCursorRef.current;
+        node.style.display = 'block';
+        node.style.left = `${x}px`;
+        node.style.top = `${y}px`;
+        node.style.width = `${diameterPagePx}px`;
+        node.style.height = `${diameterPagePx}px`;
+      } else if (eraserCursorRef.current) {
+        eraserCursorRef.current.style.display = 'none';
       }
 
       if (
+        e.isPrimary &&
         isDrawingRef.current &&
         lastPosRef.current &&
         (activeTool === 'draw' || activeTool === 'eraser')
       ) {
+        if (activeTool === 'eraser') {
+          const prevClient = lastClientPosRef.current || { x: e.clientX, y: e.clientY };
+          eraseElementsAlongSegment(prevClient.x, prevClient.y, e.clientX, e.clientY);
+          lastClientPosRef.current = { x: e.clientX, y: e.clientY };
+        }
         const pt = getCanvasPoint(e);
         drawSegment(lastPosRef.current, pt, activeTool === 'eraser');
         lastPosRef.current = pt;
@@ -3822,12 +5428,38 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       if (isDrawingRef.current && canvasRef.current) {
         isDrawingRef.current = false;
         lastPosRef.current = null;
-        const webp = canvasRef.current.toDataURL('image/webp', 0.9);
-        const dataUrl = webp.startsWith('data:image/webp')
-          ? webp
-          : canvasRef.current.toDataURL('image/png');
+        prevMidRef.current = null;
+        smoothWidthRef.current = 0;
+        lastClientPosRef.current = null;
+
+        if (eraseRafRef.current !== null) {
+          cancelAnimationFrame(eraseRafRef.current);
+          eraseRafRef.current = null;
+        }
+
+        const dataUrl = canvasRef.current.toDataURL('image/png');
         lastCommittedUrlRef.current = dataUrl;
-        onSaveDrawing(dataUrl);
+
+        if (eraseDirtyRef.current) {
+          eraseDirtyRef.current = false;
+          const updates: Record<string, ElementEraseStroke[]> = {};
+          const fullyErasedIds: string[] = [];
+          for (const [elId, strokes] of Object.entries(liveEraseRef.current)) {
+            if (isElementFullyErased(strokes)) {
+              fullyErasedIds.push(elId);
+            } else {
+              updates[elId] = strokes;
+            }
+          }
+          liveEraseRef.current = {};
+          activeEraseIndexRef.current = {};
+          setLiveEraseMap({});
+          onCommitEraseResults(dataUrl, updates, fullyErasedIds);
+        } else {
+          liveEraseRef.current = {};
+          activeEraseIndexRef.current = {};
+          onSaveDrawing(dataUrl);
+        }
       }
       const pending = liveTransformRef.current;
       const activeDrag = dragElRef.current;
@@ -3881,7 +5513,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       dragElRef.current = null;
       liveTransformRef.current = null;
       setLiveTransform(null);
-    }, [onSaveDrawing, onUpdateElement, side]);
+    }, [onSaveDrawing, onCommitEraseResults, onUpdateElement, side]);
 
     useEffect(() => {
       const onWindowMove = (e: PointerEvent) => {
@@ -3893,6 +5525,10 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       return () => {
         window.removeEventListener('pointermove', onWindowMove);
         window.removeEventListener('pointerup', commitPointerEnd);
+        if (eraseRafRef.current !== null) {
+          cancelAnimationFrame(eraseRafRef.current);
+          eraseRafRef.current = null;
+        }
       };
     }, [updateDraggedTransform, commitPointerEnd]);
 
@@ -3910,6 +5546,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         }
         e.stopPropagation();
         onSelectElement(el.id);
+        if (el.locked) return;
         if (editingTextId !== el.id) {
           dragElRef.current = {
             mode: 'drag',
@@ -3932,6 +5569,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         e.stopPropagation();
         e.preventDefault();
         onSelectElement(el.id);
+        if (el.locked) return;
         dragElRef.current = {
           mode: 'resize',
           id: el.id,
@@ -3951,6 +5589,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         e.stopPropagation();
         e.preventDefault();
         onSelectElement(el.id);
+        if (el.locked) return;
         const box = (e.currentTarget as HTMLElement)
           .closest('[data-element-box="true"]')
           ?.getBoundingClientRect();
@@ -3976,6 +5615,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       (el: PageElement, e: React.MouseEvent) => {
         if (el.type === 'text') {
           e.stopPropagation();
+          if (el.locked) return;
           onEditText(el.id);
         } else if (el.type === 'wardrobe') {
           e.stopPropagation();
@@ -4025,7 +5665,24 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         onPointerDown={handlePagePointerDown}
         onPointerMove={handleCanvasPointerMove}
         onPointerUp={handleCanvasPointerUp}
-        onPointerLeave={() => setEraserCursor(null)}
+        onPointerCancel={handleCanvasPointerUp}
+        onTouchStart={(e) => {
+          if (e.touches.length >= 2 && isDrawingRef.current) {
+            isDrawingRef.current = false;
+            lastPosRef.current = null;
+            prevMidRef.current = null;
+            lastClientPosRef.current = null;
+            eraseDirtyRef.current = false;
+            liveEraseRef.current = {};
+            activeEraseIndexRef.current = {};
+            setLiveEraseMap({});
+          }
+        }}
+        onPointerLeave={() => {
+          if (eraserCursorRef.current) {
+            eraserCursorRef.current.style.display = 'none';
+          }
+        }}
         className={`relative ${pageSizeClass} parchment-page ${paperBgClass} overflow-visible ${
           liveTransform ? 'z-30' : ''
         } ${
@@ -4038,30 +5695,71 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
                 : 'cursor-default'
         }`}
       >
-        {/* Clipped Paper Decorations & 25cm Ruler */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {side === 'left' ? (
-            <>
-              <CornerCrochetFlower position="top-left" className="absolute top-0.5 left-0.5 w-28 h-28" />
-              <CornerCrochetFlower position="bottom-left" showYarnOrnament className="absolute bottom-0.5 left-0.5 w-32 h-32" />
-            </>
-          ) : (
-            <>
-              <CornerCrochetFlower position="top-right" className="absolute top-0.5 right-4 w-24 h-24" />
-              <CornerCrochetFlower position="bottom-right" showYarnOrnament className="absolute bottom-0.5 right-4 w-32 h-32" />
-              <div
-                className="pointer-events-none absolute inset-y-2 right-0 w-7 border-l border-[#a37846]/45 flex flex-col justify-between py-2 pr-1 text-right bg-[#f4e2bc]/35"
-                aria-hidden="true"
-              >
-                {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
-                  <div key={cm} className="flex items-center justify-end gap-1 leading-none">
-                    <span className="w-1.5 h-px bg-[#6e4a26]/70" />
-                    <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
-                  </div>
-                ))}
-                <span className="text-[8px] font-mono-tab font-semibold text-[#5e3a18] pr-0.5">cm</span>
+        {/* Clipped Paper Decorations & Full-Perimeter cm Rulers (Side 25cm + Top & Bottom 20cm) */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+          {/* Outer Top & Bottom Corner Caps joining vertical & horizontal rulers */}
+          <div
+            className={`pointer-events-none absolute top-0 ${
+              side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
+            } w-7 h-6 border-b border-[#a37846]/45 bg-[#f4e2bc]/45 flex items-center justify-center`}
+          >
+            <span className="text-[7.5px] font-mono-tab font-semibold text-[#5e3a18]">cm</span>
+          </div>
+          <div
+            className={`pointer-events-none absolute bottom-0 ${
+              side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
+            } w-7 h-6 border-t border-[#a37846]/45 bg-[#f4e2bc]/45 flex items-center justify-center`}
+          >
+            <span className="text-[7.5px] font-mono-tab font-semibold text-[#5e3a18]">cm</span>
+          </div>
+
+          {/* Top Horizontal 20cm Ruler */}
+          <div
+            className={`pointer-events-none absolute top-0 ${
+              side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
+            } h-6 border-b border-[#a37846]/45 bg-[#f4e2bc]/35 flex items-end justify-between px-2`}
+          >
+            {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
+              <div key={cm} className="flex flex-col items-center justify-end gap-0.5 leading-none">
+                <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
+                <span className="w-px h-1.5 bg-[#6e4a26]/70" />
               </div>
-            </>
+            ))}
+          </div>
+
+          {/* Bottom Horizontal 20cm Ruler */}
+          <div
+            className={`pointer-events-none absolute bottom-0 ${
+              side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
+            } h-6 border-t border-[#a37846]/45 bg-[#f4e2bc]/35 flex items-start justify-between px-2`}
+          >
+            {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
+              <div key={cm} className="flex flex-col items-center justify-start gap-0.5 leading-none">
+                <span className="w-px h-1.5 bg-[#6e4a26]/70" />
+                <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Outer Vertical 25cm Ruler */}
+          {side === 'left' ? (
+            <div className="pointer-events-none absolute top-6 bottom-6 left-0 w-7 border-r border-[#a37846]/45 flex flex-col justify-between py-2 pl-1 text-left bg-[#f4e2bc]/35">
+              {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
+                <div key={cm} className="flex items-center justify-start gap-1 leading-none">
+                  <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
+                  <span className="w-1.5 h-px bg-[#6e4a26]/70" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="pointer-events-none absolute top-6 bottom-6 right-0 w-7 border-l border-[#a37846]/45 flex flex-col justify-between py-2 pr-1 text-right bg-[#f4e2bc]/35">
+              {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
+                <div key={cm} className="flex items-center justify-end gap-1 leading-none">
+                  <span className="w-1.5 h-px bg-[#6e4a26]/70" />
+                  <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -4080,12 +5778,14 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
               isMatting={mattingElementId === el.id}
               mattingProgress={mattingElementId === el.id ? mattingProgress : 0}
               liveOverride={liveTransform?.id === el.id ? liveTransform : undefined}
+              liveEraseStrokes={liveEraseMap[el.id]}
               onStartDrag={handleStartDragElement}
               onStartResize={handleStartResizeElement}
               onStartRotate={handleStartRotateElement}
               onDoubleClick={handleDoubleClickElement}
               onUpdateElement={onUpdateElement}
               onDeleteElement={onDeleteElement}
+              onToggleLockElement={onToggleLockElement}
               onExtractFigure={onExtractElementFigure}
               onRestoreFigure={onRestoreElementFigure}
               onEnterDressingRoom={onEnterDressingRoom}
@@ -4103,22 +5803,24 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           style={{ zIndex: getLayerZ('drawing') }}
           className={`absolute inset-0 w-full h-full touch-none transition-opacity ${
             isDrawLocked ? '' : 'pointer-events-none'
-          } ${layerVisibility.drawing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          } ${
+            layerVisibility.drawing
+              ? 'opacity-100'
+              : activeTool === 'eraser'
+                ? 'opacity-0'
+                : 'opacity-0 pointer-events-none'
+          }`}
         />
 
-        {/* Visual Eraser Ring Cursor */}
-        {activeTool === 'eraser' && eraserCursor && (
-          <div
-            style={{
-              left: eraserCursor.x,
-              top: eraserCursor.y,
-              width: Math.max(10, brush.size * 0.72),
-              height: Math.max(10, brush.size * 0.72),
-              transform: 'translate(-50%, -50%)',
-            }}
-            className="pointer-events-none absolute z-30 rounded-full border-2 border-[#7a202a] bg-white/35 shadow"
-          />
-        )}
+        {/* Zero-rerender Visual Eraser Ring Cursor (exact match to erased diameter) */}
+        <div
+          ref={eraserCursorRef}
+          style={{
+            display: 'none',
+            transform: 'translate(-50%, -50%)',
+          }}
+          className="pointer-events-none absolute z-30 rounded-full border-2 border-[#7a202a] bg-white/35 shadow"
+        />
 
         {/* Notas y Patrones Layer */}
         <div
@@ -4133,12 +5835,14 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
               isEditing={el.id === editingTextId}
               isDrawLocked={isDrawLocked}
               liveOverride={liveTransform?.id === el.id ? liveTransform : undefined}
+              liveEraseStrokes={liveEraseMap[el.id]}
               onStartDrag={handleStartDragElement}
               onStartResize={handleStartResizeElement}
               onStartRotate={handleStartRotateElement}
               onDoubleClick={handleDoubleClickElement}
               onUpdateElement={onUpdateElement}
               onDeleteElement={onDeleteElement}
+              onToggleLockElement={onToggleLockElement}
               onEditTextDone={handleEditTextDone}
             />
           ))}

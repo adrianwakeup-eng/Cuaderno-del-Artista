@@ -1,0 +1,1858 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'motion/react';
+import {
+  ArrowLeft,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Compass,
+  Download,
+  Heart,
+  Layers,
+  Maximize2,
+  Minimize2,
+  Palette,
+  Pause,
+  Pin,
+  Play,
+  Rotate3d,
+  RotateCcw,
+  Ruler,
+  Save,
+  Settings,
+  Shirt,
+  Shuffle,
+  Sliders,
+  Sparkles,
+  Sun,
+  Trash2,
+  Upload,
+  User,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
+import type {
+  DressingRoomCategory,
+  DressingRoomGarment,
+  FinishedProject,
+} from '../types/crochet';
+import {
+  FULL_MENSWEAR_CATALOG,
+  loadStudioPhotoPack,
+  renderPhotorealisticGarmentCard,
+  type StudioPhotoPack,
+} from '../data/menswearCrochetCatalog';
+import {
+  MALE_FOUR_VIEW_REFERENCE_URL,
+  TURNAROUND_CAMERA_VIEWS,
+  YARN_BALL_COLORS,
+  type YarnBallColorOption,
+} from '../data/glbAssetManifest';
+import {
+  STUDIO_LIGHT_ORDER,
+  STUDIO_LIGHT_PRESETS,
+  type BodyMeasurements,
+  type GraphicsQualityLevel,
+  type StudioLightPresetId,
+} from '../utils/atelierMannequin3D';
+import {
+  FLAGSHIP_BOTTOM_ID,
+  FLAGSHIP_TOP_ID,
+  isGarmentPartOfPhotographedOutfit,
+  isPosePhotographedForSelection,
+  loadVestidorManifests,
+  OFFICIAL_MODEL_MANIFEST,
+  OUTFIT_PHOTO_MANIFESTS,
+  PHOTO_POSES,
+  VESTIDOR_MANIFEST_PATHS,
+  type VestidorManifestBundle,
+} from '../data/vestidorPhotoManifest';
+import { VitruvianMan3D, type VitruvianMan3DHandle } from './VitruvianMan3D';
+import {
+  GoldYarnEmblem,
+  LuxuryFooterCornerDecor,
+  LuxuryHeaderFrameDecor,
+  YarnBallSwatch,
+} from './LuxuryAtelierDecorations';
+import { audioEngine } from '../utils/audioEngine';
+import { compressImageFile } from '../utils/storage';
+
+type LuxuryCategoryTab =
+  | 'camisas'
+  | 'cardigans'
+  | 'sueteres'
+  | 'chalecos'
+  | 'shorts'
+  | 'pantalones';
+
+type LeftRailTool =
+  | 'prendas'
+  | 'colores'
+  | 'poses'
+  | 'girar'
+  | 'zoom'
+  | 'iluminacion'
+  | 'medidas'
+  | 'guardar';
+
+const DEFAULT_MEASUREMENTS: BodyMeasurements = {
+  chest: 1.0,
+  shoulders: 1.0,
+  waist: 1.0,
+  height: 1.0,
+};
+
+/** Custom crisp line icons for the 6 right-panel garment categories matching the reference */
+const CategoryGarmentIcon: React.FC<{ tab: LuxuryCategoryTab; active: boolean }> = ({
+  tab,
+  active,
+}) => {
+  const stroke = active ? '#2b1605' : '#f4d9a6';
+  switch (tab) {
+    case 'camisas':
+      return (
+        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 5L4.5 9L7.5 13L9.5 11.5V23H18.5V11.5L20.5 13L23.5 9L19 5L16.5 7.5H11.5L9 5Z" />
+          <path d="M14 7.5V13" />
+        </svg>
+      );
+    case 'cardigans':
+      return (
+        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9.5 5L4 9.5L6.5 22H9.5V11.5V23H18.5V11.5V22H21.5L24 9.5L18.5 5L14 11.5L9.5 5Z" />
+          <path d="M14 11.5V23" />
+        </svg>
+      );
+    case 'sueteres':
+      return (
+        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9.5 5.5C11 7 17 7 18.5 5.5L23.5 9.5L22 22H18.5V12V23H9.5V12V22H6L4.5 9.5L9.5 5.5Z" />
+          <path d="M10.5 12.5H17.5M10.5 16H17.5" strokeDasharray="2 2" />
+        </svg>
+      );
+    case 'chalecos':
+      return (
+        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 5L6.5 8.5C8 10.5 8 13 6.5 14.5L7.5 23L14 20.5L20.5 23L21.5 14.5C20 13 20 10.5 21.5 8.5L19 5L14 12.5L9 5Z" />
+          <path d="M14 12.5V20.5" />
+        </svg>
+      );
+    case 'shorts':
+      return (
+        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6.5 6.5H21.5L23 21.5H15.8L14 14.5L12.2 21.5H5L6.5 6.5Z" />
+          <path d="M6.5 10H21.5" />
+        </svg>
+      );
+    case 'pantalones':
+      return (
+        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 5H20L21.5 23.5H16L14 13L12 23.5H6.5L8 5Z" />
+          <path d="M8 8.5H20" />
+        </svg>
+      );
+  }
+};
+
+const LUXURY_CATEGORY_TABS: Array<{ id: LuxuryCategoryTab; label: string }> = [
+  { id: 'camisas', label: 'Camisas' },
+  { id: 'cardigans', label: 'Cárdigans' },
+  { id: 'sueteres', label: 'Suéteres' },
+  { id: 'chalecos', label: 'Chalecos' },
+  { id: 'shorts', label: 'Shorts' },
+  { id: 'pantalones', label: 'Pantalones' },
+];
+
+interface GarmentThumbnailCardProps {
+  garment: DressingRoomGarment;
+  studioPack: StudioPhotoPack | null;
+  isWorn: boolean;
+  isFav: boolean;
+  hasPhotoSession?: boolean;
+  onWear: () => void;
+  onToggleFav: () => void;
+  onPin: (photoUrl: string) => void;
+  onDelete?: () => void;
+}
+
+const GarmentThumbnailCard: React.FC<GarmentThumbnailCardProps> = React.memo(
+  ({
+    garment,
+    studioPack,
+    isWorn,
+    isFav,
+    hasPhotoSession,
+    onWear,
+    onToggleFav,
+    onPin,
+    onDelete,
+  }) => {
+    const resolvedPhoto = useMemo(() => {
+      if (garment.photoDataUrl) return garment.photoDataUrl;
+      if (!studioPack) return '';
+      return renderPhotorealisticGarmentCard(garment, studioPack);
+    }, [garment, studioPack]);
+
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onWear}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onWear();
+          }
+        }}
+        title={`${garment.name} · ${garment.category} (${garment.hookSizeMm})`}
+        className={`group relative rounded-xl overflow-hidden transition-all duration-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#f4ca72] aspect-[3/3.65] flex flex-col ${
+          isWorn
+            ? 'bg-[#2a1c12] ring-2 ring-[#ffdd8c] shadow-[0_0_18px_rgba(245,193,86,0.48)] scale-[1.01]'
+            : 'bg-[#22160e]/90 border border-[#b98a42]/30 hover:border-[#e6b862]/80 shadow-[0_6px_14px_rgba(8,3,1,0.42)] hover:-translate-y-0.5'
+        }`}
+      >
+        {resolvedPhoto ? (
+          <img
+            src={resolvedPhoto}
+            alt={garment.name}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            draggable={false}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-gradient-to-b from-[#332216] to-[#1e130b] text-[#e7ca97]">
+            <span className="font-display text-[9px] font-bold tracking-wider uppercase opacity-80">
+              {garment.category}
+            </span>
+            <span className="mt-1 font-body text-[10px] leading-tight line-clamp-2 opacity-75">
+              {garment.name}
+            </span>
+          </div>
+        )}
+
+        {/* Active worn amber checkmark matching the exact reference card! */}
+        {isWorn && (
+          <span
+            aria-label="Prenda seleccionada"
+            className="absolute top-1.5 right-1.5 z-20 w-5 h-5 rounded-full bg-gradient-to-b from-[#ffd36b] to-[#d48b1b] border border-[#fff6d6] text-[#2a1403] shadow-md flex items-center justify-center"
+          >
+            <Check className="w-3 h-3" strokeWidth={3} />
+          </span>
+        )}
+
+        {/* Official photographed 2.5D outfit indicator */}
+        {hasPhotoSession && (
+          <span
+            title="Conjunto con fotografías reales 2.5D disponibles"
+            className="absolute bottom-1.5 right-1.5 z-20 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#24140a]/90 border border-[#f5c76d]/80 text-[#ffe8ad] text-[8.5px] font-bold shadow"
+          >
+            <Camera className="w-2.5 h-2.5 text-[#ffd36b]" />
+            <span>2.5D</span>
+          </span>
+        )}
+
+        {/* Hover micro-actions: Favorite, Pin to Notebook, Delete Custom */}
+        <div className="absolute top-1.5 left-1.5 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          <button
+            type="button"
+            title={isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFav();
+            }}
+            className="w-5 h-5 rounded-full bg-[#24140a]/90 hover:bg-[#3f2310] border border-[#d9a74e]/60 flex items-center justify-center cursor-pointer"
+          >
+            <Heart
+              className={`w-2.5 h-2.5 ${
+                isFav ? 'fill-[#e05263] text-[#e05263]' : 'text-[#f8deb0]'
+              }`}
+            />
+          </button>
+          <button
+            type="button"
+            title="Llevar prenda al cuaderno"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPin(resolvedPhoto);
+            }}
+            className="w-5 h-5 rounded-full bg-[#24140a]/90 hover:bg-[#3f2310] border border-[#d9a74e]/60 text-[#f8deb0] flex items-center justify-center cursor-pointer"
+          >
+            <Pin className="w-2.5 h-2.5" />
+          </button>
+          {onDelete && (
+            <button
+              type="button"
+              title="Eliminar prenda personalizada"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="w-5 h-5 rounded-full bg-[#3a1216]/95 hover:bg-[#611a22] border border-[#f29aa4]/60 text-[#ffd6dc] flex items-center justify-center cursor-pointer"
+            >
+              <Trash2 className="w-2.5 h-2.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Subtle bottom dark-gold gradient title overlay */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 px-1.5 pt-4 pb-1 bg-gradient-to-t from-[#1a0e07]/95 via-[#1a0e07]/65 to-transparent">
+          <p className="text-[9.5px] font-medium text-[#fff1d4] truncate text-center leading-tight">
+            {garment.name}
+          </p>
+        </div>
+      </div>
+    );
+  }
+);
+GarmentThumbnailCard.displayName = 'GarmentThumbnailCard';
+
+interface GoldenDressingRoomViewProps {
+  customGarments: DressingRoomGarment[];
+  finishedProjects: FinishedProject[];
+  onAddCustomGarment: (garment: DressingRoomGarment) => void;
+  onDeleteCustomGarment: (id: string) => void;
+  onSelectBrushColor: (hex: string) => void;
+  onPinGarmentToNotebook: (garment: DressingRoomGarment) => void;
+  onBackToNotebook: () => void;
+  onNotify: (msg: string) => void;
+}
+
+export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
+  customGarments,
+  finishedProjects,
+  onAddCustomGarment,
+  onDeleteCustomGarment,
+  onSelectBrushColor,
+  onPinGarmentToNotebook,
+  onBackToNotebook,
+  onNotify,
+}) => {
+  const rootStageRef = useRef<HTMLDivElement>(null);
+  const viewer3DRef = useRef<VitruvianMan3DHandle>(null);
+  const yarnScrollRef = useRef<HTMLDivElement>(null);
+  const galleryScrollRef = useRef<HTMLDivElement>(null);
+
+  const uploadPhotoInputRef = useRef<HTMLInputElement>(null);
+  const uploadStudioPhotoRef = useRef<HTMLInputElement>(null);
+
+  const [studioPack, setStudioPack] = useState<StudioPhotoPack | null>(null);
+  const [manifestBundle, setManifestBundle] = useState<VestidorManifestBundle>(() => ({
+    model: OFFICIAL_MODEL_MANIFEST,
+    poses: PHOTO_POSES,
+    outfits: OUTFIT_PHOTO_MANIFESTS,
+  }));
+  const [activeTab, setActiveTab] = useState<LuxuryCategoryTab>('camisas');
+  const [activeRailTool, setActiveRailTool] = useState<LeftRailTool>('prendas');
+  const [visibleCount, setVisibleCount] = useState<number>(28);
+
+  // First official photographed 2.5D outfit active by default (Cárdigan Girasoles Crema + Shorts Verde Bosque)
+  const [selectedTopId, setSelectedTopId] = useState<string | null>(FLAGSHIP_TOP_ID);
+  const [selectedBottomId, setSelectedBottomId] = useState<string | null>(FLAGSHIP_BOTTOM_ID);
+  const [showClothing, setShowClothing] = useState<boolean>(true);
+
+  // Yarn-Ball Color Selection (honest matching against photographed colorways)
+  const [colorTargetSlot, setColorTargetSlot] = useState<'top' | 'bottom'>('top');
+  const [activeYarnColorId, setActiveYarnColorId] = useState<string>('crema');
+  const [topColorOverride, setTopColorOverride] = useState<string[] | null>(null);
+  const [bottomColorOverride, setBottomColorOverride] = useState<string[] | null>(null);
+
+  // 2.5D Studio Controls & Visual Quality Tier
+  const [poseIndex, setPoseIndex] = useState<number>(0);
+  const [isSpinning360, setIsSpinning360] = useState<boolean>(false);
+  const [isAnimatingPose, setIsAnimatingPose] = useState<boolean>(false);
+  const [knitRelief, setKnitRelief] = useState<boolean>(true);
+  const [lightPreset, setLightPreset] = useState<StudioLightPresetId>('vestidor_lujo');
+  const [qualityLevel, setQualityLevel] = useState<GraphicsQualityLevel>('alto');
+  const [measurements, setMeasurements] = useState<BodyMeasurements>(DEFAULT_MEASUREMENTS);
+  const [yawDeg, setYawDeg] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isZoomedIn, setIsZoomedIn] = useState<boolean>(false);
+
+  // Drawers / Overlays
+  const [poseDrawerOpen, setPoseDrawerOpen] = useState<boolean>(false);
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState<boolean>(false);
+  const [settingsSection, setSettingsSection] = useState<'calidad' | 'medidas' | 'biblioteca'>(
+    'calidad'
+  );
+
+  // Optional user-loaded studio test photo
+  const [customStudioPhotoName, setCustomStudioPhotoName] = useState<string | null>(null);
+
+  const [favorites, setFavorites] = useState<Record<string, boolean>>({
+    [FLAGSHIP_TOP_ID]: true,
+    [FLAGSHIP_BOTTOM_ID]: true,
+    'tunica-vitruvio-lino': true,
+    'cardigan-atelier-azul': true,
+  });
+
+  useEffect(() => {
+    let active = true;
+    void loadStudioPhotoPack()
+      .then((pack) => {
+        if (active) setStudioPack(pack);
+      })
+      .catch(() => {});
+    void loadVestidorManifests()
+      .then((loaded) => {
+        if (active) setManifestBundle(loaded);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const allGarments = useMemo<DressingRoomGarment[]>(() => {
+    const validCategories: DressingRoomCategory[] = [
+      'Suéteres',
+      'Chalecos',
+      'Cardigans',
+      'Chaquetas',
+      'Accesorios',
+      'Pantalones',
+      'Bermudas',
+    ];
+    const normalizedCustom = customGarments.map((g) => ({
+      ...g,
+      category: validCategories.includes(g.category) ? g.category : 'Cardigans',
+      garmentSlot:
+        g.garmentSlot ||
+        (g.category === 'Pantalones' || g.category === 'Bermudas' ? 'bottom' : 'top'),
+      isCustom: true,
+    }));
+
+    const extraProjects: DressingRoomGarment[] = finishedProjects
+      .filter((p) => p.id !== 'proj-1' && p.id !== 'proj-2')
+      .map((p) => ({
+        id: `proj-${p.id}`,
+        name: p.title,
+        category: 'Accesorios',
+        garmentSlot: 'top',
+        eyebrow: 'MIS PROYECTOS',
+        subtitle: p.patternTitle || 'Creación personal tejida a crochet.',
+        fiber: p.materialsUsed || 'Algodón seleccionado',
+        fiberDetail: 'Hecho a mano',
+        hookSizeMm: p.hookSizeMm || '3.0 mm',
+        stitchNote: p.notes || 'Pieza terminada del cuaderno del artista.',
+        palette: ['#DEC098', '#1E2E4A', '#6E1624'],
+        accentColor: '#DEC098',
+        photoDataUrl: p.photoDataUrl,
+      }));
+
+    return [...normalizedCustom, ...FULL_MENSWEAR_CATALOG, ...extraProjects];
+  }, [customGarments, finishedProjects]);
+
+  const filteredGarments = useMemo(() => {
+    const matches = allGarments.filter((g) => {
+      const nameLower = `${g.name} ${g.subtitle}`.toLowerCase();
+      switch (activeTab) {
+        case 'camisas':
+          return (
+            g.garmentSlot !== 'bottom' &&
+            (g.id === FLAGSHIP_TOP_ID ||
+              g.silhouetteKind === 'polo' ||
+              g.id === 'tunica-vitruvio-lino' ||
+              /camisa|polo|túnica|tunica|girasol|verano|playa|camiseta|guayabera/.test(nameLower) ||
+              g.category === 'Suéteres')
+          );
+        case 'cardigans':
+          return g.category === 'Cardigans' || g.category === 'Chaquetas';
+        case 'sueteres':
+          return g.category === 'Suéteres' || g.category === 'Accesorios';
+        case 'chalecos':
+          return g.category === 'Chalecos';
+        case 'shorts':
+          return g.category === 'Bermudas' || g.silhouetteKind === 'shorts';
+        case 'pantalones':
+          return g.category === 'Pantalones';
+        default:
+          return true;
+      }
+    });
+    return matches.length > 0 ? matches : allGarments;
+  }, [allGarments, activeTab]);
+
+  const visibleGarments = useMemo(
+    () => filteredGarments.slice(0, visibleCount),
+    [filteredGarments, visibleCount]
+  );
+
+  const selectedTop = useMemo(
+    () => (selectedTopId ? allGarments.find((g) => g.id === selectedTopId) ?? null : null),
+    [allGarments, selectedTopId]
+  );
+  const selectedBottom = useMemo(
+    () =>
+      selectedBottomId ? allGarments.find((g) => g.id === selectedBottomId) ?? null : null,
+    [allGarments, selectedBottomId]
+  );
+
+  // Reset scroll & visible batch when switching category tabs
+  const handleSelectCategoryTab = (tab: LuxuryCategoryTab) => {
+    audioEngine.playStitchClick();
+    setActiveTab(tab);
+    setActiveRailTool('prendas');
+    setVisibleCount(28);
+    if (tab === 'shorts' || tab === 'pantalones') {
+      setColorTargetSlot('bottom');
+    } else {
+      setColorTargetSlot('top');
+    }
+    galleryScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleWearGarment = (garment: DressingRoomGarment) => {
+    audioEngine.playStitchClick();
+    setShowClothing(true);
+    if (garment.garmentSlot === 'bottom') {
+      setColorTargetSlot('bottom');
+      setBottomColorOverride(null);
+      setSelectedBottomId((prev) => (prev === garment.id ? null : garment.id));
+    } else {
+      setColorTargetSlot('top');
+      setTopColorOverride(null);
+      setSelectedTopId((prev) => (prev === garment.id ? null : garment.id));
+    }
+  };
+
+  const handleRestoreFlagshipOutfit = () => {
+    setSelectedTopId(FLAGSHIP_TOP_ID);
+    setSelectedBottomId(FLAGSHIP_BOTTOM_ID);
+    setTopColorOverride(null);
+    setBottomColorOverride(null);
+    setActiveYarnColorId('crema');
+    setShowClothing(true);
+    setPoseIndex(0);
+    setCustomStudioPhotoName(null);
+    viewer3DRef.current?.clearCustomPhoto();
+    onNotify('Conjunto fotografiado Girasoles Crema + Shorts Verde Bosque activado');
+  };
+
+  const handleCombineRandomOutfit = () => {
+    audioEngine.playToggleChime(true);
+    const tops = allGarments.filter((g) => g.garmentSlot !== 'bottom');
+    const bottoms = allGarments.filter((g) => g.garmentSlot === 'bottom');
+    if (tops.length > 0) {
+      const randTop = tops[Math.floor(Math.random() * Math.min(tops.length, 48))];
+      setSelectedTopId(randTop.id);
+      setTopColorOverride(null);
+    }
+    if (bottoms.length > 0) {
+      const randBot = bottoms[Math.floor(Math.random() * Math.min(bottoms.length, 48))];
+      setSelectedBottomId(randBot.id);
+      setBottomColorOverride(null);
+    }
+    setShowClothing(true);
+    onNotify('Combinación actualizada en el probador 2.5D');
+  };
+
+  const handleSelectYarnBall = (option: YarnBallColorOption) => {
+    audioEngine.playYarnPluck(3);
+    setActiveYarnColorId(option.id);
+    onSelectBrushColor(option.hex);
+
+    // If user clicks the exact original yarn colors of the flagship photographed outfit, restore original cleanly
+    const isFlagshipActive =
+      selectedTopId === FLAGSHIP_TOP_ID && selectedBottomId === FLAGSHIP_BOTTOM_ID;
+    if (isFlagshipActive && (option.id === 'crema' || option.id === 'bosque' || option.id === 'girasol')) {
+      setTopColorOverride(null);
+      setBottomColorOverride(null);
+      onNotify(`Paleta fotográfica original activa (${option.name})`);
+      return;
+    }
+
+    const newPalette = [option.hex, option.trimHex, option.accentHex];
+    if (colorTargetSlot === 'bottom' && selectedBottom) {
+      setBottomColorOverride(newPalette);
+      onNotify(`Color seleccionado para inferior: ${option.name}`);
+    } else if (selectedTop) {
+      setTopColorOverride(newPalette);
+      onNotify(`Color seleccionado para superior: ${option.name}`);
+    } else if (selectedBottom) {
+      setBottomColorOverride(newPalette);
+      onNotify(`Color seleccionado para inferior: ${option.name}`);
+    } else {
+      onNotify(`Ovillo ${option.name} cargado en el pincel`);
+    }
+  };
+
+  const handleResetYarnColors = () => {
+    audioEngine.playStitchClick();
+    setTopColorOverride(null);
+    setBottomColorOverride(null);
+    setActiveYarnColorId('crema');
+    onNotify('Colores originales del conjunto restaurados');
+  };
+
+  const handleGalleryScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 280) {
+      if (visibleCount < filteredGarments.length) {
+        setVisibleCount((c) => Math.min(filteredGarments.length, c + 28));
+      }
+    }
+  };
+
+  const handleCycleLight = () => {
+    audioEngine.playToggleChime(true);
+    const nextIdx = (STUDIO_LIGHT_ORDER.indexOf(lightPreset) + 1) % STUDIO_LIGHT_ORDER.length;
+    const nextId = STUDIO_LIGHT_ORDER[nextIdx];
+    setLightPreset(nextId);
+    onNotify(`Iluminación: ${STUDIO_LIGHT_PRESETS[nextId].label}`);
+  };
+
+  const handleCaptureAndSavePhoto = (alsoDownload = false) => {
+    audioEngine.playSaveChime();
+    const snapshotDataUrl = viewer3DRef.current?.captureSnapshot();
+    if (!snapshotDataUrl) {
+      onNotify('No se pudo capturar la fotografía de estudio');
+      return;
+    }
+
+    const outfitNames = [selectedTop?.name, selectedBottom?.name].filter(Boolean).join(' + ');
+    const garmentForNotebook: DressingRoomGarment = {
+      id: `vitruvio-outfit-${Date.now()}`,
+      name: outfitNames ? `Conjunto Dorado: ${outfitNames}` : 'Estudio El Vestidor Dorado',
+      category: selectedTop?.category || selectedBottom?.category || 'Cardigans',
+      subtitle: 'Fotografía de estudio capturada desde El Vestidor Dorado 2.5D.',
+      fiber:
+        [selectedTop?.fiber, selectedBottom?.fiber].filter(Boolean).join(' · ') ||
+        'Modelo Fotográfico Oficial',
+      hookSizeMm: selectedTop?.hookSizeMm || selectedBottom?.hookSizeMm || '3.25 mm',
+      stitchNote:
+        [selectedTop?.stitchNote, selectedBottom?.stitchNote].filter(Boolean).join(' ') ||
+        'Fotografía de alta resolución capturada en el escenario dorado 2.5D.',
+      palette:
+        topColorOverride ||
+        selectedTop?.palette ||
+        bottomColorOverride ||
+        selectedBottom?.palette || ['#F2E2C4', '#235A2A', '#F0B41C'],
+      accentColor: topColorOverride?.[0] || selectedTop?.accentColor || '#F2E2C4',
+      photoDataUrl: snapshotDataUrl,
+    };
+    onPinGarmentToNotebook(garmentForNotebook);
+
+    if (alsoDownload) {
+      const a = document.createElement('a');
+      a.href = snapshotDataUrl;
+      a.download = 'El-Vestidor-Dorado-25D.png';
+      a.click();
+    }
+  };
+
+  const handleUploadGarmentPhoto = async (file: File) => {
+    try {
+      const dataUrl = await compressImageFile(file, 960);
+      const cleanName = file.name.replace(/\.[^/.]+$/, '') || 'Prenda de Crochet';
+      const isBottom = /pantal|bermuda|short|jogger/i.test(cleanName);
+      const newGarment: DressingRoomGarment = {
+        id: `custom-garment-${Date.now()}`,
+        name: cleanName,
+        category: isBottom ? 'Pantalones' : 'Cardigans',
+        garmentSlot: isBottom ? 'bottom' : 'top',
+        silhouetteKind: isBottom ? 'trousers' : 'cardigan',
+        stitchPattern: 'cable',
+        eyebrow: 'COLECCIÓN PERSONAL',
+        subtitle: 'Prenda personalizada añadida a tu vestidor dorado.',
+        fiber: '100% Hilo Artesanal',
+        fiberDetail: 'Tejido a mano',
+        hookSizeMm: '3.25 mm',
+        stitchNote: 'Guardada en tu catálogo privado de El Vestidor Dorado.',
+        palette: ['#DEC098', '#28572A', '#E3A91C'],
+        accentColor: '#DEC098',
+        photoDataUrl: dataUrl,
+        isCustom: true,
+      };
+      onAddCustomGarment(newGarment);
+      setShowClothing(true);
+      if (isBottom) {
+        setSelectedBottomId(newGarment.id);
+        setActiveTab('pantalones');
+      } else {
+        setSelectedTopId(newGarment.id);
+        setActiveTab('cardigans');
+      }
+      audioEngine.playSaveChime();
+      onNotify(`Prenda añadida al catálogo: ${cleanName}`);
+    } catch {
+      onNotify('No se pudo cargar la fotografía de la prenda');
+    }
+  };
+
+  const handleLoadCustomStudioPhoto = async (file: File) => {
+    try {
+      const dataUrl = await compressImageFile(file, 1440);
+      viewer3DRef.current?.loadCustomPhoto(dataUrl, file.name);
+      setCustomStudioPhotoName(file.name);
+      audioEngine.playSaveChime();
+      onNotify(`Fotografía de conjunto cargada en visor 2.5D: ${file.name}`);
+    } catch {
+      onNotify('No se pudo leer la imagen seleccionada');
+    }
+  };
+
+  const handleToggleFullscreen = () => {
+    const el = rootStageRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      void el.requestFullscreen?.().catch(() => {});
+    } else {
+      void document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  const handleLeftRailClick = (tool: LeftRailTool) => {
+    audioEngine.playStitchClick();
+    setActiveRailTool(tool);
+
+    switch (tool) {
+      case 'prendas':
+        setPoseDrawerOpen(false);
+        setSettingsDrawerOpen(false);
+        break;
+      case 'colores':
+        setPoseDrawerOpen(false);
+        setSettingsDrawerOpen(false);
+        setColorTargetSlot((prev) => (prev === 'top' && selectedBottom ? 'bottom' : 'top'));
+        yarnScrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        break;
+      case 'poses':
+        setSettingsDrawerOpen(false);
+        setPoseDrawerOpen((prev) => !prev);
+        break;
+      case 'girar':
+        setIsSpinning360((prev) => !prev);
+        break;
+      case 'zoom':
+        if (isZoomedIn) {
+          viewer3DRef.current?.resetCamera();
+          setIsZoomedIn(false);
+        } else {
+          viewer3DRef.current?.zoomBy(-2.1);
+          setIsZoomedIn(true);
+        }
+        break;
+      case 'iluminacion':
+        handleCycleLight();
+        break;
+      case 'medidas':
+        setPoseDrawerOpen(false);
+        setSettingsSection('medidas');
+        setSettingsDrawerOpen(true);
+        break;
+      case 'guardar':
+        handleCaptureAndSavePhoto(true);
+        break;
+    }
+  };
+
+  // Determine which of the 4 left turnaround views matches current canonical manifest angleDeg (0, 90, 180, 270)
+  const activeTurnaroundId = useMemo(() => {
+    const a = ((yawDeg % 360) + 360) % 360;
+    if (a < 45 || a >= 315) return 'front';
+    if (a >= 45 && a < 135) return 'profile-left';
+    if (a >= 135 && a < 225) return 'back';
+    return 'profile-right';
+  }, [yawDeg]);
+
+  // Quick pose strip (4 vertical lookbook tiles right beside the central arch, matching reference!)
+  const quickPoseTiles = useMemo(
+    () => [
+      {
+        id: 'quick-natural',
+        label: 'Natural',
+        poseIdx: 0, // Natural (4 vistas reales)
+        recommendedAngleDeg: 0,
+        undress: false,
+        bgPos: '6% 12%',
+      },
+      {
+        id: 'quick-bolsillos',
+        label: 'Bolsillos',
+        poseIdx: 1, // Manos en los bolsillos (foto real)
+        recommendedAngleDeg: 0,
+        undress: false,
+        bgPos: '37% 12%',
+      },
+      {
+        id: 'quick-perfil',
+        label: 'Perfil',
+        poseIdx: 3, // Perfil de moda (90° / 270° reales)
+        recommendedAngleDeg: 90,
+        undress: false,
+        bgPos: '64.5% 12%',
+      },
+      {
+        id: 'quick-base',
+        label: showClothing ? 'Base' : 'Vestir',
+        poseIdx: 0,
+        recommendedAngleDeg: 0,
+        undress: true,
+        bgPos: '93.5% 12%',
+      },
+    ],
+    [showClothing]
+  );
+
+  const leftRailButtons: Array<{
+    id: LeftRailTool;
+    label: string;
+    icon: React.ReactNode;
+    active?: boolean;
+  }> = [
+    {
+      id: 'prendas',
+      label: 'Prendas',
+      icon: <Shirt className="w-5 h-5" />,
+      active: activeRailTool === 'prendas' && !poseDrawerOpen && !settingsDrawerOpen,
+    },
+    {
+      id: 'colores',
+      label: 'Colores',
+      icon: <Palette className="w-5 h-5" />,
+      active: activeRailTool === 'colores',
+    },
+    {
+      id: 'poses',
+      label: 'Poses',
+      icon: <Sparkles className="w-5 h-5" />,
+      active: poseDrawerOpen,
+    },
+    {
+      id: 'girar',
+      label: 'Girar',
+      icon: <Rotate3d className="w-5 h-5" />,
+      active: isSpinning360,
+    },
+    {
+      id: 'zoom',
+      label: 'Zoom',
+      icon: <ZoomIn className="w-5 h-5" />,
+      active: isZoomedIn,
+    },
+    {
+      id: 'iluminacion',
+      label: 'Iluminación',
+      icon: <Sun className="w-5 h-5" />,
+      active: lightPreset !== 'vestidor_lujo',
+    },
+    {
+      id: 'medidas',
+      label: 'Medidas',
+      icon: <Ruler className="w-5 h-5" />,
+      active: settingsDrawerOpen && settingsSection === 'medidas',
+    },
+    {
+      id: 'guardar',
+      label: 'Guardar',
+      icon: <Save className="w-5 h-5" />,
+      active: false,
+    },
+  ];
+
+  return (
+    <motion.div
+      ref={rootStageRef}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.35 }}
+      className="relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden text-[#f9ebd1]"
+      style={{
+        background:
+          'radial-gradient(ellipse 68% 72% at 44% 48%, #9b7e63 0%, #6e5541 36%, #453021 72%, #291a11 100%)',
+      }}
+    >
+      {/* Hidden File Inputs for Custom Garment Photos & 2.5D Studio Photo Preview */}
+      <input
+        ref={uploadPhotoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleUploadGarmentPhoto(f);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={uploadStudioPhotoRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleLoadCustomStudioPhoto(f);
+          e.target.value = '';
+        }}
+      />
+
+      {/* Luxury Baroque-Crochet Ornamental Corner & Header Decorations */}
+      <LuxuryHeaderFrameDecor />
+      <LuxuryFooterCornerDecor />
+
+      {/* =====================================================================
+          TOP SCALLOPED GOLDEN HEADER — EXACT MATCH TO LUXURY REFERENCE
+      ===================================================================== */}
+      <header className="relative z-30 flex items-center justify-between px-4 sm:px-8 lg:px-12 pt-2.5 pb-2 shrink-0">
+        {/* Top-Left Brand / Back to Notebook Link */}
+        <button
+          type="button"
+          onClick={() => {
+            audioEngine.playWardrobeDoor(false);
+            onBackToNotebook();
+          }}
+          title="Volver al Cuaderno del Artista"
+          className="group flex items-center gap-2 text-left cursor-pointer focus:outline-none"
+        >
+          <span className="w-7 h-7 rounded-full bg-[#2a1a10]/70 group-hover:bg-[#523214] border border-[#e3b868]/60 flex items-center justify-center text-[#ffe5a8] transition-colors shadow-md">
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </span>
+          <div className="leading-tight">
+            <p className="font-editorial italic text-sm sm:text-base font-semibold text-[#ffe8bd] group-hover:text-white transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]">
+              Cuaderno del Artista
+            </p>
+            <p className="font-editorial italic text-xs sm:text-sm text-[#e8c68a] -mt-0.5 text-center sm:text-left">
+              Crochet
+            </p>
+          </div>
+        </button>
+
+        {/* Center Embossed Gold Yarn Emblem & Title */}
+        <div className="flex items-center gap-2.5 sm:gap-3.5 mx-auto">
+          <GoldYarnEmblem className="w-10 h-10 sm:w-12 sm:h-12" />
+          <div className="text-center sm:text-left leading-none">
+            <h1
+              className="font-display text-xl sm:text-3xl lg:text-[34px] font-bold tracking-[0.04em] bg-clip-text text-transparent drop-shadow-[0_3px_10px_rgba(20,9,2,0.75)]"
+              style={{
+                backgroundImage:
+                  'linear-gradient(180deg, #fff6d1 0%, #f1c368 48%, #c58826 100%)',
+              }}
+            >
+              El Vestidor Dorado
+            </h1>
+            <p className="mt-0.5 font-editorial italic text-xs sm:text-sm lg:text-[15px] text-[#f3d49c] tracking-wide drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
+              Colección Crochet Fuentes Nazco
+            </p>
+          </div>
+        </div>
+
+        {/* Right spacer balancing header symmetry on desktop */}
+        <div className="hidden sm:flex items-center gap-1.5 w-[140px] justify-end">
+          <span className="px-2 py-0.5 rounded-full bg-[#2a1a10]/70 border border-[#d6a44e]/50 text-[10px] font-semibold uppercase tracking-wider text-[#f3cf88]">
+            {qualityLevel}
+          </span>
+        </div>
+      </header>
+
+      {/* =====================================================================
+          MAIN RESPONSIVE LUXURY STUDIO WORKSPACE
+          Desktop: [Left Rail] [4-View Strip] [Central 3D Arch] [Pose Strip] [Right Cabinet]
+          Mobile:  [Horizontal Rail] -> [Central 3D Stage] -> [Right Cabinet]
+      ===================================================================== */}
+      <div className="relative z-20 flex-1 flex flex-col lg:flex-row gap-2.5 lg:gap-3 px-3 sm:px-5 lg:px-6 pb-3 pt-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+        {/* 1. LEFT VERTICAL GLASS-BRONZE ICON MENU (horizontal scrollable on mobile) */}
+        <nav
+          aria-label="Herramientas de El Vestidor Dorado"
+          className="flex lg:flex-col items-center justify-between lg:justify-start gap-1 p-1.5 rounded-2xl bg-[#2a1b12]/82 border border-[#d8a756]/45 shadow-[0_14px_34px_rgba(10,4,1,0.58)] shrink-0 overflow-x-auto lg:overflow-y-auto studio-scroll lg:w-[82px]"
+        >
+          {leftRailButtons.map((btn) => (
+            <button
+              key={btn.id}
+              type="button"
+              onClick={() => handleLeftRailClick(btn.id)}
+              className={`flex flex-col items-center justify-center gap-1 px-2.5 py-2 lg:w-full lg:px-1 lg:py-2 rounded-xl transition-all cursor-pointer shrink-0 ${
+                btn.active
+                  ? 'bg-gradient-to-b from-[#7a5022]/90 via-[#5a3816]/90 to-[#3c230d]/95 border border-[#ffdf94] text-[#fff6dc] shadow-[0_0_16px_rgba(244,193,92,0.45)]'
+                  : 'border border-transparent text-[#e9cda0] hover:bg-[#3f2818]/75 hover:text-[#fff3d6]'
+              }`}
+            >
+              <span className={btn.active ? 'text-[#ffe08c]' : 'text-[#e3bb74]'}>{btn.icon}</span>
+              <span className="text-[10px] font-medium leading-none tracking-tight whitespace-nowrap">
+                {btn.label}
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        {/* 2. LEFT 4-VIEW ORTHOGRAPHIC CHARACTER REFERENCE STRIP (Frente / Perfil / Espalda / Perfil) */}
+        <aside
+          aria-label="Vistas ortográficas del modelo"
+          className="hidden xl:flex flex-col gap-2 w-[92px] 2xl:w-[104px] shrink-0 min-h-0 py-0.5"
+        >
+          {TURNAROUND_CAMERA_VIEWS.map((view) => {
+            const isActive = !isSpinning360 && activeTurnaroundId === view.id;
+            return (
+              <button
+                key={view.id}
+                type="button"
+                onClick={() => {
+                  audioEngine.playStitchClick();
+                  setIsSpinning360(false);
+                  viewer3DRef.current?.setTargetYaw(view.yawRad);
+                }}
+                title={`Ver ángulo fotográfico: ${view.label} (${view.shortLabel})`}
+                className={`group relative flex-1 min-h-0 rounded-xl overflow-hidden transition-all cursor-pointer ${
+                  isActive
+                    ? 'ring-2 ring-[#ffdf94] shadow-[0_0_18px_rgba(244,193,92,0.5)]'
+                    : 'border border-[#c99748]/45 hover:border-[#f4c975] opacity-90 hover:opacity-100'
+                }`}
+                style={{
+                  backgroundColor: '#36271d',
+                  backgroundImage: `url(${MALE_FOUR_VIEW_REFERENCE_URL})`,
+                  backgroundSize: '435% auto',
+                  backgroundPosition: `${view.bgPositionX} ${view.bgPositionY}`,
+                  backgroundRepeat: 'no-repeat',
+                }}
+              >
+                <span className="absolute inset-x-0 bottom-0 py-0.5 bg-gradient-to-t from-[#1c1008]/90 to-transparent text-[9px] font-semibold text-[#fae3b6] text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {view.label}
+                </span>
+              </button>
+            );
+          })}
+        </aside>
+
+        {/* 3. CENTRAL LARGE ILLUMINATED 2.5D PHOTOGRAPHIC STAGE + CIRCULAR 360° TURNTABLE */}
+        <main className="relative flex-1 flex flex-col min-w-[260px] min-h-[430px] lg:min-h-0">
+          <VitruvianMan3D
+            ref={viewer3DRef}
+            selectedTop={selectedTop}
+            selectedBottom={selectedBottom}
+            overrideTopPalette={topColorOverride}
+            overrideBottomPalette={bottomColorOverride}
+            showClothing={showClothing}
+            knitRelief={knitRelief}
+            poseIndex={poseIndex}
+            isSpinning360={isSpinning360}
+            isAnimatingPose={isAnimatingPose}
+            lightPreset={lightPreset}
+            qualityLevel={qualityLevel}
+            measurements={measurements}
+            manifestBundle={manifestBundle}
+            onToggleSpin360={() => {
+              audioEngine.playToggleChime(!isSpinning360);
+              setIsSpinning360((prev) => !prev);
+            }}
+            onStopSpin360={() => setIsSpinning360(false)}
+            onYawChange={setYawDeg}
+            onClearTop={() => {
+              setSelectedTopId(null);
+              setTopColorOverride(null);
+            }}
+            onClearBottom={() => {
+              setSelectedBottomId(null);
+              setBottomColorOverride(null);
+            }}
+            onRestoreFlagshipOutfit={handleRestoreFlagshipOutfit}
+            onResetColors={handleResetYarnColors}
+            onRequestNaturalPose={() => setPoseIndex(0)}
+          />
+        </main>
+
+        {/* 4. THIN QUICK-POSE / LOOKBOOK STRIP BESIDE THE ARCH (matching reference!) */}
+        <div
+          aria-label="Accesos rápidos de pose"
+          className="hidden 2xl:flex flex-col justify-center gap-2 w-[78px] shrink-0 py-6"
+        >
+          {quickPoseTiles.map((tile) => {
+            const isSelected = tile.undress
+              ? !showClothing
+              : showClothing && poseIndex === tile.poseIdx;
+            return (
+              <button
+                key={tile.id}
+                type="button"
+                onClick={() => {
+                  audioEngine.playStitchClick();
+                  setIsSpinning360(false);
+                  if (tile.undress) {
+                    setShowClothing((prev) => !prev);
+                  } else {
+                    setShowClothing(true);
+                    setPoseIndex(tile.poseIdx);
+                    viewer3DRef.current?.setTargetAngleDeg(tile.recommendedAngleDeg);
+                  }
+                }}
+                title={tile.label}
+                className={`relative h-[108px] rounded-xl overflow-hidden transition-all cursor-pointer ${
+                  isSelected
+                    ? 'ring-2 ring-[#ffdf94] shadow-[0_0_14px_rgba(244,193,92,0.5)]'
+                    : 'border border-[#c99748]/45 hover:border-[#f4c975] opacity-88 hover:opacity-100'
+                }`}
+                style={{
+                  backgroundColor: '#36271d',
+                  backgroundImage: `url(${MALE_FOUR_VIEW_REFERENCE_URL})`,
+                  backgroundSize: '435% auto',
+                  backgroundPosition: tile.bgPos,
+                  backgroundRepeat: 'no-repeat',
+                }}
+              >
+                <span className="absolute inset-x-0 bottom-0 py-0.5 bg-[#1b0f07]/85 text-[9px] font-semibold text-[#ffe8ba] text-center">
+                  {tile.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 5. RIGHT LUXURY WARDROBE PANEL (Top Utility Row + Categories + Grid + Yarn Balls + Controls) */}
+        <section className="flex flex-col lg:w-[405px] xl:w-[445px] 2xl:w-[475px] shrink-0 min-h-0 gap-2">
+          {/* Floating Top-Right Utility Row: Vista Realista | Animación | Fullscreen | Settings */}
+          <div className="flex items-center justify-between gap-2 shrink-0 px-0.5">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playToggleChime(!knitRelief);
+                  setKnitRelief((prev) => !prev);
+                  onNotify(
+                    !knitRelief
+                      ? 'Vista Realista PBR activada (relieve de hilo y sheen)'
+                      : 'Vista Realista suavizada'
+                  );
+                }}
+                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-md whitespace-nowrap ${
+                  knitRelief
+                    ? 'bg-gradient-to-b from-[#ffe29e] via-[#dfa649] to-[#b57a22] text-[#2a1504] border border-[#fff3ce] shadow-[0_4px_14px_rgba(232,175,68,0.42)]'
+                    : 'bg-[#2e1e13]/85 text-[#f4d9a6] border border-[#c99748]/55 hover:border-[#f2c56e]'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Vista Realista</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playToggleChime(!isAnimatingPose);
+                  setIsAnimatingPose((prev) => !prev);
+                }}
+                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer shadow-md whitespace-nowrap ${
+                  isAnimatingPose
+                    ? 'bg-gradient-to-b from-[#7a4f20] to-[#4b2d10] border border-[#ffdf94] text-[#fff6dc] shadow-[0_0_12px_rgba(244,193,92,0.4)]'
+                    : 'bg-[#2a1b12]/85 border border-[#c99748]/55 text-[#f5dfb2] hover:bg-[#3c2718]'
+                }`}
+              >
+                {isAnimatingPose ? (
+                  <Pause className="w-3.5 h-3.5 text-[#ffdf94]" />
+                ) : (
+                  <Play className="w-3.5 h-3.5 text-[#f4c66a] fill-[#f4c66a]" />
+                )}
+                <span>Animación</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleFullscreen}
+                title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                aria-label="Pantalla completa"
+                className="w-8 h-8 rounded-lg bg-[#2a1b12]/85 hover:bg-[#3f2919] border border-[#c99748]/55 text-[#f5dfb2] flex items-center justify-center cursor-pointer transition-colors"
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playStitchClick();
+                  setSettingsSection('calidad');
+                  setSettingsDrawerOpen((prev) => !prev);
+                }}
+                title="Ajustes gráficos (Medio/Alto/Ultra), Modelos .GLB y Añadir Prenda"
+                aria-label="Ajustes del vestidor"
+                className={`w-8 h-8 rounded-lg border flex items-center justify-center cursor-pointer transition-colors ${
+                  settingsDrawerOpen
+                    ? 'bg-[#c5892a] border-[#fff0c2] text-[#281303]'
+                    : 'bg-[#2a1b12]/85 hover:bg-[#3f2919] border-[#c99748]/55 text-[#f5dfb2]'
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Dark-Bronze Frosted Wardrobe Cabinet */}
+          <div className="flex-1 flex flex-col min-h-[420px] lg:min-h-0 rounded-2xl bg-[#2a1b12]/82 border border-[#d8a756]/55 shadow-[0_18px_44px_rgba(10,4,1,0.62)] p-2.5 sm:p-3 gap-2.5 overflow-hidden">
+            {/* 6 Category Icon Tabs Matching Exact Reference Order */}
+            <div className="grid grid-cols-6 gap-1 shrink-0 pb-1.5 border-b border-[#d6a44e]/25">
+              {LUXURY_CATEGORY_TABS.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleSelectCategoryTab(tab.id)}
+                    className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-gradient-to-b from-[#fff0c6] via-[#e4b35d] to-[#c4872c] text-[#2a1403] shadow-[0_4px_14px_rgba(244,193,92,0.45)] font-bold'
+                        : 'text-[#e8cca0] hover:bg-[#3d2718]/75 hover:text-[#fff4dc] font-medium'
+                    }`}
+                  >
+                    <CategoryGarmentIcon tab={tab.id} active={isActive} />
+                    <span className="text-[9.5px] sm:text-[10px] leading-none truncate max-w-full">
+                      {tab.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Subtle Quick Outfit Actions Row: Combine / Undress / Upload Photo */}
+            <div className="flex items-center justify-between gap-1.5 shrink-0 text-[10.5px]">
+              <span className="text-[#d9b984] font-medium truncate">
+                {filteredGarments.length} diseños · {STUDIO_LIGHT_PRESETS[lightPreset].label}
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleCombineRandomOutfit}
+                  title="Combinar conjunto superior + inferior al azar"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#3c2718] hover:bg-[#52351f] border border-[#c99748]/45 text-[#fae0af] cursor-pointer transition-colors"
+                >
+                  <Shuffle className="w-3 h-3 text-[#f2c464]" />
+                  <span>Combinar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playEraseBrush();
+                    setSelectedTopId(null);
+                    setSelectedBottomId(null);
+                    setTopColorOverride(null);
+                    setBottomColorOverride(null);
+                  }}
+                  title="Quitar todas las prendas del modelo"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#3c2718] hover:bg-[#52351f] border border-[#c99748]/45 text-[#fae0af] cursor-pointer transition-colors"
+                >
+                  <User className="w-3 h-3 text-[#f2c464]" />
+                  <span>Quitar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => uploadPhotoInputRef.current?.click()}
+                  title="Añadir prenda personalizada desde foto"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#4a2f17] hover:bg-[#643f1f] border border-[#e3b25a]/60 text-[#ffefc8] cursor-pointer transition-colors"
+                >
+                  <Upload className="w-3 h-3 text-[#ffe094]" />
+                  <span className="hidden sm:inline">Añadir</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4-Column Detailed Crochet Garment Thumbnail Grid */}
+            <div
+              ref={galleryScrollRef}
+              onScroll={handleGalleryScroll}
+              className="flex-1 min-h-[180px] overflow-y-auto studio-scroll pr-1"
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pb-2">
+                {visibleGarments.map((garment) => {
+                  const isWorn =
+                    showClothing &&
+                    (garment.id === selectedTopId || garment.id === selectedBottomId);
+                  return (
+                    <GarmentThumbnailCard
+                      key={garment.id}
+                      garment={garment}
+                      studioPack={studioPack}
+                      isWorn={isWorn}
+                      isFav={Boolean(favorites[garment.id])}
+                      hasPhotoSession={isGarmentPartOfPhotographedOutfit(
+                        garment.id,
+                        manifestBundle.outfits
+                      )}
+                      onWear={() => handleWearGarment(garment)}
+                      onToggleFav={() => {
+                        audioEngine.playToggleChime(!favorites[garment.id]);
+                        setFavorites((prev) => ({ ...prev, [garment.id]: !prev[garment.id] }));
+                      }}
+                      onPin={(photoUrl) => {
+                        audioEngine.playYarnPluck(4);
+                        onPinGarmentToNotebook({ ...garment, photoDataUrl: photoUrl });
+                      }}
+                      onDelete={
+                        garment.isCustom
+                          ? () => {
+                              audioEngine.playEraseBrush();
+                              onDeleteCustomGarment(garment.id);
+                              if (selectedTopId === garment.id) setSelectedTopId(null);
+                              if (selectedBottomId === garment.id) setSelectedBottomId(null);
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+
+              {visibleCount < filteredGarments.length && (
+                <div className="flex justify-center pt-1 pb-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVisibleCount((c) => Math.min(filteredGarments.length, c + 28))
+                    }
+                    className="px-3.5 py-1 rounded-full bg-[#3c2718] hover:bg-[#52351f] border border-[#c99748]/50 text-[10.5px] font-semibold text-[#fae3b6] cursor-pointer"
+                  >
+                    Cargar más diseños ({filteredGarments.length - visibleCount} restantes)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ===============================================================
+                COLORES DISPONIBLES — TACTILE WOUND YARN BALLS (OVILLOS)
+            =============================================================== */}
+            <div className="shrink-0 rounded-xl bg-[#21140d]/85 border border-[#c99748]/40 px-2.5 py-2 shadow-inner">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="font-body text-xs font-semibold text-[#f7e2bc]">
+                  Colores disponibles
+                </span>
+
+                <div className="flex items-center gap-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setColorTargetSlot('top')}
+                    className={`px-2 py-0.5 rounded-full cursor-pointer transition-colors ${
+                      colorTargetSlot === 'top'
+                        ? 'bg-[#c58829] text-[#281303] font-bold'
+                        : 'bg-[#362215] text-[#e1c28e] hover:text-white'
+                    }`}
+                  >
+                    Superior
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setColorTargetSlot('bottom')}
+                    className={`px-2 py-0.5 rounded-full cursor-pointer transition-colors ${
+                      colorTargetSlot === 'bottom'
+                        ? 'bg-[#c58829] text-[#281303] font-bold'
+                        : 'bg-[#362215] text-[#e1c28e] hover:text-white'
+                    }`}
+                  >
+                    Inferior
+                  </button>
+                  {(topColorOverride || bottomColorOverride) && (
+                    <button
+                      type="button"
+                      onClick={handleResetYarnColors}
+                      title="Restaurar color original de la prenda"
+                      className="p-0.5 rounded-full bg-[#3a2517] hover:bg-[#543620] text-[#f3cf88] cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Desplazar ovillos a la izquierda"
+                  onClick={() =>
+                    yarnScrollRef.current?.scrollBy({ left: -160, behavior: 'smooth' })
+                  }
+                  className="p-1 rounded-full text-[#e5be75] hover:bg-[#3c2718] cursor-pointer shrink-0"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div
+                  ref={yarnScrollRef}
+                  className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-0.5 flex-1"
+                >
+                  {YARN_BALL_COLORS.map((colorOpt) => (
+                    <YarnBallSwatch
+                      key={colorOpt.id}
+                      color={colorOpt}
+                      selected={activeYarnColorId === colorOpt.id}
+                      onClick={() => handleSelectYarnBall(colorOpt)}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Desplazar ovillos a la derecha"
+                  onClick={() =>
+                    yarnScrollRef.current?.scrollBy({ left: 160, behavior: 'smooth' })
+                  }
+                  className="p-1 rounded-full text-[#e5be75] hover:bg-[#3c2718] cursor-pointer shrink-0"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* ===============================================================
+                BOTTOM STUDIO CONTROLS BAR — EXACT MATCH TO REFERENCE:
+                [Pose]  [Girar 360°]  [Zoom  −  +]  [Foto]
+            =============================================================== */}
+            <div className="shrink-0 flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playStitchClick();
+                  setPoseDrawerOpen((prev) => !prev);
+                  setSettingsDrawerOpen(false);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
+                  poseDrawerOpen
+                    ? 'bg-[#6b441b] border-[#ffdf94] text-[#fff6dc]'
+                    : 'bg-[#23160e] hover:bg-[#382315] border-[#c99748]/60 text-[#f7e2bc]'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#f4c66a]" />
+                <span>Pose</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playToggleChime(!isSpinning360);
+                  setIsSpinning360((prev) => !prev);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
+                  isSpinning360
+                    ? 'bg-[#7d4f1a] border-[#ffdf94] text-[#fff8e4] shadow-[0_0_12px_rgba(244,193,92,0.45)]'
+                    : 'bg-[#23160e] hover:bg-[#382315] border-[#c99748]/60 text-[#f7e2bc]'
+                }`}
+              >
+                <Rotate3d className="w-3.5 h-3.5 text-[#f4c66a]" />
+                <span>Girar 360°</span>
+              </button>
+
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#23160e] border border-[#c99748]/60 text-xs font-semibold text-[#f7e2bc]">
+                <span className="text-[11px] pr-0.5">Zoom</span>
+                <button
+                  type="button"
+                  aria-label="Alejar cámara"
+                  onClick={() => {
+                    audioEngine.playStitchClick();
+                    viewer3DRef.current?.zoomBy(0.75);
+                  }}
+                  className="p-0.5 rounded-full hover:bg-[#492e1a] text-[#ffe094] cursor-pointer"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Acercar cámara"
+                  onClick={() => {
+                    audioEngine.playStitchClick();
+                    viewer3DRef.current?.zoomBy(-0.75);
+                  }}
+                  className="p-0.5 rounded-full hover:bg-[#492e1a] text-[#ffe094] cursor-pointer"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleCaptureAndSavePhoto(false)}
+                title="Capturar fotografía y guardarla en el Cuaderno del Artista"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-b from-[#ffe4a0] via-[#e2aa4b] to-[#b57a20] hover:brightness-110 active:scale-[0.98] border border-[#fff4d2] text-[#281303] text-xs font-bold shadow-[0_4px_16px_rgba(235,175,66,0.5)] cursor-pointer transition-all"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Foto</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* =====================================================================
+          OVERLAY DRAWER 1: BIBLIOTECA DE POSES FOTOGRÁFICAS 2.5D (7 POSES)
+      ===================================================================== */}
+      {poseDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55">
+          <div className="w-full max-w-lg rounded-2xl bg-[#261810] border-2 border-[#d9a64c] shadow-[0_24px_60px_rgba(0,0,0,0.75)] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#3a2312] via-[#4e3018] to-[#3a2312] border-b border-[#d9a64c]/45">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#f5c668]" />
+                <h2 className="font-display text-sm font-bold tracking-[0.1em] text-[#ffe9b8]">
+                  BIBLIOTECA DE POSES FOTOGRÁFICAS ({manifestBundle.poses.length})
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPoseDrawerOpen(false)}
+                className="p-1 rounded-lg bg-[#4d2f18] hover:bg-[#663f21] text-[#ffe9b8] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[65vh] overflow-y-auto studio-scroll">
+              {manifestBundle.poses.map((p, idx) => {
+                const isSelected = poseIndex === idx;
+                const avail = isPosePhotographedForSelection(
+                  p.id,
+                  selectedTop,
+                  selectedBottom,
+                  showClothing,
+                  manifestBundle
+                );
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playStitchClick();
+                      setPoseIndex(idx);
+                      setIsSpinning360(false);
+                      viewer3DRef.current?.setTargetAngleDeg(p.recommendedAngleDeg);
+                      setPoseDrawerOpen(false);
+                    }}
+                    className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#4f3218] border-[#ffdf94] shadow-[0_0_14px_rgba(244,193,92,0.35)]'
+                        : avail.available
+                          ? 'bg-[#322014] hover:bg-[#422a1a] border-[#b98a42]/45'
+                          : 'bg-[#2a1b12]/80 hover:bg-[#382417] border-[#96703a]/30 opacity-85'
+                    }`}
+                  >
+                    <div className="w-full flex items-center justify-between gap-2">
+                      <span className="font-mono-tab text-[10px] font-bold text-[#e5b968]">
+                        {p.code}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                          avail.available
+                            ? 'bg-[#224727] border border-[#6cc47a]/60 text-[#ccf5d2]'
+                            : 'bg-[#3a281c] border border-[#b98a42]/35 text-[#caa978]'
+                        }`}
+                      >
+                        {avail.available
+                          ? `Foto real · ${avail.frameCount} ${avail.frameCount === 1 ? 'vista' : 'vistas'}`
+                          : 'Pendiente'}
+                      </span>
+                    </div>
+                    <span className="mt-1 text-xs font-bold text-[#fff2d4]">{p.title}</span>
+                    <span className="mt-0.5 text-[10px] text-[#d4b686] line-clamp-2">
+                      {p.subtitle}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          OVERLAY DRAWER 2: ESTUDIO 2.5D · CALIDAD, ENCUADRE Y BIBLIOTECA JSON
+      ===================================================================== */}
+      {settingsDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="w-full max-w-xl rounded-2xl bg-[#261810] border-2 border-[#d9a64c] shadow-[0_24px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#3a2312] via-[#513218] to-[#3a2312] border-b border-[#d9a64c]/45">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-[#f5c668]" />
+                <h2 className="font-display text-sm font-bold tracking-[0.1em] text-[#ffe9b8]">
+                  ESTUDIO FOTOGRÁFICO 2.5D · CALIDAD Y BIBLIOTECA
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettingsDrawerOpen(false)}
+                className="p-1 rounded-lg bg-[#4d2f18] hover:bg-[#663f21] text-[#ffe9b8] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Sub-tabs */}
+            <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 border-b border-[#d6a44e]/25">
+              {(
+                [
+                  ['calidad', 'Calidad Visual 2.5D'],
+                  ['medidas', 'Encuadre y Escala'],
+                  ['biblioteca', 'Biblioteca Fotográfica JSON'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSettingsSection(id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                    settingsSection === id
+                      ? 'bg-gradient-to-b from-[#f4c66c] to-[#be8123] text-[#281303]'
+                      : 'bg-[#362216] text-[#e9cda0] hover:bg-[#492e1d]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4 overflow-y-auto studio-scroll space-y-4 text-xs">
+              {settingsSection === 'calidad' && (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#ffe9b8] mb-1">
+                      Nivel de Efecto de Profundidad 2.5D
+                    </h3>
+                    <p className="text-[#d6b888] mb-3">
+                      Controla el paralaje por capas, la iluminación ambiental y las transiciones fotográficas manteniendo siempre la imagen real intacta.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          {
+                            id: 'medio' as const,
+                            title: 'Medio',
+                            desc: 'Sin paralaje móvil, máximo rendimiento en cualquier dispositivo',
+                          },
+                          {
+                            id: 'alto' as const,
+                            title: 'Alto',
+                            desc: 'Paralaje 2.5D equilibrado, iluminación de estudio y sombras suaves',
+                          },
+                          {
+                            id: 'ultra' as const,
+                            title: 'Ultra',
+                            desc: 'Profundidad 2.5D cinematográfica y halo luminoso completo',
+                          },
+                        ]
+                      ).map((tier) => {
+                        const active = qualityLevel === tier.id;
+                        return (
+                          <button
+                            key={tier.id}
+                            type="button"
+                            onClick={() => {
+                              audioEngine.playToggleChime(true);
+                              setQualityLevel(tier.id);
+                              onNotify(`Calidad visual 2.5D ajustada a: ${tier.title}`);
+                            }}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              active
+                                ? 'bg-[#4f3218] border-[#ffdf94] shadow-[0_0_14px_rgba(244,193,92,0.35)]'
+                                : 'bg-[#322014] hover:bg-[#412a1a] border-[#b98a42]/35'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-display font-bold text-sm text-[#fff2d4]">
+                                {tier.title}
+                              </span>
+                              {active && <Check className="w-4 h-4 text-[#ffdf94]" />}
+                            </div>
+                            <p className="mt-1 text-[10.5px] text-[#d6b888] leading-snug">
+                              {tier.desc}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#d6a44e]/25 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-[#f2c464]" />
+                      <span className="text-[#f4dbb0]">
+                        Iluminación activa: <strong>{STUDIO_LIGHT_PRESETS[lightPreset].label}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleCycleLight}
+                        className="px-3 py-1 rounded-lg bg-[#3c2718] hover:bg-[#52351f] border border-[#d6a44e]/50 text-[#ffe9b8] font-semibold cursor-pointer"
+                      >
+                        Cambiar luz
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          viewer3DRef.current?.resetCamera();
+                          setIsZoomedIn(false);
+                          setIsSpinning360(false);
+                        }}
+                        className="px-3 py-1 rounded-lg bg-[#3c2718] hover:bg-[#52351f] border border-[#d6a44e]/50 text-[#ffe9b8] font-semibold cursor-pointer"
+                      >
+                        Centrar cámara
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCaptureAndSavePhoto(true)}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#c58829] hover:brightness-110 text-[#281303] font-bold cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>PNG</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {settingsSection === 'medidas' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-[#ffe9b8]">
+                      Calibración de Encuadre Fotográfico
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setMeasurements(DEFAULT_MEASUREMENTS)}
+                      className="text-[11px] text-[#f2c464] hover:underline cursor-pointer"
+                    >
+                      Restablecer
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[#d6b888]">
+                    El motor fotográfico 2.5D conserva siempre las proporciones anatómicas reales del modelo oficial sin deformaciones; aquí puedes ajustar suavemente la escala general en el encuadre.
+                  </p>
+
+                  <label className="block space-y-1">
+                    <div className="flex items-center justify-between text-[#f4dbb0]">
+                      <span>Escala de encuadre del modelo</span>
+                      <span className="font-mono-tab text-[#ffe094]">
+                        {Math.round(measurements.height * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.9}
+                      max={1.12}
+                      step={0.01}
+                      value={measurements.height}
+                      onChange={(e) =>
+                        setMeasurements((prev) => ({
+                          ...prev,
+                          height: Number(e.target.value),
+                        }))
+                      }
+                      className="w-full accent-[#e3ae4e] cursor-pointer"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {settingsSection === 'biblioteca' && (
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-[#342115] border border-[#d6a44e]/45 p-3 space-y-2">
+                    <h3 className="text-sm font-bold text-[#ffe9b8]">
+                      Sistema Fotográfico 2.5D · Manifiestos JSON Escalables
+                    </h3>
+                    <p className="text-[#dfc294] leading-relaxed">
+                      Cada conjunto y pose se resuelve desde fotografías reales organizadas en{' '}
+                      <code className="text-[#ffe29e]">public/vestidor/</code> con soporte nativo para{' '}
+                      <strong>4, 8, 12 o 24+ ángulos</strong> sin reconstruir el cuerpo en 3D.
+                    </p>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleRestoreFlagshipOutfit();
+                          setSettingsDrawerOpen(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#f5c86e] to-[#c48729] text-[#281303] font-bold cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Cargar Conjunto Girasol (4 vistas)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => uploadStudioPhotoRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4a2f1a] hover:bg-[#5e3c22] border border-[#d6a44e]/55 text-[#ffefc8] font-semibold cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Probar fotografía PNG/JPG local</span>
+                      </button>
+                      {customStudioPhotoName && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            viewer3DRef.current?.clearCustomPhoto();
+                            setCustomStudioPhotoName(null);
+                            onNotify('Fotografía de prueba retirada');
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-[#522020] hover:bg-[#6b2929] text-[#ffd6d6] font-semibold cursor-pointer"
+                        >
+                          Quitar foto local
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Transparent inventory of active JSON manifests */}
+                  <div className="space-y-1.5">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#e8be70]">
+                      Manifiestos fotográficos activos en public/vestidor/
+                    </h4>
+
+                    <div className="p-2.5 rounded-xl bg-[#301e13] border border-[#b98a42]/30 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#fff1d4]">
+                          {manifestBundle.model.name} (Base Oficial)
+                        </span>
+                        <code className="text-[10px] px-1.5 py-0.5 rounded bg-[#1d110a] text-[#a6e6b8]">
+                          4 vistas reales
+                        </code>
+                      </div>
+                      <p className="text-[10px] text-[#e5c58e] font-mono-tab">
+                        {VESTIDOR_MANIFEST_PATHS.model}
+                      </p>
+                    </div>
+
+                    {manifestBundle.outfits.map((outfit) => {
+                      const naturalCount = outfit.poses.natural?.frames.length ?? 0;
+                      const pocketsCount = outfit.poses['manos-bolsillos']?.frames.length ?? 0;
+                      return (
+                        <div
+                          key={outfit.id}
+                          className="p-2.5 rounded-xl bg-[#301e13] border border-[#b98a42]/35 space-y-1"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-[#fff1d4]">{outfit.name}</span>
+                            <code className="text-[10px] px-1.5 py-0.5 rounded bg-[#1d110a] text-[#a6e6b8]">
+                              {naturalCount} vistas 360° + {pocketsCount} pose editorial
+                            </code>
+                          </div>
+                          <p className="text-[10px] text-[#e5c58e] font-mono-tab">
+                            /vestidor/conjuntos/{outfit.id}/manifest.json
+                          </p>
+                        </div>
+                      );
+                    })}
+
+                    <div className="p-2.5 rounded-xl bg-[#301e13] border border-[#b98a42]/30 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#fff1d4]">
+                          Catálogo de Poses Fotográficas ({manifestBundle.poses.length})
+                        </span>
+                        <code className="text-[10px] px-1.5 py-0.5 rounded bg-[#1d110a] text-[#f3c978]">
+                          3 listas · 4 pendientes
+                        </code>
+                      </div>
+                      <p className="text-[10px] text-[#e5c58e] font-mono-tab">
+                        {VESTIDOR_MANIFEST_PATHS.poses}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+};

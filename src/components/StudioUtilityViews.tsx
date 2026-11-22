@@ -301,12 +301,12 @@ export const BrushesQuickView: React.FC<{
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {[
-          { id: 'tiza-suave', cat: 'tizas', name: 'Tiza Suave', desc: 'Grano ligero para sombreado cálido' },
-          { id: 'tiza-pastel', cat: 'tizas', name: 'Tiza Pastel', desc: 'Trazo aterciopelado de color vivo' },
-          { id: 'tiza-gruesa', cat: 'tizas', name: 'Tiza Gruesa', desc: 'Textura amplia para fondos y bloques' },
-          { id: 'carboncillo', cat: 'tizas', name: 'Carboncillo', desc: 'Tono grafito oscuro de boceto' },
-          { id: 'pluma-fina', cat: 'pinceles', name: 'Pluma Fina', desc: 'Línea nítida para símbolos de crochet' },
-          { id: 'hilo-crochet', cat: 'pinceles', name: 'Hilo Crochet', desc: 'Trazo pespunteado tipo puntada' },
+          { id: 'tiza-suave', cat: 'tizas', name: 'Brocha Facial Suave', desc: 'Tiza ultraligera estilo brocha de maquillaje, color muy sutil' },
+          { id: 'tiza-pastel', cat: 'tizas', name: 'Rubor Pastel', desc: 'Aplicación aérea y aterciopelada por capas suaves' },
+          { id: 'tiza-gruesa', cat: 'tizas', name: 'Brocha Kabuki', desc: 'Difuminado amplio y sedoso para fondos suaves' },
+          { id: 'acrilico-fino', cat: 'pinceles', name: 'Acrílico Fino', desc: 'Pincelada acrílica precisa, delicada y ligeramente afilada' },
+          { id: 'pluma-fina', cat: 'pinceles', name: 'Acrílico Ultrafino 000', desc: 'Trazo capilar de altísima precisión para detalles finos' },
+          { id: 'acrilico-satinado', cat: 'pinceles', name: 'Acrílico Satinado', desc: 'Pincelada fina con acabado sedoso y sutil' },
         ].map((item) => {
           const active = brush.preset === item.id;
           return (
@@ -317,6 +317,9 @@ export const BrushesQuickView: React.FC<{
                 onChangeBrush({
                   category: item.cat as BrushSettings['category'],
                   preset: item.id as BrushSettings['preset'],
+                  ...(item.cat === 'pinceles'
+                    ? { size: 8, opacity: 82, softness: 18 }
+                    : { size: 28, opacity: 60, softness: 90 }),
                 });
                 onActivateDrawMode();
               }}

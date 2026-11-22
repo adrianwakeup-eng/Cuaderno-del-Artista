@@ -20,10 +20,14 @@ export type BrushPresetId =
   | 'tiza-suave'
   | 'tiza-pastel'
   | 'tiza-gruesa'
+  | 'tiza-velo'
   | 'carboncillo'
   | 'difuminador'
   | 'borrador-suave'
   | 'pluma-fina'
+  | 'acrilico-fino'
+  | 'acrilico-satinado'
+  | 'acrilico-detalle'
   | 'hilo-crochet'
   | 'acuarela';
 
@@ -77,6 +81,13 @@ export interface CopiedPatternData {
   diagramGrid?: StitchSymbol[][];
 }
 
+export interface ElementEraseStroke {
+  points: Array<[number, number]>;
+  vbH: number;
+  width: number;
+  soft?: boolean;
+}
+
 export interface PageElement {
   id: string;
   side: 'left' | 'right';
@@ -87,6 +98,7 @@ export interface PageElement {
   height?: number;
   content: string; // text body, sticker id, image dataUrl, shape id, 'front' | 'back', or 'closed' | 'open'
   originalContent?: string;
+  extractedBaseContent?: string;
   color?: string;
   fontSize?: number;
   fontFamily?: FontChoice;
@@ -105,6 +117,9 @@ export interface PageElement {
   frameStyle?: ImageFrameStyle;
   filters?: ImageFilters;
   patternData?: CopiedPatternData;
+  eraseStrokes?: ElementEraseStroke[];
+  locked?: boolean;
+  permanent?: boolean;
 }
 
 export interface NotebookSpread {
@@ -183,13 +198,23 @@ export interface DeskNoteItem {
 }
 
 export type DressingRoomCategory =
+  | 'Camisas'
   | 'Suéteres'
+  | 'Cárdigans'
   | 'Chalecos'
+  | 'Shorts'
+  | 'Pantalones'
   | 'Cardigans'
   | 'Chaquetas'
   | 'Accesorios'
-  | 'Pantalones'
   | 'Bermudas';
+
+export interface GarmentAnglePhotos {
+  front?: string;
+  profileLeft?: string;
+  back?: string;
+  profileRight?: string;
+}
 
 export type GarmentSilhouetteKind =
   | 'sweater'
@@ -217,6 +242,33 @@ export type GarmentStitchPattern =
   | 'chevron'
   | 'argyle';
 
+export interface NonDestructiveCrop {
+  /** Normalized focal & zoom framing (0..1) — original photo stays untouched */
+  x: number; // 0..1 focal X (default 0.5)
+  y: number; // 0..1 focal Y (default 0.5)
+  zoom: number; // 1..2.5 (default 1)
+  rotationDeg?: number; // 0 | 90 | 180 | 270
+}
+
+export interface CrochetAttachmentPhoto {
+  id: string;
+  label: string;
+  dataUrl: string;
+  addedAt: string;
+}
+
+export interface CrochetTechSheet {
+  stitchType?: string;
+  yarnWeight?: string;
+  materials?: string;
+  hookSize?: string;
+  measurementsText?: string;
+  seamDetails?: string;
+  craftingNotes?: string;
+  detailPhotos?: CrochetAttachmentPhoto[];
+  patternPhotos?: CrochetAttachmentPhoto[];
+}
+
 export interface DressingRoomGarment {
   id: string;
   name: string;
@@ -235,7 +287,95 @@ export interface DressingRoomGarment {
   accentColor: string;
   photoDataUrl?: string;
   backPhotoDataUrl?: string;
+  garmentViews?: GarmentAnglePhotos;
+  modelViews?: GarmentAnglePhotos;
+  /** Non-destructive per-slot framing/crop keyed by e.g. 'garment-front' | 'model-front' */
+  photoCrops?: Record<string, NonDestructiveCrop>;
+  availableColorIds?: string[];
+  favorite?: boolean;
+  tags?: string[];
+  sortOrder?: number;
+  techSheet?: CrochetTechSheet;
+  deletedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   isCustom?: boolean;
+}
+
+export type VestidorSpinSpeed = 'lento' | 'normal' | 'rapido';
+export type VestidorPerformanceMode = 'ahorro' | 'equilibrado' | 'alto';
+
+export interface VestidorPreferences {
+  soundEnabled: boolean; // OFF by default per user spec
+  spinSpeed: VestidorSpinSpeed;
+  performanceMode: VestidorPerformanceMode;
+  reduceMotion: boolean;
+  autoSaveEnabled: boolean;
+  lastSavedAt?: string;
+}
+
+export interface VestidorHistoryEntry {
+  id: string;
+  label: string;
+  timestamp: string;
+  snapshot: DressingRoomGarment[];
+}
+
+export type VestidorDecorKind =
+  | 'macrame-curtain'
+  | 'dreamcatcher'
+  | 'crochet-flowers'
+  | 'crochet-sunflower'
+  | 'yarn-basket'
+  | 'yarn-mini-basket'
+  | 'yarn-ball'
+  | 'sewing-machine'
+  | 'potted-plant'
+  | 'crochet-rug'
+  | 'crochet-teddy'
+  | 'custom-image';
+
+export type VestidorDecorAnimation =
+  | 'none'
+  | 'sway'
+  | 'pendulum'
+  | 'nod'
+  | 'float'
+  | 'basket';
+
+export interface VestidorDecorElement {
+  id: string;
+  kind: VestidorDecorKind;
+  label: string;
+  /** Position as percentage (0..100) of the editable stage area for responsive layout */
+  xPct: number;
+  yPct: number;
+  /** Width as percentage (6..60) of the editable stage width; height preserves natural aspect ratio */
+  widthPct: number;
+  /** Layer ordering within the decoration container */
+  zIndex: number;
+  /** Rotation in degrees (-45..45) */
+  rotationDeg: number;
+  /** Horizontal flip */
+  flipX?: boolean;
+  /** Independent per-element animation toggle */
+  animated: boolean;
+  /** Inherited CSS compositor animation style */
+  animationKind: VestidorDecorAnimation;
+  /** Optional accent/tint color (used by yarn balls, macramé ribbons, etc.) */
+  tintColor?: string;
+  /** Optional texture/opacity config preserved across copies */
+  opacity?: number;
+  /** Optional custom uploaded transparent image data URL */
+  customDataUrl?: string;
+  /** Intrinsic aspect ratio (width / height) to preserve proportions during resize */
+  aspectRatio: number;
+}
+
+export interface ExtractedMandalaRecord {
+  baseDataUrl: string;
+  coloredDataUrl: string;
+  updatedAt: string;
 }
 
 export interface NotebookWorkspaceData {
@@ -250,6 +390,9 @@ export interface NotebookWorkspaceData {
   mannequinsSeededV1?: boolean;
   wardrobeSeededV1?: boolean;
   wardrobeItems?: DressingRoomGarment[];
+  extractedMandalas?: Record<string, ExtractedMandalaRecord>;
+  hiddenCatalogSpreadIds?: string[];
+  hiddenMandalaSpreadIds?: string[];
   musicEnabled?: boolean;
   musicVolume?: number;
   ambientWarmth?: boolean;

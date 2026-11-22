@@ -368,6 +368,235 @@ class CrochetAudioEngine {
       o.stop(t + 0.58);
     });
   }
+
+  // Magical fairy sparkle arpeggio for the MAGIA button on the cover screen
+  public playMagicChime(active: boolean) {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    const notes = active
+      ? [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98]
+      : [1046.5, 783.99, 659.25, 523.25];
+
+    notes.forEach((freq, idx) => {
+      const t = now + idx * (active ? 0.055 : 0.065);
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(active ? 0.08 : 0.055, t + 0.016);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.72);
+
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.75);
+    });
+  }
+
+  // Cinematic SFX: Hot teacup bubbling overflow -> splashing spill -> swirling magical whirlpool portal
+  public playTeaOverflowAndVortex() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    // 1. Rapid bubbling liquid boil & rim spill (0.0s -> 1.05s)
+    for (let i = 0; i < 12; i++) {
+      const t = now + i * 0.075 + Math.random() * 0.03;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      const baseF = 240 + i * 32 + Math.random() * 75;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseF, t);
+      osc.frequency.exponentialRampToValueAtTime(baseF * 1.95, t + 0.065);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.095, t + 0.012);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+      osc.connect(env);
+      env.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.095);
+    }
+
+    // 2. Water spill + accelerating swirling vortex noise sweep (0.25s -> 2.55s)
+    const dur = 2.35;
+    const bufSize = Math.floor(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const ch = buffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      const p = i / bufSize;
+      const swirlMod = 0.65 + 0.35 * Math.sin(p * Math.PI * 16 * (0.4 + p));
+      ch[i] = (Math.random() * 2 - 1) * swirlMod;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.setValueAtTime(1.6, now + 0.2);
+    filter.Q.linearRampToValueAtTime(5.2, now + 1.95);
+    filter.frequency.setValueAtTime(340, now + 0.2);
+    filter.frequency.exponentialRampToValueAtTime(1750, now + 1.95);
+    filter.frequency.exponentialRampToValueAtTime(480, now + 2.55);
+
+    const nEnv = ctx.createGain();
+    nEnv.gain.setValueAtTime(0.0001, now + 0.2);
+    nEnv.gain.linearRampToValueAtTime(0.18, now + 0.65);
+    nEnv.gain.linearRampToValueAtTime(0.28, now + 1.85);
+    nEnv.gain.exponentialRampToValueAtTime(0.0001, now + 2.58);
+
+    noise.connect(filter);
+    filter.connect(nEnv);
+    nEnv.connect(this.sfxGain);
+    noise.start(now + 0.2);
+
+    // 3. Resonant vortex hum rising into sunlit meadow arrival chord (1.15s -> 2.85s)
+    const arrivalNotes = [392.0, 493.88, 587.33, 739.99, 783.99, 987.77, 1174.66];
+    arrivalNotes.forEach((freq, idx) => {
+      const t = now + 1.25 + idx * 0.14;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = idx >= 4 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq * 0.94, t);
+      osc.frequency.exponentialRampToValueAtTime(freq, t + 0.08);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.085, t + 0.03);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.72);
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.76);
+    });
+  }
+
+  // Farm SFX: Soft earthy thud + seed pop
+  public playFarmPlant() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(410, now + 0.08);
+    env.gain.setValueAtTime(0.0001, now);
+    env.gain.linearRampToValueAtTime(0.16, now + 0.01);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+    osc.connect(env);
+    env.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  // Farm SFX: Sparkling water splash droplets
+  public playFarmWater() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    [520, 690, 860].forEach((f, idx) => {
+      const t = now + idx * 0.045;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f * 0.85, t);
+      osc.frequency.exponentialRampToValueAtTime(f * 1.45, t + 0.065);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.1, t + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    });
+  }
+
+  // Farm SFX: Crisp joyful crop harvest + coin shimmer
+  public playFarmHarvest() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, idx) => {
+      const t = now + idx * 0.045;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, t);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.11, t + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    });
+  }
+
+  // Farm SFX: Cute cozy wool shear / friendly animal chirp
+  public playFarmAnimal() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    const env = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(340, now);
+    osc.frequency.exponentialRampToValueAtTime(295, now + 0.24);
+
+    lfo.frequency.value = 24;
+    lfoGain.gain.value = 18;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+
+    env.gain.setValueAtTime(0.0001, now);
+    env.gain.linearRampToValueAtTime(0.13, now + 0.025);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + 0.27);
+
+    osc.connect(env);
+    env.connect(this.sfxGain);
+    lfo.start(now);
+    osc.start(now);
+    lfo.stop(now + 0.28);
+    osc.stop(now + 0.29);
+  }
+
+  // Farm SFX: Celebratory level-up / order fulfilled fanfare
+  public playFarmLevelUp() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+
+    [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, idx) => {
+      const t = now + idx * 0.07;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, t);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(0.12, t + 0.015);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+      osc.connect(env);
+      env.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.45);
+    });
+  }
 }
 
 export const audioEngine = new CrochetAudioEngine();

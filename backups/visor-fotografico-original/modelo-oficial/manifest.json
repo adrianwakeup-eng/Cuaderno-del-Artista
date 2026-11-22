@@ -1,0 +1,61 @@
+{
+  "id": "modelo-oficial",
+  "name": "Modelo Oficial Fuentes Nazco",
+  "description": "Referencia fotográfica oficial de cuatro vistas (Frente, Perfil Izquierdo, Espalda, Perfil Derecho) conservando rostro, gafas, cabello rizado, barba y proporciones anatómicas originales.",
+  "canvas": {
+    "width": 720,
+    "height": 1080,
+    "headTopY": 48,
+    "feetBaselineY": 1044
+  },
+  "supportedAngles": 4,
+  "supportsMultiAngleSequences": [4, 8, 12, 24],
+  "poses": {
+    "natural": {
+      "available": true,
+      "frames": [
+        {
+          "id": "frente",
+          "angleDeg": 0,
+          "label": "Frente (0°)",
+          "src": "/vestidor/modelo-oficial/frente.png"
+        },
+        {
+          "id": "perfil-izquierdo",
+          "angleDeg": 90,
+          "label": "Perfil Izquierdo (90°)",
+          "src": "/vestidor/modelo-oficial/perfil-izquierdo.png"
+        },
+        {
+          "id": "espalda",
+          "angleDeg": 180,
+          "label": "Espalda (180°)",
+          "src": "/vestidor/modelo-oficial/espalda.png"
+        },
+        {
+          "id": "perfil-derecho",
+          "angleDeg": 270,
+          "label": "Perfil Derecho (270°)",
+          "src": "/vestidor/modelo-oficial/perfil-derecho.png"
+        }
+      ]
+    },
+    "perfil-moda": {
+      "available": true,
+      "frames": [
+        {
+          "id": "perfil-izquierdo",
+          "angleDeg": 90,
+          "label": "Perfil Izquierdo (90°)",
+          "src": "/vestidor/modelo-oficial/perfil-izquierdo.png"
+        },
+        {
+          "id": "perfil-derecho",
+          "angleDeg": 270,
+          "label": "Perfil Derecho (270°)",
+          "src": "/vestidor/modelo-oficial/perfil-derecho.png"
+        }
+      ]
+    }
+  }
+}

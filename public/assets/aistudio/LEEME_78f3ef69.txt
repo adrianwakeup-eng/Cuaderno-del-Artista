@@ -1,0 +1,6 @@
+ATELIER CROCHET 3D PRO — FUENTES NAZCO
+
+Abre index.html en un navegador moderno con conexión a internet (Three.js se carga desde CDN).
+Incluye: malla de cuerpo estilizado, prendas generadas mediante superficies loft, 24 estilos, 8 paletas, 8 poses, textura procedural de hilo, giro 360, zoom, animación y exportación PNG.
+
+IMPORTANTE: no utiliza un modelo GLB de alta fidelidad ni simulación física de tela. Es un prototipo mejorado con geometría procedural, no un modelo fotorealista.

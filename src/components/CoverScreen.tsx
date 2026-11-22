@@ -1,10 +1,20 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, Check, Edit3, Plus, Trash2, Volume2, VolumeX } from 'lucide-react';
-import crochetArtistDeskImg from '../assets/images/crochet_artist_desk_1795001462818.jpg';
+import {
+  BookOpen,
+  Check,
+  Edit3,
+  Plus,
+  Trash2,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
+import crochetArtistDeskImg from '../assets/images/desk_antique_button_box_clean_1795280363060.jpg';
 import type { DeskNoteItem } from '../types/crochet';
 import { audioEngine } from '../utils/audioEngine';
+import { fairyMusicPlayer } from '../utils/fairyMusicPlayer';
 import { PWAInstallButton } from './WindowsDesktopControls';
+import { ButterflyWingsIcon, CoverMagicFairy } from './CoverMagicFairy';
 
 interface CoverScreenProps {
   sfxEnabled: boolean;
@@ -58,17 +68,23 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
   onOpenBook,
 }) => {
   const [isOpening, setIsOpening] = useState(false);
+  const [magicActive, setMagicActive] = useState(false);
   const [dragProgress, setDragProgress] = useState(0);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [draggingNoteId, setDraggingNoteId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState('');
   const dragStartX = useRef<number | null>(null);
   const stageRef = useRef<HTMLElement>(null);
+  const notesZoneRef = useRef<HTMLDivElement>(null);
+  const suppressEditClickRef = useRef(false);
   const draggingNoteRef = useRef<{
     id: string;
     startX: number;
     startY: number;
     origX: number;
     origY: number;
+    noteWidth: number;
+    noteHeight: number;
     moved: boolean;
   } | null>(null);
 
@@ -82,17 +98,56 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
     dragStartX.current = e.clientX;
   };
 
+  const beginNoteDrag = (
+    e: React.PointerEvent,
+    note: DeskNoteItem,
+    cardEl: HTMLElement | null
+  ) => {
+    if (editingNoteId === note.id) return;
+    e.stopPropagation();
+    const cardRect = cardEl?.getBoundingClientRect();
+    suppressEditClickRef.current = false;
+    draggingNoteRef.current = {
+      id: note.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: note.x,
+      origY: note.y,
+      noteWidth: cardRect?.width ?? 172,
+      noteHeight: cardRect?.height ?? 96,
+      moved: false,
+    };
+  };
+
   const handleStagePointerMove = (e: React.PointerEvent) => {
-    if (draggingNoteRef.current && stageRef.current) {
-      const rect = stageRef.current.getBoundingClientRect();
-      const dxPct = ((e.clientX - draggingNoteRef.current.startX) / rect.width) * 100;
-      const dyPct = ((e.clientY - draggingNoteRef.current.startY) / rect.height) * 100;
-      if (Math.abs(dxPct) > 0.6 || Math.abs(dyPct) > 0.6) {
-        draggingNoteRef.current.moved = true;
+    if (draggingNoteRef.current && notesZoneRef.current) {
+      const drag = draggingNoteRef.current;
+      const dxPx = e.clientX - drag.startX;
+      const dyPx = e.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(dxPx, dyPx) > 4) {
+        drag.moved = true;
+        suppressEditClickRef.current = true;
+        setDraggingNoteId(drag.id);
       }
-      const nextX = Math.max(2, Math.min(43, draggingNoteRef.current.origX + dxPct));
-      const nextY = Math.max(5, Math.min(82, draggingNoteRef.current.origY + dyPct));
-      const targetId = draggingNoteRef.current.id;
+      if (!drag.moved) return;
+
+      const zoneRect = notesZoneRef.current.getBoundingClientRect();
+      const dxPct = (dxPx / Math.max(1, zoneRect.width)) * 100;
+      const dyPct = (dyPx / Math.max(1, zoneRect.height)) * 100;
+
+      const padXPct = (6 / Math.max(1, zoneRect.width)) * 100;
+      const padTopPct = (12 / Math.max(1, zoneRect.height)) * 100;
+      const padBotPct = (8 / Math.max(1, zoneRect.height)) * 100;
+      const noteWPct = (drag.noteWidth / Math.max(1, zoneRect.width)) * 100;
+      const noteHPct = (drag.noteHeight / Math.max(1, zoneRect.height)) * 100;
+
+      const maxX = Math.max(padXPct, 100 - noteWPct - padXPct);
+      const maxY = Math.max(padTopPct, 100 - noteHPct - padBotPct);
+
+      const nextX = Math.max(padXPct, Math.min(maxX, drag.origX + dxPct));
+      const nextY = Math.max(padTopPct, Math.min(maxY, drag.origY + dyPct));
+      const targetId = drag.id;
+
       onChangeDeskNotes(
         deskNotes.map((n) => (n.id === targetId ? { ...n, x: nextX, y: nextY } : n))
       );
@@ -114,7 +169,14 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
   const handleStagePointerUp = () => {
     dragStartX.current = null;
     if (draggingNoteRef.current) {
+      const wasMoved = draggingNoteRef.current.moved;
       draggingNoteRef.current = null;
+      setDraggingNoteId(null);
+      if (wasMoved) {
+        window.setTimeout(() => {
+          suppressEditClickRef.current = false;
+        }, 0);
+      }
     }
     if (!isOpening) {
       setDragProgress(0);
@@ -122,6 +184,7 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
   };
 
   const startEditingNote = (note: DeskNoteItem) => {
+    if (suppressEditClickRef.current) return;
     audioEngine.playStitchClick();
     setEditingNoteId(note.id);
     setDraftText(note.text);
@@ -142,8 +205,8 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
     audioEngine.playRetroPop(2);
     const tones: DeskNoteItem['tone'][] = ['cream', 'ochre', 'sage', 'rose', 'linen'];
     const newId = `desk-note-${Date.now()}`;
-    const randomX = 6 + ((deskNotes.length * 11) % 33);
-    const randomY = 14 + ((deskNotes.length * 19) % 62);
+    const randomX = 4 + ((deskNotes.length * 19) % 62);
+    const randomY = 8 + ((deskNotes.length * 17) % 68);
     const randomRot = ((deskNotes.length % 5) - 2) * 3;
     const newNote: DeskNoteItem = {
       id: newId,
@@ -168,22 +231,13 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
 
   return (
     <div
-      className="relative min-h-screen w-full overflow-hidden bg-[#1a0f08] flex flex-col items-center justify-center p-3 sm:p-5"
+      className="relative h-full w-full overflow-hidden bg-[#1a0f08] flex flex-col"
       onPointerMove={handleStagePointerMove}
       onPointerUp={handleStagePointerUp}
       onPointerCancel={handleStagePointerUp}
     >
-      {/* Ambient background wood & leather glow */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-40 blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle at 65% 50%, rgba(196, 128, 62, 0.38), transparent 55%), radial-gradient(circle at 30% 50%, rgba(145, 48, 56, 0.25), transparent 50%)',
-        }}
-      />
-
       {/* Top Desktop Studio Bar on Cover (only SFX & note creation, zero music) */}
-      <header className="relative z-20 w-full max-w-[1320px] flex items-center justify-between gap-3 px-4 py-2 mb-1.5 rounded-t-xl leather-surface border border-[#d6a25e]/35">
+      <header className="relative z-20 w-full shrink-0 flex items-center justify-between gap-3 px-4 py-2 leather-surface border-b border-[#d6a25e]/35">
         <div className="flex items-center gap-3 min-w-0">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#7c2029] border border-[#e3b978]/60 shadow shrink-0">
             <BookOpen className="w-3.5 h-3.5 text-[#f7e2b9]" />
@@ -195,6 +249,37 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
 
         <div className="flex items-center gap-2 shrink-0">
           <PWAInstallButton variant="header" />
+
+          <button
+            type="button"
+            onClick={() => {
+              const next = !magicActive;
+              setMagicActive(next);
+              audioEngine.playMagicChime(next);
+              // Start/stop uploaded MP3 directly inside the click gesture for guaranteed playback
+              if (next) {
+                fairyMusicPlayer.start(!sfxEnabled);
+              } else {
+                fairyMusicPlayer.stop();
+              }
+            }}
+            aria-pressed={magicActive}
+            title={
+              magicActive
+                ? 'Detener vuelo mágico y música'
+                : 'Activar vuelo mágico y música del arpa'
+            }
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+              magicActive
+                ? 'border-[#8dffb0]/85 bg-gradient-to-b from-[#236b3c] to-[#134224] text-[#eaffef] shadow-[0_0_16px_rgba(92,240,140,0.45)]'
+                : 'border-[#7ec991]/55 bg-[#1b3622]/90 hover:bg-[#244a2e] text-[#d6f7df]'
+            }`}
+          >
+            <ButterflyWingsIcon
+              className={`w-4 h-4 ${magicActive ? 'text-[#a2ffbf]' : 'text-[#84e39e]'}`}
+            />
+            <span>MAGIA</span>
+          </button>
 
           <button
             type="button"
@@ -238,12 +323,12 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
       {/* Main Cover Stage: Crochet Artist Workshop Desk + Unchanged Leather Book */}
       <main
         ref={stageRef}
-        className="relative z-10 w-full max-w-[1320px] aspect-[16/9] max-h-[84vh] rounded-b-xl overflow-hidden border border-t-0 border-[#d6a25e]/40 shadow-[0_30px_70px_rgba(0,0,0,0.75)] book-stage"
+        className="relative z-10 flex-1 min-h-0 w-full overflow-hidden book-stage"
       >
-        {/* Crochet Artist Desk Background Photo */}
+        {/* Crochet Artist Desk Background Photo with Antique Button Box */}
         <img
           src={crochetArtistDeskImg}
-          alt="Escritorio de artista del crochet con ovillos, agujas, tijeras y cuaderno de cuero"
+          alt="Escritorio de artista del crochet con ovillos, agujas, tijeras, caja de botones antigua y cuaderno de cuero"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover select-none"
           draggable={false}
@@ -265,11 +350,15 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
           />
         ))}
 
-        {/* Small Scattered Editable Motivational Notes on the Left Desk */}
-        <div className="absolute inset-y-0 left-0 w-[53%] z-20 pointer-events-none">
+        {/* Free-Drag Editable Motivational Notes across the Entire Left Desk Area (up to book spine) */}
+        <div
+          ref={notesZoneRef}
+          className="absolute inset-y-0 left-0 w-[56.5%] z-20 pointer-events-none"
+        >
           {deskNotes.map((note) => {
             const style = NOTE_TONE_STYLES[note.tone] || NOTE_TONE_STYLES.cream;
             const isEditing = editingNoteId === note.id;
+            const isDragging = draggingNoteId === note.id;
 
             return (
               <div
@@ -277,37 +366,34 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
                 style={{
                   left: `${note.x}%`,
                   top: `${note.y}%`,
-                  transform: isEditing ? 'rotate(0deg) scale(1.06)' : `rotate(${note.rotation}deg)`,
+                  transform: isEditing
+                    ? 'rotate(0deg) scale(1.06)'
+                    : isDragging
+                      ? `rotate(${note.rotation * 0.5}deg) scale(1.04)`
+                      : `rotate(${note.rotation}deg)`,
                 }}
                 onPointerDown={(e) => {
-                  e.stopPropagation();
+                  beginNoteDrag(e, note, e.currentTarget);
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
-                className={`pointer-events-auto absolute w-[142px] sm:w-[172px] rounded-md border px-2.5 pt-3 pb-2 transition-transform duration-150 ${
-                  isEditing ? 'z-40 ring-2 ring-[#f3c66f]' : 'z-20 hover:z-30 hover:scale-[1.03]'
+                className={`pointer-events-auto absolute w-[142px] sm:w-[172px] rounded-md border px-2.5 pt-3 pb-2 select-none touch-none ${
+                  isDragging
+                    ? 'z-40 cursor-grabbing shadow-[0_16px_28px_rgba(0,0,0,0.62)] ring-1 ring-[#f3c66f]/80'
+                    : isEditing
+                      ? 'z-40 ring-2 ring-[#f3c66f] transition-transform duration-150'
+                      : 'z-20 cursor-grab hover:z-30 hover:scale-[1.03] transition-transform duration-150'
                 } ${style.paper} ${style.border}`}
               >
-                {/* Craft paper masking-tape / drag handle */}
+                {/* Craft paper masking-tape / visual drag handle */}
                 <div
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    draggingNoteRef.current = {
-                      id: note.id,
-                      startX: e.clientX,
-                      startY: e.clientY,
-                      origX: note.x,
-                      origY: note.y,
-                      moved: false,
-                    };
-                  }}
-                  title="Arrastra para mover la nota por el escritorio"
+                  title="Arrastra para mover la nota libremente por el escritorio"
                   className={`absolute -top-2 left-1/2 -translate-x-1/2 w-10 h-3.5 rounded-xs border cursor-grab active:cursor-grabbing ${style.tape}`}
                 />
 
                 {isEditing ? (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5" onPointerDown={(e) => e.stopPropagation()}>
                     <textarea
                       autoFocus
                       rows={3}
@@ -349,8 +435,10 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
                   <button
                     type="button"
                     onClick={() => startEditingNote(note)}
-                    title="Clic para editar y reescribir esta nota"
-                    className={`group w-full text-left cursor-text focus:outline-none ${style.ink}`}
+                    title="Arrastra para mover o haz clic para editar esta nota"
+                    className={`group w-full text-left focus:outline-none ${
+                      isDragging ? 'cursor-grabbing' : 'cursor-grab'
+                    } ${style.ink}`}
                   >
                     <p className="font-hand text-sm sm:text-[15px] leading-snug break-words">
                       “{note.text}”
@@ -418,6 +506,9 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
             </div>
           </div>
         </motion.div>
+
+        {/* Male Forest Fairy on the Cover Screen */}
+        <CoverMagicFairy isFlying={magicActive} sfxEnabled={sfxEnabled} />
       </main>
     </div>
   );

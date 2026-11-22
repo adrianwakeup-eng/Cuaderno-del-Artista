@@ -166,6 +166,8 @@ export interface RightStudioDockProps {
   onCyclePaperStyle: () => void;
   onLayerAction: (action: LayerAction) => void;
   onNewPage: () => void;
+  onDeletePage?: () => void;
+  canDeleteCurrentSpread?: boolean;
   onImportBackup: (file: File) => void;
   onSaveNow: () => void;
   onExportBackup: () => void;
@@ -201,12 +203,12 @@ const TIZA_PRESETS: Array<{
   label: string;
   tint: string;
 }> = [
-  { id: 'tiza-pastel', label: 'Tiza rosa', tint: '#E88DA1' },
-  { id: 'carboncillo', label: 'Carboncillo', tint: '#A6A4A0' },
-  { id: 'difuminador', label: 'Difuminador', tint: '#D8C2E6' },
-  { id: 'tiza-suave', label: 'Tiza suave', tint: '#EBC299' },
-  { id: 'tiza-gruesa', label: 'Tiza gruesa', tint: '#B7CE8F' },
-  { id: 'hilo-crochet', label: 'Hilo crema', tint: '#F5E8CF' },
+  { id: 'tiza-suave', label: 'Brocha facial suave', tint: '#EBC299' },
+  { id: 'tiza-pastel', label: 'Rubor pastel', tint: '#E88DA1' },
+  { id: 'difuminador', label: 'Velo difuminador', tint: '#D8C2E6' },
+  { id: 'tiza-gruesa', label: 'Brocha kabuki', tint: '#B7CE8F' },
+  { id: 'tiza-velo', label: 'Polvo seda', tint: '#F5E8CF' },
+  { id: 'carboncillo', label: 'Sombra ahumada', tint: '#A6A4A0' },
 ];
 
 const PINCEL_PRESETS: Array<{
@@ -214,12 +216,12 @@ const PINCEL_PRESETS: Array<{
   label: string;
   tint: string;
 }> = [
-  { id: 'pluma-fina', label: 'Pluma fina', tint: '#4E2712' },
-  { id: 'hilo-crochet', label: 'Hilo crochet', tint: '#9D3B44' },
-  { id: 'acuarela', label: 'Acuarela', tint: '#5B88A8' },
-  { id: 'tiza-suave', label: 'Tiza suave', tint: '#D49B50' },
-  { id: 'tiza-pastel', label: 'Pastel', tint: '#D8746A' },
-  { id: 'carboncillo', label: 'Carboncillo', tint: '#332C28' },
+  { id: 'acrilico-fino', label: 'Acrílico fino', tint: '#4E2712' },
+  { id: 'pluma-fina', label: 'Acrílico ultrafino 000', tint: '#2B160C' },
+  { id: 'acrilico-detalle', label: 'Pincel detalle', tint: '#9D3B44' },
+  { id: 'acrilico-satinado', label: 'Acrílico satinado', tint: '#5B88A8' },
+  { id: 'acuarela', label: 'Veladura acrílica', tint: '#D49B50' },
+  { id: 'hilo-crochet', label: 'Puntada fina', tint: '#D8746A' },
 ];
 
 /* ---------- Color Conversion Helpers ---------- */
@@ -450,41 +452,59 @@ const ColorWheelPicker: React.FC<{
 };
 
 /* ---------- Tactile Textured Chalk/Brush Stroke Swatch ---------- */
-const ChalkBrushSwatch: React.FC<{ color: string; isDashed?: boolean }> = ({
-  color,
-  isDashed,
-}) => (
+const ChalkBrushSwatch: React.FC<{
+  color: string;
+  isDashed?: boolean;
+  mode?: 'chalk' | 'acrylic';
+}> = ({ color, isDashed, mode = 'chalk' }) => (
   <svg viewBox="0 0 80 28" className="w-full h-full" fill="none">
     {isDashed ? (
       <path
-        d="M8 16 Q26 8, 42 15 T72 13"
+        d="M8 16 Q26 10, 42 15 T72 13"
         stroke={color}
-        strokeWidth="4.5"
+        strokeWidth="2.1"
         strokeLinecap="round"
-        strokeDasharray="6 5"
+        strokeDasharray="4.5 4.5"
       />
+    ) : mode === 'acrylic' ? (
+      <>
+        <path
+          d="M8 18 C22 12, 36 19, 54 11 C64 8, 70 10, 74 11.5"
+          stroke={color}
+          strokeWidth="3.2"
+          strokeLinecap="round"
+          strokeOpacity="0.22"
+        />
+        <path
+          d="M9 17.5 C23 11.8, 36 18.2, 54 11 C64 8, 70 9.8, 74 11.5"
+          stroke={color}
+          strokeWidth="1.65"
+          strokeLinecap="round"
+          strokeOpacity="0.96"
+        />
+      </>
     ) : (
       <>
         <path
           d="M7 18 C20 11, 34 21, 52 12 C62 8, 70 11, 74 14"
           stroke={color}
-          strokeWidth="9"
+          strokeWidth="13"
           strokeLinecap="round"
-          strokeOpacity="0.45"
+          strokeOpacity="0.18"
         />
         <path
-          d="M10 16 C22 10, 36 18, 54 11 C64 8, 69 10, 72 12"
+          d="M9 17 C21 11, 35 19, 53 12 C63 8, 69 10, 73 13"
           stroke={color}
-          strokeWidth="5.5"
+          strokeWidth="8.5"
           strokeLinecap="round"
-          strokeOpacity="0.92"
+          strokeOpacity="0.32"
         />
         <path
-          d="M15 15 C28 13, 44 15, 66 11"
-          stroke="#ffffff"
-          strokeWidth="1.8"
+          d="M11 16 C22 11, 36 18, 54 11.5 C64 8.5, 69 10.2, 72 12.2"
+          stroke={color}
+          strokeWidth="4.5"
           strokeLinecap="round"
-          strokeOpacity="0.35"
+          strokeOpacity="0.56"
         />
       </>
     )}
@@ -531,6 +551,8 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   onCyclePaperStyle,
   onLayerAction,
   onNewPage,
+  onDeletePage,
+  canDeleteCurrentSpread = false,
   onImportBackup,
   onSaveNow,
   onExportBackup,
@@ -920,6 +942,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
               onGoToSection('cuaderno');
               onSelectTool('text');
               setOpenDrawer(null);
+              onCloseMobileDrawer?.();
             }}
           />
           <StudioToolTile
@@ -1202,6 +1225,25 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
               <Plus className="w-3 h-3" />
               <span>Hoja</span>
             </motion.button>
+
+            {onDeletePage && !isCatalogSpread && notebookMode === 'book' && (
+              <motion.button
+                type="button"
+                whileHover={canDeleteCurrentSpread ? { scale: 1.07 } : undefined}
+                whileTap={canDeleteCurrentSpread ? { scale: 0.92 } : undefined}
+                disabled={!canDeleteCurrentSpread}
+                onClick={onDeletePage}
+                aria-label="Eliminar estas dos páginas"
+                title={
+                  canDeleteCurrentSpread
+                    ? 'Eliminar estas dos páginas'
+                    : 'Debe quedar al menos una hoja editable'
+                }
+                className="p-1.5 rounded-lg bg-[#3b1512] hover:bg-[#5c1e19] border border-[#d66d5e]/55 text-[#ffcfc5] disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed shadow"
+              >
+                <Trash2 className="w-3 h-3" />
+              </motion.button>
+            )}
           </div>
 
           {/* Vista + Papel + Rotar + Zoom */}
@@ -1271,23 +1313,33 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                 type="button"
                 onClick={() => {
                   audioEngine.playStitchClick();
-                  onChangeZoom(-10);
+                  onChangeZoom(-20);
                 }}
                 aria-label="Alejar"
+                title="Alejar (Ctrl -)"
                 className="p-0.5 rounded text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
               >
                 <ZoomOut className="w-2.5 h-2.5" />
               </button>
-              <span className="font-mono-tab text-[10px] text-[#f8e6c4] w-7 text-center">
-                {zoom}%
-              </span>
               <button
                 type="button"
                 onClick={() => {
                   audioEngine.playStitchClick();
-                  onChangeZoom(10);
+                  onChangeZoom(100 - zoom);
+                }}
+                title="Restablecer zoom al 100% (Ctrl 0)"
+                className="font-mono-tab text-[10px] text-[#f8e6c4] hover:text-[#ffe39f] w-9 text-center cursor-pointer"
+              >
+                {zoom}%
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playStitchClick();
+                  onChangeZoom(20);
                 }}
                 aria-label="Acercar"
+                title="Acercar (Ctrl +)"
                 className="p-0.5 rounded text-[#f3dcb3] hover:bg-[#593319] cursor-pointer"
               >
                 <ZoomIn className="w-2.5 h-2.5" />
@@ -1500,13 +1552,29 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                         setChalkMode(tab.id);
                         if (tab.id === 'goma') {
                           audioEngine.playEraseBrush();
+                          onGoToSection('cuaderno');
+                          onChangeBrush({ softness: 10, opacity: 100 });
                           onSelectTool('eraser');
                         } else {
                           audioEngine.playYarnPluck(tab.id === 'pinceles' ? 4 : 1);
-                          onChangeBrush({
-                            category: tab.id,
-                            preset: tab.id === 'pinceles' ? 'pluma-fina' : 'tiza-suave',
-                          });
+                          onGoToSection('cuaderno');
+                          if (tab.id === 'pinceles') {
+                            onChangeBrush({
+                              category: 'pinceles',
+                              preset: 'acrilico-fino',
+                              size: 8,
+                              opacity: 82,
+                              softness: 18,
+                            });
+                          } else {
+                            onChangeBrush({
+                              category: 'tizas',
+                              preset: 'tiza-suave',
+                              size: 28,
+                              opacity: 60,
+                              softness: 90,
+                            });
+                          }
                           onSelectTool('draw');
                         }
                       }}
@@ -1530,6 +1598,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                       whileTap={{ scale: 0.94 }}
                       onClick={() => {
                         audioEngine.playEraseBrush();
+                        onGoToSection('cuaderno');
                         onChangeBrush({ softness: 10, opacity: 100 });
                         onSelectTool('eraser');
                       }}
@@ -1546,7 +1615,8 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                       whileTap={{ scale: 0.94 }}
                       onClick={() => {
                         audioEngine.playEraseBrush();
-                        onChangeBrush({ softness: 75, opacity: 65 });
+                        onGoToSection('cuaderno');
+                        onChangeBrush({ softness: 70, opacity: 90 });
                         onSelectTool('eraser');
                       }}
                       className={`py-1.5 px-2 rounded-lg border cursor-pointer transition-colors ${
@@ -1598,6 +1668,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                         <ChalkBrushSwatch
                           color={preset.tint}
                           isDashed={preset.id === 'hilo-crochet'}
+                          mode={chalkMode === 'pinceles' ? 'acrylic' : 'chalk'}
                         />
                       </motion.button>
                     );
@@ -1609,7 +1680,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                 <SliderRow
                   label="Tamaño"
                   value={brush.size}
-                  min={2}
+                  min={1}
                   max={60}
                   unit="px"
                   onChange={(size) => onChangeBrush({ size })}
@@ -2082,8 +2153,23 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
               key={cat}
               type="button"
               onClick={() => {
-                const defaultPreset = cat === 'pinceles' ? 'pluma-fina' : 'tiza-suave';
-                onChangeBrush({ category: cat, preset: defaultPreset });
+                if (cat === 'pinceles') {
+                  onChangeBrush({
+                    category: 'pinceles',
+                    preset: 'acrilico-fino',
+                    size: 8,
+                    opacity: 82,
+                    softness: 18,
+                  });
+                } else {
+                  onChangeBrush({
+                    category: 'tizas',
+                    preset: 'tiza-suave',
+                    size: 28,
+                    opacity: 60,
+                    softness: 90,
+                  });
+                }
               }}
               className={`py-1.5 rounded-md capitalize transition-colors cursor-pointer ${
                 brush.category === cat
@@ -2114,6 +2200,7 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
                 <ChalkBrushSwatch
                   color={preset.tint}
                   isDashed={preset.id === 'hilo-crochet'}
+                  mode={brush.category === 'pinceles' ? 'acrylic' : 'chalk'}
                 />
               </button>
             );
@@ -2125,7 +2212,7 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
         <SliderRow
           label="Tamaño"
           value={brush.size}
-          min={2}
+          min={1}
           max={60}
           unit="px"
           onChange={(size) => onChangeBrush({ size })}
@@ -2176,7 +2263,7 @@ export const EraserStudioPanel: React.FC<EraserStudioPanelProps> = ({
       </button>
       <button
         type="button"
-        onClick={() => onChangeBrush({ softness: 75, opacity: 65 })}
+        onClick={() => onChangeBrush({ softness: 70, opacity: 90 })}
         className={`py-2 px-2 rounded-lg border cursor-pointer transition-colors ${
           brush.softness > 35
             ? 'bg-[#6b3e1f] border-[#ebb86c] text-white font-medium'

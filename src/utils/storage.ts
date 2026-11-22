@@ -1,17 +1,33 @@
 import {
   DEFAULT_WORKSPACE,
+  INITIAL_ARMARIO_MANNEQUINS,
   INITIAL_DESK_NOTES,
   INITIAL_LEFT_MANNEQUINS,
   INITIAL_WARDROBE_SPREAD,
   ositoGrid,
 } from '../data/seedData';
-import type { NotebookWorkspaceData } from '../types/crochet';
+import type {
+  DressingRoomGarment,
+  ExtractedMandalaRecord,
+  NotebookWorkspaceData,
+  VestidorDecorElement,
+} from '../types/crochet';
 
 const DB_NAME = 'cuaderno_artista_crochet_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'workspace';
 const WORKSPACE_KEY = 'main_notebook_v1';
+const EXTRACTED_MANDALAS_KEY = 'extracted_mandalas_v1';
+const CUSTOM_FAIRY_3D_KEY = 'custom_fairy_3d_glb_v1';
+const VESTIDOR_CATALOG_V2_KEY = 'vestidor_dorado_catalog_v2';
 const LOCAL_BACKUP_KEY = 'cuaderno_artista_crochet_fallback_v1';
+const VESTIDOR_LOCAL_BACKUP_KEY = 'vestidor_dorado_catalog_v2_fallback';
+
+export interface StoredFairyModel3D {
+  name: string;
+  buffer: ArrayBuffer;
+  updatedAt: number;
+}
 
 const DEFAULT_SPREAD1_LEFT_IDS = new Set([
   'el-welcome-title',
@@ -53,6 +69,39 @@ function normalizeLoadedWorkspace(raw: Partial<NotebookWorkspaceData>): Notebook
     }
     merged.wardrobeSeededV1 = true;
   }
+  if (Array.isArray(merged.spreads)) {
+    merged.spreads = merged.spreads.map((sp) => {
+      const isWardrobeSpread =
+        sp.id === 'spread-armario' || sp.elements.some((el) => el.type === 'wardrobe');
+      if (!isWardrobeSpread) return sp;
+      let nextElements = sp.elements.map((el) =>
+        el.id === 'el-armario-mannequin-front' || el.id === 'el-armario-mannequin-back'
+          ? { ...el, permanent: true }
+          : el
+      );
+      for (const reqMannequin of INITIAL_ARMARIO_MANNEQUINS) {
+        const exists = nextElements.some(
+          (el) =>
+            el.id === reqMannequin.id ||
+            (el.type === 'mannequin' &&
+              el.side === 'right' &&
+              el.content === reqMannequin.content)
+        );
+        if (!exists) {
+          nextElements = [...nextElements, { ...reqMannequin, permanent: true }];
+        } else {
+          nextElements = nextElements.map((el) =>
+            el.type === 'mannequin' &&
+            el.side === 'right' &&
+            el.content === reqMannequin.content
+              ? { ...el, permanent: true }
+              : el
+          );
+        }
+      }
+      return { ...sp, elements: nextElements };
+    });
+  }
   merged.patterns = merged.patterns.map((p) => {
     if (p.id === 'pat-osito-algodon') {
       const hasAnyStitch = p.diagramGrid?.some((row) => row.some((cell) => Boolean(cell)));
@@ -83,21 +132,333 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+function mergeExtractedMandalas(
+  a?: Record<string, ExtractedMandalaRecord>,
+  b?: Record<string, ExtractedMandalaRecord>
+): Record<string, ExtractedMandalaRecord> {
+  const result: Record<string, ExtractedMandalaRecord> = { ...(a ?? {}) };
+  if (!b) return result;
+  for (const [id, rec] of Object.entries(b)) {
+    const prev = result[id];
+    if (!prev || (rec.updatedAt && (!prev.updatedAt || rec.updatedAt >= prev.updatedAt))) {
+      result[id] = rec;
+    }
+  }
+  return result;
+}
+
+export async function saveExtractedMandalas(
+  map: Record<string, ExtractedMandalaRecord>
+): Promise<void> {
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(map, EXTRACTED_MANDALAS_KEY);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // IndexedDB unavailable — workspace fallback handles persistence
+  }
+}
+
+export async function saveCustomFairyModel3D(model: StoredFairyModel3D): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.put(model, CUSTOM_FAIRY_3D_KEY);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function loadCustomFairyModel3D(): Promise<StoredFairyModel3D | null> {
+  try {
+    const db = await openDB();
+    return await new Promise<StoredFairyModel3D | null>((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(CUSTOM_FAIRY_3D_KEY);
+      req.onsuccess = () => {
+        const res = req.result as StoredFairyModel3D | undefined;
+        if (res && res.buffer instanceof ArrayBuffer && res.buffer.byteLength > 0) {
+          resolve(res);
+        } else {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function clearCustomFairyModel3D(): Promise<void> {
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(CUSTOM_FAIRY_3D_KEY);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Dedicated persistent catalog store for El Vestidor Dorado (starts with ZERO garments
+ * and persists user-created designs & multi-angle photographs across browser & Windows restarts).
+ */
+export async function loadVestidorCatalog(): Promise<DressingRoomGarment[]> {
+  try {
+    const db = await openDB();
+    const fromIdb = await new Promise<DressingRoomGarment[] | null>((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(VESTIDOR_CATALOG_V2_KEY);
+      req.onsuccess = () => {
+        const res = req.result;
+        resolve(Array.isArray(res) ? (res as DressingRoomGarment[]) : null);
+      };
+      req.onerror = () => resolve(null);
+    });
+    if (fromIdb) return fromIdb;
+  } catch {
+    // Fall back to localStorage below
+  }
+
+  try {
+    const raw = localStorage.getItem(VESTIDOR_LOCAL_BACKUP_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as DressingRoomGarment[];
+    }
+  } catch {
+    // ignore corrupted fallback
+  }
+
+  return [];
+}
+
+export async function saveVestidorCatalog(items: DressingRoomGarment[]): Promise<void> {
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(items, VESTIDOR_CATALOG_V2_KEY);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // IndexedDB unavailable — localStorage fallback below handles persistence
+  }
+
+  try {
+    localStorage.setItem(VESTIDOR_LOCAL_BACKUP_KEY, JSON.stringify(items));
+  } catch {
+    // Ignore localStorage quota overflow when IndexedDB already stored full-res images
+  }
+}
+
+const VESTIDOR_TRASH_KEY = 'vestidor_dorado_trash_v1';
+const VESTIDOR_TRASH_LOCAL_KEY = 'vestidor_dorado_trash_v1_fallback';
+const VESTIDOR_PREFS_LOCAL_KEY = 'vestidor_dorado_prefs_v1';
+
+export const DEFAULT_VESTIDOR_PREFERENCES = {
+  soundEnabled: false,
+  spinSpeed: 'normal' as const,
+  performanceMode: 'equilibrado' as const,
+  reduceMotion: false,
+  autoSaveEnabled: true,
+};
+
+export async function loadVestidorTrash(): Promise<DressingRoomGarment[]> {
+  try {
+    const db = await openDB();
+    const fromIdb = await new Promise<DressingRoomGarment[] | null>((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(VESTIDOR_TRASH_KEY);
+      req.onsuccess = () => {
+        const res = req.result;
+        resolve(Array.isArray(res) ? (res as DressingRoomGarment[]) : null);
+      };
+      req.onerror = () => resolve(null);
+    });
+    if (fromIdb) return fromIdb;
+  } catch {
+    // Fall back to localStorage
+  }
+  try {
+    const raw = localStorage.getItem(VESTIDOR_TRASH_LOCAL_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as DressingRoomGarment[];
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+export async function saveVestidorTrash(items: DressingRoomGarment[]): Promise<void> {
+  const trimmed = items.slice(0, 30);
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(trimmed, VESTIDOR_TRASH_KEY);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // fallback below
+  }
+  try {
+    localStorage.setItem(VESTIDOR_TRASH_LOCAL_KEY, JSON.stringify(trimmed));
+  } catch {
+    // ignore quota
+  }
+}
+
+export function loadVestidorPreferences(): {
+  soundEnabled: boolean;
+  spinSpeed: 'lento' | 'normal' | 'rapido';
+  performanceMode: 'ahorro' | 'equilibrado' | 'alto';
+  reduceMotion: boolean;
+  autoSaveEnabled: boolean;
+  lastSavedAt?: string;
+} {
+  try {
+    const raw = localStorage.getItem(VESTIDOR_PREFS_LOCAL_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_VESTIDOR_PREFERENCES,
+        ...parsed,
+        soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : false,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return { ...DEFAULT_VESTIDOR_PREFERENCES };
+}
+
+export function saveVestidorPreferences(prefs: {
+  soundEnabled: boolean;
+  spinSpeed: 'lento' | 'normal' | 'rapido';
+  performanceMode: 'ahorro' | 'equilibrado' | 'alto';
+  reduceMotion: boolean;
+  autoSaveEnabled: boolean;
+  lastSavedAt?: string;
+}): void {
+  try {
+    localStorage.setItem(VESTIDOR_PREFS_LOCAL_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore
+  }
+}
+
+const VESTIDOR_DECOR_KEY = 'vestidor_dorado_decorations_v1';
+const VESTIDOR_DECOR_LOCAL_KEY = 'vestidor_dorado_decorations_v1_fallback';
+
+export async function loadVestidorDecorations(): Promise<VestidorDecorElement[] | null> {
+  try {
+    const db = await openDB();
+    const fromIdb = await new Promise<VestidorDecorElement[] | null>((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(VESTIDOR_DECOR_KEY);
+      req.onsuccess = () => {
+        const res = req.result;
+        resolve(Array.isArray(res) ? (res as VestidorDecorElement[]) : null);
+      };
+      req.onerror = () => resolve(null);
+    });
+    if (fromIdb) return fromIdb;
+  } catch {
+    // Fall back to localStorage below
+  }
+
+  try {
+    const raw = localStorage.getItem(VESTIDOR_DECOR_LOCAL_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as VestidorDecorElement[];
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
+export async function saveVestidorDecorations(items: VestidorDecorElement[]): Promise<void> {
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(items, VESTIDOR_DECOR_KEY);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // fallback below
+  }
+
+  try {
+    localStorage.setItem(VESTIDOR_DECOR_LOCAL_KEY, JSON.stringify(items));
+  } catch {
+    // ignore quota when custom images are stored in IndexedDB
+  }
+}
+
 export async function loadWorkspace(): Promise<NotebookWorkspaceData> {
   try {
     const db = await openDB();
     return await new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.get(WORKSPACE_KEY);
-      req.onsuccess = () => {
-        if (req.result) {
-          resolve(normalizeLoadedWorkspace(req.result as Partial<NotebookWorkspaceData>));
-        } else {
-          resolve(DEFAULT_WORKSPACE);
+      const wsReq = store.get(WORKSPACE_KEY);
+      const mandalasReq = store.get(EXTRACTED_MANDALAS_KEY);
+
+      let wsResult: Partial<NotebookWorkspaceData> | undefined;
+      let mandalasResult: Record<string, ExtractedMandalaRecord> | undefined;
+      let settled = 0;
+
+      const finish = () => {
+        settled += 1;
+        if (settled < 2) return;
+        const base = wsResult ? normalizeLoadedWorkspace(wsResult) : { ...DEFAULT_WORKSPACE };
+        const mergedMandalas = mergeExtractedMandalas(base.extractedMandalas, mandalasResult);
+        if (Object.keys(mergedMandalas).length > 0) {
+          base.extractedMandalas = mergedMandalas;
         }
+        resolve(base);
       };
-      req.onerror = () => resolve(DEFAULT_WORKSPACE);
+
+      wsReq.onsuccess = () => {
+        wsResult = wsReq.result as Partial<NotebookWorkspaceData> | undefined;
+        finish();
+      };
+      wsReq.onerror = () => finish();
+
+      mandalasReq.onsuccess = () => {
+        mandalasResult = mandalasReq.result as Record<string, ExtractedMandalaRecord> | undefined;
+        finish();
+      };
+      mandalasReq.onerror = () => finish();
     });
   } catch {
     try {
@@ -118,9 +479,12 @@ export async function saveWorkspace(data: NotebookWorkspaceData): Promise<void> 
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(data, WORKSPACE_KEY);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      store.put(data, WORKSPACE_KEY);
+      if (data.extractedMandalas) {
+        store.put(data.extractedMandalas, EXTRACTED_MANDALAS_KEY);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   } catch {
     try {
@@ -145,7 +509,11 @@ export function exportWorkspaceJson(data: NotebookWorkspaceData): void {
   URL.revokeObjectURL(url);
 }
 
-export function compressImageFile(file: File, maxDimension = 900): Promise<string> {
+export function compressImageFile(
+  file: File,
+  maxDimension = 900,
+  preserveAlpha = false
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -167,6 +535,17 @@ export function compressImageFile(file: File, maxDimension = 900): Promise<strin
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
+        const wantsTransparency =
+          preserveAlpha || file.type === 'image/png' || file.type === 'image/webp';
+        if (wantsTransparency) {
+          const webpAlpha = canvas.toDataURL('image/webp', 0.88);
+          const result = webpAlpha.startsWith('data:image/webp')
+            ? webpAlpha
+            : canvas.toDataURL('image/png');
+          URL.revokeObjectURL(objectUrl);
+          resolve(result);
+          return;
+        }
         const webp = canvas.toDataURL('image/webp', 0.82);
         const result = webp.startsWith('data:image/webp')
           ? webp

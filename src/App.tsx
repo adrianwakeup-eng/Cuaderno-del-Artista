@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Minimize2, SlidersHorizontal } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { User } from 'firebase/auth';
 import { CoverScreen } from './components/CoverScreen';
 import { CrochetTransition } from './components/CrochetTransition';
-import { OuterFrameCrochetCorner } from './components/CrochetDecorations';
 import {
   RightStudioDock,
   type LayerAction,
@@ -33,6 +32,7 @@ import type {
   CrochetPattern,
   DeskNoteItem,
   DressingRoomGarment,
+  ExtractedMandalaRecord,
   FontChoice,
   NotebookSpread as SpreadType,
   NotebookWorkspaceData,
@@ -46,6 +46,7 @@ import {
   compressImageFile,
   exportWorkspaceJson,
   loadWorkspace,
+  saveExtractedMandalas,
   saveWorkspace,
 } from './utils/storage';
 import { getDriveAccessToken, initDriveAuth } from './utils/googleDrive';
@@ -54,8 +55,9 @@ export default function App() {
   const [workspace, setWorkspace] = useState<NotebookWorkspaceData>(DEFAULT_WORKSPACE);
   const [loaded, setLoaded] = useState(false);
 
-  // View state: 'cover' -> 'transitioning' -> 'studio'
+  // View state: 'cover' -> 'studio' with full-screen yarn-burst transition overlay
   const [bookState, setBookState] = useState<'cover' | 'transitioning' | 'studio'>('cover');
+  const [bookOpeningTransition, setBookOpeningTransition] = useState(false);
   const [activeSection, setActiveSection] = useState<StudioSection>('cuaderno');
   const [notebookMode, setNotebookMode] = useState<'book' | 'mandalas'>('book');
   const [currentSpreadIndex, setCurrentSpreadIndex] = useState(() =>
@@ -69,14 +71,26 @@ export default function App() {
     category: 'tizas',
     preset: 'tiza-suave',
     color: '#4E2712',
-    size: 16,
-    opacity: 85,
-    softness: 65,
+    size: 28,
+    opacity: 60,
+    softness: 90,
   });
 
-  // Undo / Redo stacks for notebook spreads
-  const [undoStack, setUndoStack] = useState<SpreadType[][]>([]);
-  const [redoStack, setRedoStack] = useState<SpreadType[][]>([]);
+  // Undo / Redo stacks for notebook spreads and removed catalog/mandala pages
+  const [undoStack, setUndoStack] = useState<
+    Array<{
+      spreads: SpreadType[];
+      hiddenCatalogSpreadIds?: string[];
+      hiddenMandalaSpreadIds?: string[];
+    }>
+  >([]);
+  const [redoStack, setRedoStack] = useState<
+    Array<{
+      spreads: SpreadType[];
+      hiddenCatalogSpreadIds?: string[];
+      hiddenMandalaSpreadIds?: string[];
+    }>
+  >([]);
   const [copiedPattern, setCopiedPattern] = useState<CopiedPatternData | null>(null);
 
   const [showHelp, setShowHelp] = useState(false);
@@ -129,6 +143,7 @@ export default function App() {
     dir: 'prev' | 'next';
   } | null>(null);
   const [toggleOverviewSignal, setToggleOverviewSignal] = useState(0);
+  const [addTextSignal, setAddTextSignal] = useState(0);
   const [rotateAllSignal, setRotateAllSignal] = useState<{
     id: number;
     mode: 'set' | 'delta' | 'reset';
@@ -190,13 +205,29 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  const catalogSpreadCount = Math.ceil((CROCHET_ALPHABET.length + workspace.patterns.length) / 8);
+  const totalRawCatalogSpreads = Math.ceil(
+    (CROCHET_ALPHABET.length + workspace.patterns.length) / 8
+  );
+  const catalogSpreadCount = useMemo(() => {
+    const hidden = new Set(workspace.hiddenCatalogSpreadIds ?? []);
+    let count = 0;
+    for (let i = 1; i <= totalRawCatalogSpreads; i++) {
+      if (!hidden.has(`catalog-spread-${i}`)) count += 1;
+    }
+    return count;
+  }, [totalRawCatalogSpreads, workspace.hiddenCatalogSpreadIds]);
 
   // Initial load from IndexedDB
   useEffect(() => {
     void loadWorkspace().then((data) => {
       setWorkspace(data);
-      setCurrentSpreadIndex(Math.ceil((CROCHET_ALPHABET.length + data.patterns.length) / 8));
+      const rawCatCount = Math.ceil((CROCHET_ALPHABET.length + data.patterns.length) / 8);
+      const hiddenCat = new Set(data.hiddenCatalogSpreadIds ?? []);
+      let visibleCat = 0;
+      for (let i = 1; i <= rawCatCount; i++) {
+        if (!hiddenCat.has(`catalog-spread-${i}`)) visibleCat += 1;
+      }
+      setCurrentSpreadIndex(visibleCat);
       audioEngine.setSfxEnabled(data.sfxEnabled);
       setLoaded(true);
     });
@@ -222,23 +253,38 @@ export default function App() {
     setWorkspace((prev) => ({ ...prev, sfxEnabled: next }));
   };
 
-  const handleOpenBook = () => {
+  const handleOpenBook = useCallback(() => {
+    if (bookOpeningTransition) return;
     audioEngine.playBookOpen();
     setBookState('transitioning');
-    window.setTimeout(() => {
-      setBookState('studio');
-    }, 1350);
-  };
+    setBookOpeningTransition(true);
+  }, [bookOpeningTransition]);
+
+  const handleBookTransitionMidpoint = useCallback(() => {
+    setBookState('studio');
+  }, []);
+
+  const handleBookTransitionComplete = useCallback(() => {
+    setBookOpeningTransition(false);
+  }, []);
 
   const handleReturnToCover = () => {
     audioEngine.playPageFlip();
+    setBookOpeningTransition(false);
     setBookState('cover');
   };
 
   // Spread update with bounded undo tracking
   const updateCurrentSpread = useCallback((updated: SpreadType) => {
     setWorkspace((prev) => {
-      setUndoStack((u) => [...u.slice(-11), prev.spreads]);
+      setUndoStack((u) => [
+        ...u.slice(-11),
+        {
+          spreads: prev.spreads,
+          hiddenCatalogSpreadIds: prev.hiddenCatalogSpreadIds,
+          hiddenMandalaSpreadIds: prev.hiddenMandalaSpreadIds,
+        },
+      ]);
       setRedoStack([]);
       return {
         ...prev,
@@ -249,7 +295,14 @@ export default function App() {
 
   const handleAddSpread = () => {
     audioEngine.playSaveChime();
-    setUndoStack((prev) => [...prev.slice(-11), workspace.spreads]);
+    setUndoStack((prev) => [
+      ...prev.slice(-11),
+      {
+        spreads: workspace.spreads,
+        hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+        hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+      },
+    ]);
     setRedoStack([]);
     const newSpread: SpreadType = {
       id: `spread-${Date.now()}`,
@@ -268,23 +321,262 @@ export default function App() {
     showToast('Nueva hoja añadida');
   };
 
-  const handleUndo = () => {
+  const handleDeleteSpread = useCallback(
+    (spreadId?: string) => {
+      const target = spreadId
+        ? workspace.spreads.find((sp) => sp.id === spreadId) ?? null
+        : notebookMode === 'book' && currentSpreadIndex >= catalogSpreadCount
+          ? workspace.spreads[currentSpreadIndex - catalogSpreadCount] ?? null
+          : null;
+      if (!target) {
+        showToast('Selecciona un pliego para eliminar');
+        return;
+      }
+      if (workspace.spreads.length <= 1) {
+        audioEngine.playToggleChime(false);
+        showToast('Debe quedar al menos una hoja editable en el cuaderno');
+        return;
+      }
+      audioEngine.playPageFlip();
+      setUndoStack((prev) => [
+        ...prev.slice(-11),
+        {
+          spreads: workspace.spreads,
+          hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+          hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+        },
+      ]);
+      setRedoStack([]);
+      const targetIndexInSpreads = workspace.spreads.findIndex((sp) => sp.id === target.id);
+      const nextSpreads = workspace.spreads.filter((sp) => sp.id !== target.id);
+      setWorkspace((prev) => ({
+        ...prev,
+        spreads: prev.spreads.filter((sp) => sp.id !== target.id),
+      }));
+      const targetGlobalIdx = catalogSpreadCount + targetIndexInSpreads;
+      setCurrentSpreadIndex((prevIdx) => {
+        const maxAllowed = catalogSpreadCount + nextSpreads.length - 1;
+        if (prevIdx > targetGlobalIdx) return Math.max(0, prevIdx - 1);
+        return Math.min(prevIdx, maxAllowed);
+      });
+      showToast('Páginas eliminadas (Ctrl+Z para deshacer)');
+    },
+    [
+      workspace.spreads,
+      workspace.hiddenCatalogSpreadIds,
+      workspace.hiddenMandalaSpreadIds,
+      notebookMode,
+      currentSpreadIndex,
+      catalogSpreadCount,
+      showToast,
+    ]
+  );
+
+  const handleDeleteCatalogSpread = useCallback(
+    (catalogSpreadId: string, visibleIdx: number) => {
+      audioEngine.playPageFlip();
+      setUndoStack((prev) => [
+        ...prev.slice(-11),
+        {
+          spreads: workspace.spreads,
+          hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+          hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+        },
+      ]);
+      setRedoStack([]);
+      setWorkspace((prev) => {
+        const existing = prev.hiddenCatalogSpreadIds ?? [];
+        if (existing.includes(catalogSpreadId)) return prev;
+        return {
+          ...prev,
+          hiddenCatalogSpreadIds: [...existing, catalogSpreadId],
+        };
+      });
+      setCurrentSpreadIndex((prevIdx) => {
+        const nextTotal = Math.max(1, catalogSpreadCount - 1 + workspace.spreads.length);
+        if (prevIdx > visibleIdx) return Math.max(0, prevIdx - 1);
+        return Math.min(prevIdx, nextTotal - 1);
+      });
+      showToast('Pliego de catálogo eliminado (Ctrl+Z para deshacer)');
+    },
+    [
+      workspace.spreads,
+      workspace.hiddenCatalogSpreadIds,
+      workspace.hiddenMandalaSpreadIds,
+      catalogSpreadCount,
+      showToast,
+    ]
+  );
+
+  const handleDeleteMandalaSpread = useCallback(
+    (mandalaSpreadId: string, visibleIdx: number, currentTotalMandalaSpreads: number) => {
+      audioEngine.playPageFlip();
+      setUndoStack((prev) => [
+        ...prev.slice(-11),
+        {
+          spreads: workspace.spreads,
+          hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+          hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+        },
+      ]);
+      setRedoStack([]);
+      setWorkspace((prev) => {
+        const existing = prev.hiddenMandalaSpreadIds ?? [];
+        if (existing.includes(mandalaSpreadId)) return prev;
+        return {
+          ...prev,
+          hiddenMandalaSpreadIds: [...existing, mandalaSpreadId],
+        };
+      });
+      const remaining = currentTotalMandalaSpreads - 1;
+      if (remaining <= 0) {
+        setNotebookMode('book');
+        setMandalaSpreadIndex(0);
+      } else {
+        setMandalaSpreadIndex((prevIdx) => {
+          if (prevIdx > visibleIdx) return Math.max(0, prevIdx - 1);
+          return Math.min(prevIdx, remaining - 1);
+        });
+      }
+      showToast('Pliego de mandalas eliminado (Ctrl+Z para deshacer)');
+    },
+    [
+      workspace.spreads,
+      workspace.hiddenCatalogSpreadIds,
+      workspace.hiddenMandalaSpreadIds,
+      showToast,
+    ]
+  );
+
+  const handleRestoreHiddenPages = useCallback(() => {
+    audioEngine.playSaveChime();
+    setUndoStack((prev) => [
+      ...prev.slice(-11),
+      {
+        spreads: workspace.spreads,
+        hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+        hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+      },
+    ]);
+    setRedoStack([]);
+    setWorkspace((prev) => ({
+      ...prev,
+      hiddenCatalogSpreadIds: [],
+      hiddenMandalaSpreadIds: [],
+    }));
+    showToast('Páginas de catálogo y mandalas restauradas');
+  }, [
+    workspace.spreads,
+    workspace.hiddenCatalogSpreadIds,
+    workspace.hiddenMandalaSpreadIds,
+    showToast,
+  ]);
+
+  const activeEditableSpread =
+    notebookMode === 'book' && currentSpreadIndex >= catalogSpreadCount
+      ? workspace.spreads[currentSpreadIndex - catalogSpreadCount] ?? null
+      : null;
+  const canDeleteCurrentSpread = Boolean(activeEditableSpread && workspace.spreads.length > 1);
+
+  const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
     audioEngine.playUndoRedo(false);
     const previous = undoStack[undoStack.length - 1];
-    setRedoStack((r) => [...r, workspace.spreads]);
+    setRedoStack((r) => [
+      ...r,
+      {
+        spreads: workspace.spreads,
+        hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+        hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+      },
+    ]);
     setUndoStack((u) => u.slice(0, -1));
-    setWorkspace((prev) => ({ ...prev, spreads: previous }));
-  };
+    setWorkspace((prev) => ({
+      ...prev,
+      spreads: previous.spreads,
+      hiddenCatalogSpreadIds: previous.hiddenCatalogSpreadIds,
+      hiddenMandalaSpreadIds: previous.hiddenMandalaSpreadIds,
+    }));
+  }, [
+    undoStack,
+    workspace.spreads,
+    workspace.hiddenCatalogSpreadIds,
+    workspace.hiddenMandalaSpreadIds,
+  ]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
     audioEngine.playUndoRedo(true);
     const next = redoStack[redoStack.length - 1];
-    setUndoStack((u) => [...u, workspace.spreads]);
+    setUndoStack((u) => [
+      ...u,
+      {
+        spreads: workspace.spreads,
+        hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+        hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+      },
+    ]);
     setRedoStack((r) => r.slice(0, -1));
-    setWorkspace((prev) => ({ ...prev, spreads: next }));
-  };
+    setWorkspace((prev) => ({
+      ...prev,
+      spreads: next.spreads,
+      hiddenCatalogSpreadIds: next.hiddenCatalogSpreadIds,
+      hiddenMandalaSpreadIds: next.hiddenMandalaSpreadIds,
+    }));
+  }, [
+    redoStack,
+    workspace.spreads,
+    workspace.hiddenCatalogSpreadIds,
+    workspace.hiddenMandalaSpreadIds,
+  ]);
+
+  const handleSelectToolSmart = useCallback(
+    (tool: ActiveCanvasTool) => {
+      if (tool === 'text') {
+        setActiveSection('cuaderno');
+        if (notebookMode === 'mandalas') {
+          setNotebookMode('book');
+        }
+        if (currentSpreadIndex < catalogSpreadCount) {
+          setCurrentSpreadIndex(catalogSpreadCount);
+        }
+        setActiveTool('select');
+        setAddTextSignal(Date.now());
+        return;
+      }
+      setActiveTool(tool);
+    },
+    [notebookMode, currentSpreadIndex, catalogSpreadCount]
+  );
+
+  // Global Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z notebook undo-redo shortcuts
+  useEffect(() => {
+    if (bookState !== 'studio' || activeSection !== 'cuaderno') return;
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onGlobalKeyDown);
+    return () => window.removeEventListener('keydown', onGlobalKeyDown);
+  }, [bookState, activeSection, handleUndo, handleRedo]);
 
   const handleSelectColor = (hex: string) => {
     setBrush((prev) => ({ ...prev, color: hex }));
@@ -369,6 +661,7 @@ export default function App() {
       if (!target) return;
 
       if (patToPaste.imagePath) {
+        const savedExtracted = workspace.extractedMandalas?.[patToPaste.id];
         const existingImages = target.elements.filter(
           (e) => e.side === side && e.type === 'image'
         ).length;
@@ -381,7 +674,10 @@ export default function App() {
           x: 8 + col * 36,
           y: 14 + row * 34,
           width: 210,
-          content: patToPaste.imagePath,
+          content: savedExtracted
+            ? savedExtracted.coloredDataUrl || savedExtracted.baseDataUrl
+            : patToPaste.imagePath,
+          extractedBaseContent: savedExtracted?.baseDataUrl,
           title: patToPaste.name,
           rotation: 0,
           frameStyle: 'minimal',
@@ -442,7 +738,7 @@ export default function App() {
           : `Símbolo pegado: ${patToPaste.abbreviation || patToPaste.name}`
       );
     },
-    [copiedPattern, workspace.spreads, brush.color, updateCurrentSpread, showToast]
+    [copiedPattern, workspace.spreads, workspace.extractedMandalas, brush.color, updateCurrentSpread, showToast]
   );
 
   const handleClearPageStrokes = () => {
@@ -498,6 +794,36 @@ export default function App() {
     }));
   };
 
+  const handleSaveExtractedMandala = useCallback(
+    (mandalaId: string, record: ExtractedMandalaRecord) => {
+      setWorkspace((prev) => {
+        const nextMap: Record<string, ExtractedMandalaRecord> = {
+          ...(prev.extractedMandalas ?? {}),
+          [mandalaId]: record,
+        };
+        void saveExtractedMandalas(nextMap);
+        return {
+          ...prev,
+          extractedMandalas: nextMap,
+        };
+      });
+    },
+    []
+  );
+
+  const handleRestoreExtractedMandala = useCallback((mandalaId: string) => {
+    setWorkspace((prev) => {
+      if (!prev.extractedMandalas || !prev.extractedMandalas[mandalaId]) return prev;
+      const nextMap = { ...prev.extractedMandalas };
+      delete nextMap[mandalaId];
+      void saveExtractedMandalas(nextMap);
+      return {
+        ...prev,
+        extractedMandalas: nextMap,
+      };
+    });
+  }, []);
+
   return (
     <div className="h-screen w-screen flex flex-col bg-[#1a0f08] text-[#f5e7cf] overflow-hidden">
       {/* Native Windows Title Bar (visible only inside the Windows Electron .exe app) */}
@@ -516,14 +842,18 @@ export default function App() {
         }}
       />
 
-      {/* Beautiful Crochet Lace Transition Overlay */}
-      <AnimatePresence>
-        {bookState === 'transitioning' && <CrochetTransition active />}
-      </AnimatePresence>
+      {/* Cinematic Book-Opening Yarn Balls & Threads Transition into the Notebook */}
+      {bookOpeningTransition && (
+        <CrochetTransition
+          active
+          onMidpointSwitch={handleBookTransitionMidpoint}
+          onComplete={handleBookTransitionComplete}
+        />
+      )}
 
       {/* Cover Screen */}
-      {bookState !== 'studio' && (
-        <div className="flex-1 min-h-0 overflow-y-auto">
+      {(bookState === 'cover' || bookState === 'transitioning') && (
+        <div className="flex-1 min-h-0 overflow-hidden">
           <CoverScreen
             sfxEnabled={workspace.sfxEnabled}
             onToggleSfx={handleToggleSfx}
@@ -544,14 +874,6 @@ export default function App() {
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           className="relative flex-1 min-h-0 w-full flex overflow-hidden leather-studio-bg"
         >
-          {/* Decorative 3D Crochet Lace & Flowers along outer left corners (never blocking right controls or vestidor) */}
-          {!focusMode && activeSection !== 'vestidor' && (
-            <>
-              <OuterFrameCrochetCorner corner="top-left" />
-              <OuterFrameCrochetCorner corner="bottom-left" />
-            </>
-          )}
-
           {/* Focus mode quick exit button */}
           {focusMode && activeSection === 'cuaderno' && (
             <button
@@ -581,9 +903,15 @@ export default function App() {
                 mandalaSpreadIndex={mandalaSpreadIndex}
                 onChangeMandalaSpreadIndex={setMandalaSpreadIndex}
                 onAddSpread={handleAddSpread}
+                onDeleteSpread={handleDeleteSpread}
+                hiddenCatalogSpreadIds={workspace.hiddenCatalogSpreadIds}
+                hiddenMandalaSpreadIds={workspace.hiddenMandalaSpreadIds}
+                onDeleteCatalogSpread={handleDeleteCatalogSpread}
+                onDeleteMandalaSpread={handleDeleteMandalaSpread}
+                onRestoreHiddenPages={handleRestoreHiddenPages}
                 onUpdateSpread={updateCurrentSpread}
                 activeTool={activeTool}
-                onSelectTool={setActiveTool}
+                onSelectTool={handleSelectToolSmart}
                 selectedShapeKind={selectedShapeKind}
                 brush={brush}
                 onPickColorFromCanvas={(hex) => {
@@ -592,9 +920,15 @@ export default function App() {
                   showToast(`Color capturado: ${hex}`);
                 }}
                 selectedFont={workspace.selectedFont}
+                extractedMandalas={workspace.extractedMandalas}
+                onSaveExtractedMandala={handleSaveExtractedMandala}
+                onRestoreExtractedMandala={handleRestoreExtractedMandala}
                 copiedPattern={copiedPattern}
                 onCopyPattern={handleCopyPattern}
                 onPastePatternOnSpread={handlePastePatternOnSpread}
+                onPasteExternalImage={(file) => void handleNotebookImageFile(file)}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
                 onPlayPageFlip={() => audioEngine.playPageFlip()}
                 onEnterDressingRoom={() => setActiveSection('vestidor')}
                 onNotify={showToast}
@@ -608,9 +942,13 @@ export default function App() {
                 cyclePaperSignal={cyclePaperSignal}
                 turnPageSignal={turnPageSignal}
                 toggleOverviewSignal={toggleOverviewSignal}
+                addTextSignal={addTextSignal}
+                onConsumeAddTextSignal={() => setAddTextSignal(0)}
                 rotateAllSignal={rotateAllSignal}
                 zoom={bookZoom}
-                onChangeZoom={setBookZoom}
+                onChangeZoom={(next) =>
+                  setBookZoom(Math.max(25, Math.min(500, Math.round(next))))
+                }
                 onSpreadMetaChange={setSpreadMeta}
               />
             )}
@@ -870,7 +1208,7 @@ export default function App() {
                   savedToast={savedToast}
                   onSelectColor={handleSelectColor}
                   onChangeBrush={(patch) => setBrush((prev) => ({ ...prev, ...patch }))}
-                  onSelectTool={setActiveTool}
+                  onSelectTool={handleSelectToolSmart}
                   onSelectShapeKind={setSelectedShapeKind}
                   onGoToSection={(sec) => setActiveSection(sec)}
                   notebookMode={notebookMode}
@@ -888,6 +1226,8 @@ export default function App() {
                   onCyclePaperStyle={() => setCyclePaperSignal((c) => c + 1)}
                   onLayerAction={handleDockLayerAction}
                   onNewPage={handleAddSpread}
+                  onDeletePage={() => handleDeleteSpread()}
+                  canDeleteCurrentSpread={canDeleteCurrentSpread}
                   onImportBackup={handleImportBackup}
                   onSaveNow={() => {
                     void saveWorkspace(workspace);
@@ -946,7 +1286,7 @@ export default function App() {
                   onChangeSpreadIndex={setCurrentSpreadIndex}
                   onTurnPage={(dir) => setTurnPageSignal({ id: Date.now(), dir })}
                   onChangeZoom={(delta) =>
-                    setBookZoom((z) => Math.max(70, Math.min(130, z + delta)))
+                    setBookZoom((z) => Math.max(25, Math.min(500, z + delta)))
                   }
                   onToggleOverview={() => setToggleOverviewSignal((c) => c + 1)}
                   onUpdateSpreadTitle={(title) => {
@@ -1020,7 +1360,7 @@ export default function App() {
                         savedToast={savedToast}
                         onSelectColor={handleSelectColor}
                         onChangeBrush={(patch) => setBrush((prev) => ({ ...prev, ...patch }))}
-                        onSelectTool={setActiveTool}
+                        onSelectTool={handleSelectToolSmart}
                         onSelectShapeKind={setSelectedShapeKind}
                         onGoToSection={(sec) => {
                           setActiveSection(sec);
@@ -1042,6 +1382,8 @@ export default function App() {
                         onCyclePaperStyle={() => setCyclePaperSignal((c) => c + 1)}
                         onLayerAction={handleDockLayerAction}
                         onNewPage={handleAddSpread}
+                        onDeletePage={() => handleDeleteSpread()}
+                        canDeleteCurrentSpread={canDeleteCurrentSpread}
                         onImportBackup={handleImportBackup}
                         onSaveNow={() => {
                           void saveWorkspace(workspace);
@@ -1102,7 +1444,7 @@ export default function App() {
                         onChangeSpreadIndex={setCurrentSpreadIndex}
                         onTurnPage={(dir) => setTurnPageSignal({ id: Date.now(), dir })}
                         onChangeZoom={(delta) =>
-                          setBookZoom((z) => Math.max(70, Math.min(130, z + delta)))
+                          setBookZoom((z) => Math.max(25, Math.min(500, z + delta)))
                         }
                         onToggleOverview={() => setToggleOverviewSignal((c) => c + 1)}
                         onUpdateSpreadTitle={(title) => {

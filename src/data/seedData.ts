@@ -158,6 +158,35 @@ export const INITIAL_LEFT_WARDROBE: PageElement = {
   title: 'Armario Barroco de Crochet',
 };
 
+export const INITIAL_ARMARIO_MANNEQUINS: PageElement[] = [
+  {
+    id: 'el-armario-mannequin-front',
+    side: 'right',
+    type: 'mannequin',
+    x: 5,
+    y: 13,
+    width: 178,
+    content: 'front',
+    color: 'natural',
+    opacity: 1,
+    title: 'Maniquí de frente',
+    permanent: true,
+  },
+  {
+    id: 'el-armario-mannequin-back',
+    side: 'right',
+    type: 'mannequin',
+    x: 47,
+    y: 13,
+    width: 178,
+    content: 'back',
+    color: 'natural',
+    opacity: 1,
+    title: 'Maniquí de espalda',
+    permanent: true,
+  },
+];
+
 export const INITIAL_WARDROBE_SPREAD: NotebookSpread = {
   id: 'spread-armario',
   title: 'Mi Armario de Crochet',
@@ -165,30 +194,7 @@ export const INITIAL_WARDROBE_SPREAD: NotebookSpread = {
   updatedAt: '2026-11-19T08:00:00.000Z',
   elements: [
     INITIAL_LEFT_WARDROBE,
-    {
-      id: 'el-armario-mannequin-front',
-      side: 'right',
-      type: 'mannequin',
-      x: 5,
-      y: 13,
-      width: 178,
-      content: 'front',
-      color: 'natural',
-      opacity: 1,
-      title: 'Maniquí de frente',
-    },
-    {
-      id: 'el-armario-mannequin-back',
-      side: 'right',
-      type: 'mannequin',
-      x: 47,
-      y: 13,
-      width: 178,
-      content: 'back',
-      color: 'natural',
-      opacity: 1,
-      title: 'Maniquí de espalda',
-    },
+    ...INITIAL_ARMARIO_MANNEQUINS,
   ],
 };
 

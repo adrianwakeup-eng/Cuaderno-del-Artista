@@ -221,6 +221,15 @@
   border: 1px solid rgba(255, 228, 181, 0.25);
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Book & page-turn 3D utilities */
 .book-stage {
   perspective: 2400px;
@@ -266,6 +275,51 @@
   }
 }
 
+@keyframes crochetFlowerSway {
+  0%, 100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(1.6deg) translate3d(0, -2px, 0);
+  }
+}
+
+@keyframes crochetSunflowerNod {
+  0%, 100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(-1.8deg) translate3d(1px, -1.5px, 0);
+  }
+}
+
+@keyframes yarnBallRest {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -1.5px, 0);
+  }
+}
+
+@keyframes decorPendulum {
+  0%, 100% {
+    transform: rotate(-1.6deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(1.6deg) translate3d(0, 0, 0);
+  }
+}
+
+@keyframes decorFloatSoft {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
 .animate-mote {
   animation: floatMote 7s ease-in-out infinite;
 }
@@ -279,10 +333,48 @@
   animation: gentlePulseGlow 3.8s ease-in-out infinite;
 }
 
+.animate-crochet-flower {
+  transform-origin: 75% 25%;
+  animation: crochetFlowerSway 9.5s ease-in-out infinite;
+}
+
+.animate-crochet-sunflower {
+  transform-origin: 50% 85%;
+  animation: crochetSunflowerNod 11s ease-in-out infinite;
+}
+
+.animate-crochet-basket {
+  transform-origin: 50% 80%;
+  animation: yarnBallRest 8.5s ease-in-out infinite;
+}
+
+.animate-decor-pendulum {
+  transform-origin: 50% 4%;
+  animation: decorPendulum 7.5s ease-in-out infinite;
+}
+
+.animate-decor-float {
+  transform-origin: 50% 50%;
+  animation: decorFloatSoft 6.5s ease-in-out infinite;
+}
+
+.vestidor-reduced-motion *,
+.vestidor-reduced-motion *::before,
+.vestidor-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-mote,
   .animate-stitch-draw,
-  .animate-glow-soft {
+  .animate-glow-soft,
+  .animate-crochet-flower,
+  .animate-crochet-sunflower,
+  .animate-crochet-basket,
+  .animate-decor-pendulum,
+  .animate-decor-float {
     animation: none !important;
   }
 }
