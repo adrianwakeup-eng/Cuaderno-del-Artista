@@ -183,12 +183,14 @@ export interface DeskNoteItem {
 }
 
 export type DressingRoomCategory =
+  | 'Camisas'
   | 'Suéteres'
   | 'Chalecos'
+  | 'Shorts'
+  | 'Pantalones'
   | 'Cardigans'
   | 'Chaquetas'
   | 'Accesorios'
-  | 'Pantalones'
   | 'Bermudas';
 
 export type GarmentSilhouetteKind =
@@ -236,6 +238,9 @@ export interface DressingRoomGarment {
   photoDataUrl?: string;
   backPhotoDataUrl?: string;
   isCustom?: boolean;
+  overlayScale?: number;
+  overlayOffsetY?: number;
+  createdAt?: string;
 }
 
 export interface NotebookWorkspaceData {

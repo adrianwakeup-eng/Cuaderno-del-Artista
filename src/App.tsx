@@ -756,6 +756,14 @@ export default function App() {
                     wardrobeItems: [garment, ...(prev.wardrobeItems ?? [])],
                   }));
                 }}
+                onUpdateCustomGarment={(garment: DressingRoomGarment) => {
+                  setWorkspace((prev) => ({
+                    ...prev,
+                    wardrobeItems: (prev.wardrobeItems ?? []).map((g) =>
+                      g.id === garment.id ? garment : g
+                    ),
+                  }));
+                }}
                 onDeleteCustomGarment={(id: string) => {
                   setWorkspace((prev) => ({
                     ...prev,
