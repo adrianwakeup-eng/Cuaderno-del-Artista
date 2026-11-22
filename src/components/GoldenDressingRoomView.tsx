@@ -41,6 +41,7 @@ import type {
   VestidorSpinSpeed,
 } from '../types/crochet';
 import { YARN_BALL_COLORS, type YarnBallColorOption } from '../data/glbAssetManifest';
+import { COLECCION_FUENTES_NAZCO_DESIGNS } from '../data/coleccionFuentesNazco';
 import {
   STUDIO_LIGHT_ORDER,
   STUDIO_LIGHT_PRESETS,
@@ -302,8 +303,10 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     loadVestidorPreferences()
   );
 
-  // New persistent catalog: starts cleanly with ZERO garments!
-  const [catalogDesigns, setCatalogDesigns] = useState<DressingRoomGarment[]>([]);
+  // Persistent catalog seeded with the 24 real Crochet Fuentes Nazco designs (user edits/deletes are preserved)
+  const [catalogDesigns, setCatalogDesigns] = useState<DressingRoomGarment[]>(
+    () => COLECCION_FUENTES_NAZCO_DESIGNS
+  );
   const [trashDesigns, setTrashDesigns] = useState<DressingRoomGarment[]>([]);
   const [historyEntries, setHistoryEntries] = useState<VestidorHistoryEntry[]>([]);
   const [catalogLoaded, setCatalogLoaded] = useState<boolean>(false);
@@ -329,8 +332,10 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   const [dragTargetCardId, setDragTargetCardId] = useState<string | null>(null);
   const [catalogFileDragOver, setCatalogFileDragOver] = useState<boolean>(false);
 
-  // Active worn selection: starts CLEAN (null/null -> official photographic base model on crochet rug!)
-  const [selectedTopId, setSelectedTopId] = useState<string | null>(null);
+  // Active worn selection: opens showcasing flagship crochet shirt (click "Quitar ropa" anytime for base 4-view model)
+  const [selectedTopId, setSelectedTopId] = useState<string | null>(
+    'fn-col-camisa-guayabera-terracota'
+  );
   const [selectedBottomId, setSelectedBottomId] = useState<string | null>(null);
   const [showClothing, setShowClothing] = useState<boolean>(true);
 
@@ -405,16 +410,41 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
 
   useEffect(() => {
     let alive = true;
+    const SEED_FLAG = 'vestidor_coleccion_fuentes_nazco_seeded_v1';
     void Promise.all([loadVestidorCatalog(), loadVestidorTrash(), loadVestidorDecorations()])
       .then(([items, trashed, savedDecor]) => {
-        if (alive) {
-          setCatalogDesigns(items);
-          setTrashDesigns(trashed);
-          if (savedDecor !== null) {
-            setDecorItems(savedDecor);
-          }
-          setCatalogLoaded(true);
+        if (!alive) return;
+        let finalCatalog = items;
+        let alreadySeeded = false;
+        try {
+          alreadySeeded = localStorage.getItem(SEED_FLAG) === '1';
+        } catch {
+          alreadySeeded = false;
         }
+
+        if (!alreadySeeded || items.length === 0) {
+          const existingIds = new Set(items.map((d) => d.id));
+          const trashedIds = new Set(trashed.map((d) => d.id));
+          const missingSeed = COLECCION_FUENTES_NAZCO_DESIGNS.filter(
+            (d) => !existingIds.has(d.id) && !trashedIds.has(d.id)
+          );
+          if (missingSeed.length > 0) {
+            finalCatalog = [...items, ...missingSeed];
+            void saveVestidorCatalog(finalCatalog);
+          }
+          try {
+            localStorage.setItem(SEED_FLAG, '1');
+          } catch {
+            // ignore storage errors
+          }
+        }
+
+        setCatalogDesigns(finalCatalog);
+        setTrashDesigns(trashed);
+        if (savedDecor !== null) {
+          setDecorItems(savedDecor);
+        }
+        setCatalogLoaded(true);
       })
       .catch(() => {
         if (alive) setCatalogLoaded(true);
@@ -848,12 +878,25 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     setShowClothing(true);
     setCustomStudioPhotoName(null);
     viewer3DRef.current?.clearCustomPhoto();
+    const hasPhotographedModelView = Boolean(
+      garment.modelViews && Object.values(garment.modelViews).some(Boolean)
+    );
     if (garment.garmentSlot === 'bottom') {
       setBottomColorOverride(null);
-      setSelectedBottomId((prev) => (prev === garment.id ? null : garment.id));
+      const nextId = selectedBottomId === garment.id ? null : garment.id;
+      setSelectedBottomId(nextId);
+      if (nextId && hasPhotographedModelView) {
+        setSelectedTopId(null);
+        setTopColorOverride(null);
+      }
     } else {
       setTopColorOverride(null);
-      setSelectedTopId((prev) => (prev === garment.id ? null : garment.id));
+      const nextId = selectedTopId === garment.id ? null : garment.id;
+      setSelectedTopId(nextId);
+      if (nextId && hasPhotographedModelView) {
+        setSelectedBottomId(null);
+        setBottomColorOverride(null);
+      }
     }
   };
 
