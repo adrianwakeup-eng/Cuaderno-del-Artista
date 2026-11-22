@@ -199,6 +199,8 @@ export interface DeskNoteItem {
 
 export type DressingRoomCategory =
   | 'Camisas'
+  | 'Pulóveres'
+  | 'Enguatadas'
   | 'Suéteres'
   | 'Cárdigans'
   | 'Chalecos'
@@ -208,6 +210,15 @@ export type DressingRoomCategory =
   | 'Chaquetas'
   | 'Accesorios'
   | 'Bermudas';
+
+export interface RunwayColorGrade {
+  hueDeg?: number;
+  satScale?: number;
+  lightScale?: number;
+  contrastScale?: number;
+  tintHex?: string;
+  tintStrength?: number; // 0..0.65
+}
 
 export interface GarmentAnglePhotos {
   front?: string;
@@ -289,6 +300,12 @@ export interface DressingRoomGarment {
   backPhotoDataUrl?: string;
   garmentViews?: GarmentAnglePhotos;
   modelViews?: GarmentAnglePhotos;
+  /** Optional grayscale mask (0=skin/face/shoes, 255=garment yarn) for skin-safe runway colorways */
+  garmentMaskUrl?: string;
+  /** High-fashion runway house / atelier edition metadata */
+  runwayHouseId?: string;
+  runwayHouseName?: string;
+  runwayColorGrade?: RunwayColorGrade;
   /** Non-destructive per-slot framing/crop keyed by e.g. 'garment-front' | 'model-front' */
   photoCrops?: Record<string, NonDestructiveCrop>;
   availableColorIds?: string[];

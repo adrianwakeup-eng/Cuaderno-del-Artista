@@ -41,7 +41,8 @@ export const NEW_CATALOG_CATEGORIES: Array<{
   slot: 'top' | 'bottom';
 }> = [
   { id: 'Camisas', label: 'Camisas', slot: 'top' },
-  { id: 'Suéteres', label: 'Suéteres', slot: 'top' },
+  { id: 'Pulóveres', label: 'Pulóveres', slot: 'top' },
+  { id: 'Enguatadas', label: 'Enguatadas', slot: 'top' },
   { id: 'Cárdigans', label: 'Cárdigans', slot: 'top' },
   { id: 'Chalecos', label: 'Chalecos', slot: 'top' },
   { id: 'Shorts', label: 'Shorts', slot: 'bottom' },

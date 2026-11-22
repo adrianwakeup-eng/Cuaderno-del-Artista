@@ -2,34 +2,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react';
 import {
   ArrowLeft,
-  ArrowRight,
-  Camera,
+  Check,
   ChevronLeft,
   ChevronRight,
-  Columns2,
+  Copy,
   Download,
-  Eye,
-  Focus,
-  Gauge,
-  History,
   Layers,
-  Maximize2,
-  Minimize2,
-  Palette,
   Pause,
   Play,
   Plus,
-  RefreshCw,
-  RotateCcw,
-  Settings,
-  Shirt,
-  SlidersHorizontal,
   Sparkles,
-  Sun,
   User,
   X,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import type {
   DressingRoomCategory,
@@ -38,10 +22,14 @@ import type {
   VestidorDecorElement,
   VestidorHistoryEntry,
   VestidorPreferences,
-  VestidorSpinSpeed,
 } from '../types/crochet';
 import { YARN_BALL_COLORS, type YarnBallColorOption } from '../data/glbAssetManifest';
-import { COLECCION_FUENTES_NAZCO_DESIGNS } from '../data/coleccionFuentesNazco';
+import {
+  PASARELAS_ALTA_MODA_CATALOG,
+  RUNWAY_HOUSE_EDITIONS,
+  RUNWAY_MODEL_POSES,
+} from '../data/pasarelasAltaModaCatalog';
+import { copyPngBlobToClipboard } from '../utils/garmentRunwayRenderer';
 import {
   STUDIO_LIGHT_ORDER,
   STUDIO_LIGHT_PRESETS,
@@ -64,11 +52,7 @@ import {
   ArtisanYarnHooksEmblem,
 } from './ArtisanCrochetDecorations';
 import { DesignEditorModal, NEW_CATALOG_CATEGORIES } from './DesignEditorModal';
-import {
-  CatalogDesignCard,
-  CatalogFilterBar,
-  type CatalogSortMode,
-} from './CatalogPanelWidgets';
+import { CatalogDesignCard } from './CatalogPanelWidgets';
 import { OutfitComparisonModal } from './OutfitComparisonModal';
 import { DetailInspectorModal } from './DetailInspectorModal';
 import { CatalogHistoryDrawer } from './CatalogHistoryDrawer';
@@ -89,51 +73,12 @@ import {
   saveVestidorTrash,
 } from '../utils/storage';
 
-type LeftCrochetTool = 'prendas' | 'colores' | 'poses' | 'girar' | 'zoom' | 'foto';
-
 const DEFAULT_MEASUREMENTS: BodyMeasurements = {
   chest: 1.0,
   shoulders: 1.0,
   waist: 1.0,
   height: 1.0,
 };
-
-const EMPTY_CATALOG_MESSAGE =
-  '🧶 Nuestra nueva colección está en preparación. ¡Pronto añadiremos nuevos diseños!';
-
-const SPIN_SPEED_ORDER: VestidorSpinSpeed[] = ['lento', 'normal', 'rapido'];
-const SPIN_SPEED_SHORT: Record<VestidorSpinSpeed, string> = {
-  lento: '0.5×',
-  normal: '1×',
-  rapido: '2×',
-};
-
-const OFFICIAL_TURNAROUND_TILES = [
-  {
-    id: 'front',
-    label: 'Frente',
-    angleDeg: 0,
-    src: '/vestidor/modelo-oficial/frente.png',
-  },
-  {
-    id: 'profile-left',
-    label: 'Perfil Izq.',
-    angleDeg: 90,
-    src: '/vestidor/modelo-oficial/perfil-izquierdo.png',
-  },
-  {
-    id: 'back',
-    label: 'Espalda',
-    angleDeg: 180,
-    src: '/vestidor/modelo-oficial/espalda.png',
-  },
-  {
-    id: 'profile-right',
-    label: 'Perfil Der.',
-    angleDeg: 270,
-    src: '/vestidor/modelo-oficial/perfil-derecho.png',
-  },
-] as const;
 
 /* Reusable high-resolution 9-slice crochet & wood material styles */
 const WOOD_PLAQUE_STYLE: React.CSSProperties = {
@@ -146,26 +91,6 @@ const WOOD_PLAQUE_STYLE: React.CSSProperties = {
   filter: 'drop-shadow(0 7px 14px rgba(56, 24, 8, 0.42))',
 };
 
-const MINT_PANEL_STYLE: React.CSSProperties = {
-  borderStyle: 'solid',
-  borderWidth: '18px 16px',
-  borderImageSource: "url('/vestidor/artisan/mint-panel.png')",
-  borderImageSlice: '126 126 126 126 fill',
-  borderImageWidth: '20px 18px',
-  borderImageRepeat: 'round',
-  filter: 'drop-shadow(0 10px 20px rgba(48, 30, 16, 0.34))',
-};
-
-const CREAM_ROPE_FRAME_STYLE: React.CSSProperties = {
-  borderStyle: 'solid',
-  borderWidth: '11px',
-  borderImageSource: "url('/vestidor/artisan/cream-rope-frame.png')",
-  borderImageSlice: '110 110 110 110 fill',
-  borderImageWidth: '12px',
-  borderImageRepeat: 'round',
-  filter: 'drop-shadow(0 8px 16px rgba(68, 34, 16, 0.24))',
-};
-
 const PINK_PANEL_STYLE: React.CSSProperties = {
   borderStyle: 'solid',
   borderWidth: '24px',
@@ -174,105 +99,6 @@ const PINK_PANEL_STYLE: React.CSSProperties = {
   borderImageWidth: '26px',
   borderImageRepeat: 'round',
   filter: 'drop-shadow(0 12px 24px rgba(72, 30, 20, 0.32))',
-};
-
-const CREAM_BUTTON_STYLE: React.CSSProperties = {
-  borderStyle: 'solid',
-  borderWidth: '10px 11px',
-  borderImageSource: "url('/vestidor/artisan/cream-button.png')",
-  borderImageSlice: '108 112 108 112 fill',
-  borderImageWidth: '12px 13px',
-  borderImageRepeat: 'stretch',
-  filter: 'drop-shadow(0 4px 7px rgba(46, 36, 18, 0.28))',
-};
-
-const GOLD_PILL_BUTTON_STYLE: React.CSSProperties = {
-  borderStyle: 'solid',
-  borderWidth: '10px 16px',
-  borderImageSource: "url('/vestidor/artisan/gold-pill.png')",
-  borderImageSlice: '122 175 122 175 fill',
-  borderImageWidth: '12px 18px',
-  borderImageRepeat: 'stretch',
-  filter: 'drop-shadow(0 5px 10px rgba(112, 62, 8, 0.42))',
-};
-
-const GOLD_TILE_ACTIVE_STYLE: React.CSSProperties = {
-  borderStyle: 'solid',
-  borderWidth: '9px 10px',
-  borderImageSource: "url('/vestidor/artisan/gold-pill.png')",
-  borderImageSlice: '120 165 120 165 fill',
-  borderImageWidth: '10px 11px',
-  borderImageRepeat: 'stretch',
-  filter: 'drop-shadow(0 4px 8px rgba(98, 52, 8, 0.38))',
-};
-
-const WALNUT_WOOD_BG_STYLE: React.CSSProperties = {
-  backgroundImage:
-    "linear-gradient(180deg, rgba(84,32,26,0.68) 0%, rgba(56,20,18,0.78) 100%), url('/vestidor/artisan/walnut-wood.jpg')",
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-};
-
-const WOOD_ARROW_BTN_STYLE: React.CSSProperties = {
-  backgroundImage:
-    "linear-gradient(180deg, rgba(118,66,32,0.55) 0%, rgba(64,30,12,0.72) 100%), url('/vestidor/artisan/walnut-wood.jpg')",
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  boxShadow:
-    'inset 0 1px 0 rgba(255,222,172,0.45), inset 0 -2px 4px rgba(32,12,4,0.6), 0 6px 14px rgba(62,28,12,0.4)',
-};
-
-/** Crisp garment category icons matching the wooden burgundy-and-gold category tabs */
-const CategoryGarmentIcon: React.FC<{ category: DressingRoomCategory; active: boolean }> = ({
-  category,
-  active,
-}) => {
-  const stroke = active ? '#4a2208' : '#fdf0de';
-  switch (category) {
-    case 'Camisas':
-      return (
-        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 5L4.5 9L7.5 13L9.5 11.5V23H18.5V11.5L20.5 13L23.5 9L19 5L16.5 7.5H11.5L9 5Z" />
-          <path d="M14 7.5V13.5" />
-        </svg>
-      );
-    case 'Suéteres':
-      return (
-        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9.5 5.5C11 7 17 7 18.5 5.5L23.5 9.5L22 22H18.5V12V23H9.5V12V22H6L4.5 9.5L9.5 5.5Z" />
-          <path d="M10.5 12.5H17.5M10.5 16H17.5" strokeDasharray="2 2" />
-        </svg>
-      );
-    case 'Cárdigans':
-      return (
-        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9.5 5L4 9.5L6.5 22H9.5V11.5V23H18.5V11.5V22H21.5L24 9.5L18.5 5L14 11.5L9.5 5Z" />
-          <path d="M14 11.5V23" />
-        </svg>
-      );
-    case 'Chalecos':
-      return (
-        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 5L6.5 8.5C8 10.5 8 13 6.5 14.5L7.5 23L14 20.5L20.5 23L21.5 14.5C20 13 20 10.5 21.5 8.5L19 5L14 12.5L9 5Z" />
-          <path d="M14 12.5V20.5" />
-        </svg>
-      );
-    case 'Shorts':
-      return (
-        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6.5 6.5H21.5L23 21.5H15.8L14 14.5L12.2 21.5H5L6.5 6.5Z" />
-          <path d="M6.5 10H21.5" />
-        </svg>
-      );
-    case 'Pantalones':
-    default:
-      return (
-        <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M8 5H20L21.5 23.5H16L14 13L12 23.5H6.5L8 5Z" />
-          <path d="M8 8.5H20" />
-        </svg>
-      );
-  }
 };
 
 interface GoldenDressingRoomViewProps {
@@ -303,31 +129,30 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     loadVestidorPreferences()
   );
 
-  // Persistent catalog seeded with the 24 real Crochet Fuentes Nazco designs (user edits/deletes are preserved)
+  // Persistent catalog seeded with 276 high-fashion runway crochet designs (user edits/deletes preserved)
   const [catalogDesigns, setCatalogDesigns] = useState<DressingRoomGarment[]>(
-    () => COLECCION_FUENTES_NAZCO_DESIGNS
+    () => PASARELAS_ALTA_MODA_CATALOG
   );
   const [trashDesigns, setTrashDesigns] = useState<DressingRoomGarment[]>([]);
   const [historyEntries, setHistoryEntries] = useState<VestidorHistoryEntry[]>([]);
   const [catalogLoaded, setCatalogLoaded] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
 
-  // Official 2.5D photographic male model manifest
+  // Official 2D photographic male model manifest
   const [manifestBundle, setManifestBundle] = useState<VestidorManifestBundle>(() => ({
     model: OFFICIAL_MODEL_MANIFEST,
     poses: PHOTO_POSES,
     outfits: OUTFIT_PHOTO_MANIFESTS,
   }));
 
-  const [activeCategory, setActiveCategory] = useState<DressingRoomCategory>('Camisas');
-  const [activeLeftTool, setActiveLeftTool] = useState<LeftCrochetTool>('prendas');
+  const [rightPanelTab, setRightPanelTab] = useState<'prendas' | 'poses'>('prendas');
+  const [activeCategory, setActiveCategory] = useState<DressingRoomCategory | 'Todas'>('Todas');
+  const [activeRunwayId, setActiveRunwayId] = useState<string>('todas');
+  const [visibleCount, setVisibleCount] = useState<number>(36);
+  const [activePose2DId, setActivePose2DId] = useState<string>('frontal-pasarela');
+  const [copyingTransparent, setCopyingTransparent] = useState<boolean>(false);
+  const [justCopiedTransparent, setJustCopiedTransparent] = useState<boolean>(false);
 
-  // Catalog search, filter, sort & drag-reorder state
-  const [showFilters, setShowFilters] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [sortMode, setSortMode] = useState<CatalogSortMode>('manual');
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [dragTargetCardId, setDragTargetCardId] = useState<string | null>(null);
   const [catalogFileDragOver, setCatalogFileDragOver] = useState<boolean>(false);
@@ -410,7 +235,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
 
   useEffect(() => {
     let alive = true;
-    const SEED_FLAG = 'vestidor_coleccion_fuentes_nazco_seeded_v1';
+    const SEED_FLAG = 'vestidor_pasarelas_alta_moda_seeded_v2';
     void Promise.all([loadVestidorCatalog(), loadVestidorTrash(), loadVestidorDecorations()])
       .then(([items, trashed, savedDecor]) => {
         if (!alive) return;
@@ -423,15 +248,11 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
         }
 
         if (!alreadySeeded || items.length === 0) {
-          const existingIds = new Set(items.map((d) => d.id));
+          const customUserItems = items.filter((d) => d.isCustom);
           const trashedIds = new Set(trashed.map((d) => d.id));
-          const missingSeed = COLECCION_FUENTES_NAZCO_DESIGNS.filter(
-            (d) => !existingIds.has(d.id) && !trashedIds.has(d.id)
-          );
-          if (missingSeed.length > 0) {
-            finalCatalog = [...items, ...missingSeed];
-            void saveVestidorCatalog(finalCatalog);
-          }
+          const seedItems = PASARELAS_ALTA_MODA_CATALOG.filter((d) => !trashedIds.has(d.id));
+          finalCatalog = [...customUserItems, ...seedItems];
+          void saveVestidorCatalog(finalCatalog);
           try {
             localStorage.setItem(SEED_FLAG, '1');
           } catch {
@@ -520,59 +341,68 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     onNotify('Catálogo y decoraciones guardados localmente');
   }, [catalogDesigns, trashDesigns, decorItems, updatePreferences, playSfx, onNotify]);
 
-  // All tags present across designs in active category
-  const availableCategoryTags = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of catalogDesigns) {
-      if (item.category !== activeCategory) continue;
-      for (const t of item.tags ?? []) set.add(t);
-    }
-    return Array.from(set);
-  }, [catalogDesigns, activeCategory]);
-
-  // Filtered & sorted designs for active category
-  const categoryDesigns = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const list = catalogDesigns.filter((item) => {
-      if (item.category !== activeCategory) return false;
-      if (onlyFavorites && !item.favorite) return false;
-      if (activeTag && !(item.tags ?? []).includes(activeTag)) return false;
-      if (q) {
-        const hay = [
-          item.name,
-          item.subtitle,
-          item.fiber,
-          item.stitchNote,
-          ...(item.tags ?? []),
-          item.techSheet?.stitchType,
-          item.techSheet?.materials,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-
-    if (sortMode === 'alpha') {
-      return [...list].sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    }
-    if (sortMode === 'recent') {
-      return [...list].sort((a, b) =>
-        (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
-      );
-    }
-    if (sortMode === 'favorites') {
-      return [...list].sort((a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)));
-    }
-    return [...list].sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
-  }, [catalogDesigns, activeCategory, onlyFavorites, activeTag, searchQuery, sortMode]);
-
-  const rawCategoryCount = useMemo(
-    () => catalogDesigns.filter((item) => item.category === activeCategory).length,
-    [catalogDesigns, activeCategory]
+  const activePose2D = useMemo(
+    () => RUNWAY_MODEL_POSES.find((p) => p.id === activePose2DId) ?? RUNWAY_MODEL_POSES[0],
+    [activePose2DId]
   );
+
+  // Filtered designs by category & runway house
+  const categoryDesigns = useMemo(() => {
+    return catalogDesigns
+      .filter((item) => {
+        if (activeCategory !== 'Todas') {
+          if (activeCategory === 'Pulóveres') {
+            if (item.category !== 'Pulóveres' && item.category !== 'Suéteres') return false;
+          } else if (item.category !== activeCategory) {
+            return false;
+          }
+        }
+        if (activeRunwayId !== 'todas') {
+          const itemRunway = item.runwayHouseId ?? 'original';
+          if (itemRunway !== activeRunwayId) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+  }, [catalogDesigns, activeCategory, activeRunwayId]);
+
+  const rawCategoryCount = categoryDesigns.length;
+  const displayedDesigns = useMemo(
+    () => categoryDesigns.slice(0, visibleCount),
+    [categoryDesigns, visibleCount]
+  );
+
+  // Reset pagination cleanly when changing category or runway
+  useEffect(() => {
+    setVisibleCount(36);
+  }, [activeCategory, activeRunwayId]);
+
+  const handleCopyTransparentModelWithRug = useCallback(async () => {
+    if (copyingTransparent) return;
+    setCopyingTransparent(true);
+    try {
+      const res = await viewer3DRef.current?.exportTransparentModelWithRug();
+      if (!res) {
+        onNotify('No se pudo generar el recorte transparente del modelo');
+        return;
+      }
+      const copied = await copyPngBlobToClipboard(res.blob);
+      playSfx('save');
+      if (copied) {
+        setJustCopiedTransparent(true);
+        window.setTimeout(() => setJustCopiedTransparent(false), 2200);
+        onNotify('¡Copiado! Figura + alfombra en PNG con fondo transparente listo para pegar');
+      } else {
+        const a = document.createElement('a');
+        a.href = res.dataUrl;
+        a.download = 'Modelo-Alfombra-Transparente.png';
+        a.click();
+        onNotify('PNG transparente (figura + alfombra) descargado');
+      }
+    } finally {
+      setCopyingTransparent(false);
+    }
+  }, [copyingTransparent, playSfx, onNotify]);
 
   const selectedTop = useMemo(
     () => (selectedTopId ? catalogDesigns.find((g) => g.id === selectedTopId) ?? null : null),
@@ -585,13 +415,28 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     [catalogDesigns, selectedBottomId]
   );
 
-  const activeTurnaroundId = useMemo(() => {
-    const a = ((yawDeg % 360) + 360) % 360;
-    if (a < 45 || a >= 315) return 'front';
-    if (a >= 45 && a < 135) return 'profile-left';
-    if (a >= 135 && a < 225) return 'back';
-    return 'profile-right';
-  }, [yawDeg]);
+  const handleDownloadTransparentModelWithRug = useCallback(async () => {
+    if (copyingTransparent) return;
+    setCopyingTransparent(true);
+    try {
+      const res = await viewer3DRef.current?.exportTransparentModelWithRug();
+      if (!res) {
+        onNotify('No se pudo exportar el PNG transparente');
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = res.dataUrl;
+      const slug = (selectedTop?.name || selectedBottom?.name || 'Modelo-Oficial')
+        .replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ-]+/g, '-')
+        .slice(0, 42);
+      a.download = `${slug}-Alfombra-Transparente.png`;
+      a.click();
+      playSfx('save');
+      onNotify('PNG transparente (solo figura + alfombra) descargado');
+    } finally {
+      setCopyingTransparent(false);
+    }
+  }, [copyingTransparent, selectedTop?.name, selectedBottom?.name, playSfx, onNotify]);
 
   const handleOpenAddDesign = () => {
     playSfx('click');
@@ -713,7 +558,6 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     const next = catalogDesigns.map((item) =>
       orderMap.has(item.id) ? { ...item, sortOrder: orderMap.get(item.id) } : item
     );
-    setSortMode('manual');
     commitCatalogChange(next, `Reordenado en ${activeCategory}`);
     playSfx('click');
   };
@@ -1012,95 +856,11 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   const handleResetAllView = () => {
     playSfx('click');
     setIsSpinning360(false);
+    setActivePose2DId('frontal-pasarela');
     viewer3DRef.current?.resetCamera();
     setMeasurements(DEFAULT_MEASUREMENTS);
-    onNotify('Vista restablecida al frente (100%)');
+    onNotify('Vista restablecida');
   };
-
-  const handleLeftToolClick = (tool: LeftCrochetTool) => {
-    playSfx('click');
-    setActiveLeftTool(tool);
-
-    switch (tool) {
-      case 'prendas':
-        setPoseDrawerOpen(false);
-        setSettingsDrawerOpen(false);
-        break;
-      case 'colores':
-        setPoseDrawerOpen(false);
-        setSettingsDrawerOpen(false);
-        yarnScrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        break;
-      case 'poses':
-        setSettingsDrawerOpen(false);
-        setPoseDrawerOpen((prev) => !prev);
-        break;
-      case 'girar':
-        setIsSpinning360((prev) => !prev);
-        break;
-      case 'zoom':
-        if (viewerZoom > 1.08) {
-          viewer3DRef.current?.resetCamera();
-        } else {
-          viewer3DRef.current?.zoomBy(-2.0);
-        }
-        break;
-      case 'foto':
-        handleCaptureAndSavePhoto(false);
-        break;
-    }
-  };
-
-  const isZoomedIn = viewerZoom > 1.08;
-
-  const leftCrochetButtons: Array<{
-    id: LeftCrochetTool;
-    label: string;
-    icon: React.ReactNode;
-    active: boolean;
-  }> = [
-    {
-      id: 'prendas',
-      label: 'Prendas',
-      icon: <Shirt className="w-6 h-6" strokeWidth={2.2} />,
-      active: activeLeftTool === 'prendas' && !poseDrawerOpen,
-    },
-    {
-      id: 'colores',
-      label: 'Colores',
-      icon: <Palette className="w-6 h-6" strokeWidth={2.2} />,
-      active: activeLeftTool === 'colores',
-    },
-    {
-      id: 'poses',
-      label: 'Poses',
-      icon: <User className="w-6 h-6" strokeWidth={2.2} />,
-      active: poseDrawerOpen,
-    },
-    {
-      id: 'girar',
-      label: 'Girar 360°',
-      icon: (
-        <RefreshCw
-          className={`w-6 h-6 ${isSpinning360 && !effectiveReducedMotion ? 'animate-spin' : ''}`}
-          strokeWidth={2.2}
-        />
-      ),
-      active: isSpinning360,
-    },
-    {
-      id: 'zoom',
-      label: 'Zoom',
-      icon: <ZoomIn className="w-6 h-6" strokeWidth={2.2} />,
-      active: isZoomedIn,
-    },
-    {
-      id: 'foto',
-      label: 'Foto',
-      icon: <Camera className="w-6 h-6" strokeWidth={2.2} />,
-      active: false,
-    },
-  ];
 
   const wornGarment = selectedTop ?? selectedBottom;
   const availableColorSet = useMemo(() => {
@@ -1200,8 +960,8 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             </div>
           </div>
 
-          {/* Compact Right Studio Utility Controls (kept completely clear of top-right 3D flowers) */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 md:mr-44 lg:mr-56 xl:mr-64">
+          {/* Clean, Minimal Right Studio Controls */}
+          <div className="flex items-center gap-1.5 shrink-0 md:mr-44 lg:mr-56 xl:mr-64">
             <button
               type="button"
               onClick={() => {
@@ -1267,9 +1027,9 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
               title={
                 decorEditMode
                   ? 'Finalizar edición de decoraciones'
-                  : 'Editar y duplicar decoraciones del vestidor'
+                  : 'Editar decoraciones del vestidor'
               }
-              aria-label="Editar y duplicar decoraciones del vestidor"
+              aria-label="Editar decoraciones del vestidor"
               className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-md cursor-pointer transition-colors ${
                 decorEditMode
                   ? 'bg-[#f8c432] border-[#9c6108] text-[#421f07] ring-2 ring-[#ffe99e]'
@@ -1280,95 +1040,30 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => {
-                playSfx('click');
-                setComparisonOpen(true);
-              }}
-              title="Comparar conjuntos"
-              aria-label="Comparar conjuntos"
-              className="hidden sm:flex w-8 h-8 rounded-full bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#683718] items-center justify-center shadow-md cursor-pointer transition-colors"
+              onClick={handleOpenAddDesign}
+              title="Subir prenda personalizada"
+              aria-label="Añadir diseño propio"
+              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-gradient-to-b from-[#ffe26b] via-[#f6be2a] to-[#df9710] hover:brightness-105 border-2 border-[#a86a08] text-[#421f07] text-[11px] font-extrabold shadow-md cursor-pointer transition-all"
             >
-              <Columns2 className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                playSfx('click');
-                setDetailInspectorGarment(wornGarment);
-                setDetailInspectorOpen(true);
-              }}
-              title="Vista de detalles y ficha técnica"
-              aria-label="Vista de detalles y ficha técnica"
-              className="hidden sm:flex w-8 h-8 rounded-full bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#683718] items-center justify-center shadow-md cursor-pointer transition-colors"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                playSfx('click');
-                setPoseDrawerOpen(false);
-                setSettingsDrawerOpen(false);
-                setDecorEditMode(false);
-                setCleanPhotoMode(true);
-              }}
-              title="Modo fotografía sin interfaz"
-              aria-label="Modo fotografía sin interfaz"
-              className="hidden sm:flex w-8 h-8 rounded-full bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#683718] items-center justify-center shadow-md cursor-pointer transition-colors"
-            >
-              <Focus className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleCycleLight}
-              title={`Cambiar iluminación (${STUDIO_LIGHT_PRESETS[lightPreset].label})`}
-              aria-label="Cambiar iluminación"
-              className="hidden sm:flex w-8 h-8 rounded-full bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#683718] items-center justify-center shadow-md cursor-pointer transition-colors"
-            >
-              <Sun className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                playSfx('click');
-                setPoseDrawerOpen(false);
-                setSettingsDrawerOpen((prev) => !prev);
-              }}
-              title="Ajustes del visor 2.5D"
-              aria-label="Ajustes del visor 2.5D"
-              className={`hidden sm:flex w-8 h-8 rounded-full border-2 items-center justify-center shadow-md cursor-pointer transition-colors ${
-                settingsDrawerOpen
-                  ? 'bg-[#f8c432] border-[#9c6108] text-[#421f07]'
-                  : 'bg-[#fff5e4]/92 hover:bg-white border-[#c8945e] text-[#683718]'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleToggleFullscreen}
-              title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-              aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-              className="hidden sm:flex w-8 h-8 rounded-full bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#683718] items-center justify-center shadow-md cursor-pointer transition-colors"
-            >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.8} />
+              <span className="hidden sm:inline">Añadir</span>
             </button>
           </div>
         </header>
       )}
 
       {/* =====================================================================
-          CLEAN PHOTO MODE FLOATING ACTION BAR (Sin interfaz — photo capture & exit)
+          CLEAN PHOTO MODE FLOATING ACTION BAR (Sin interfaz)
       ===================================================================== */}
       {cleanPhotoMode && (
         <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => handleCaptureAndSavePhoto(true)}
+            onClick={() => void handleDownloadTransparentModelWithRug()}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-b from-[#ffe26b] to-[#e09814] border-2 border-[#9e6108] text-[#3d1b05] text-xs font-extrabold shadow-lg cursor-pointer hover:brightness-105"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Descargar PNG sin interfaz</span>
+            <span>Descargar PNG transparente</span>
           </button>
           <button
             type="button"
@@ -1382,161 +1077,145 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
       )}
 
       {/* =====================================================================
-          MAIN RESPONSIVE ARTISAN CROCHET WORKSPACE
+          INTUITIVE 2-COLUMN STATIC 2D ATELIER WORKSPACE
+          Left/Center: Static 2D Model + Crochet Rug + 1-Click Transparent Copy
+          Right: Clean High-Fashion Runway Catalog (Prendas & Poses)
       ===================================================================== */}
-      <div className="relative z-20 flex-1 flex flex-col lg:flex-row gap-2.5 lg:gap-3 px-2.5 sm:px-4 lg:px-5 pb-2.5 pt-0.5 min-h-0 overflow-y-auto lg:overflow-hidden">
-        {/* 1. LEFT CHUNKY 3D MINT-GREEN CROCHET VERTICAL PANEL */}
-        {!cleanPhotoMode && (
-          <nav
-            aria-label="Controles de El Vestidor Dorado"
-            style={MINT_PANEL_STYLE}
-            className="relative flex lg:flex-col items-center justify-between gap-1.5 sm:gap-2 p-1 shrink-0 overflow-x-auto lg:overflow-y-auto studio-scroll lg:w-[138px] xl:w-[152px]"
-          >
-            {leftCrochetButtons.map((btn) => (
+      <div className="relative z-20 flex-1 flex flex-col lg:flex-row gap-3 px-2.5 sm:px-4 lg:px-6 pb-3 pt-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+        {/* 1. CENTRAL STATIC 2D MODEL STAGE + TRANSPARENT CUTOUT ACTION BAR */}
+        <main className="relative flex-1 flex flex-col min-w-0 min-h-[460px] lg:min-h-0 overflow-hidden">
+          <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+            <VitruvianMan3D
+              ref={viewer3DRef}
+              selectedTop={selectedTop}
+              selectedBottom={selectedBottom}
+              overrideTopPalette={topColorOverride}
+              overrideBottomPalette={bottomColorOverride}
+              showClothing={showClothing}
+              knitRelief={knitRelief}
+              poseIndex={poseIndex}
+              isSpinning360={false}
+              spinSpeed={preferences.spinSpeed}
+              isAnimatingPose={false}
+              lightPreset={lightPreset}
+              qualityLevel={effectiveQuality}
+              measurements={measurements}
+              manifestBundle={manifestBundle}
+              hideBottomSpinBadge={true}
+              hideDefaultFloorBasket={true}
+              cleanStageMode={cleanPhotoMode || decorEditMode}
+              reducedMotion={effectiveReducedMotion}
+              soundEnabled={preferences.soundEnabled}
+              curtainsOpen={curtainsOpen}
+              sewingPaused={sewingPaused}
+              static2DMode={true}
+              activePose2D={activePose2D}
+              onToggleSewingPaused={() => {
+                playSfx(sewingPaused ? 'toggleOn' : 'toggleOff');
+                setSewingPaused((prev) => !prev);
+              }}
+              onToggleSpin360={() => {}}
+              onStopSpin360={() => {}}
+              onYawChange={setYawDeg}
+              onZoomChange={setViewerZoom}
+              onClearTop={() => {
+                setSelectedTopId(null);
+                setTopColorOverride(null);
+              }}
+              onClearBottom={() => {
+                setSelectedBottomId(null);
+                setBottomColorOverride(null);
+              }}
+              onResetColors={handleResetYarnColors}
+              onRequestNaturalPose={() => setActivePose2DId('frontal-pasarela')}
+              onEditActiveGarment={() => {
+                const target = selectedTop ?? selectedBottom;
+                if (target) handleOpenEditDesign(target);
+              }}
+            />
+
+            {/* Editable Studio Decorations Layer (ONLY interactive in Edit Mode) */}
+            <VestidorDecorCanvas
+              items={decorItems}
+              editMode={decorEditMode && !cleanPhotoMode}
+              reducedMotion={effectiveReducedMotion}
+              shortcutsDisabled={
+                editorModalOpen ||
+                comparisonOpen ||
+                detailInspectorOpen ||
+                historyDrawerOpen ||
+                settingsDrawerOpen ||
+                poseDrawerOpen
+              }
+              onChangeItems={handleUpdateDecorItems}
+              onExitEditMode={() => setDecorEditMode(false)}
+              onNotify={onNotify}
+              onPlaySfx={(kind) => playSfx(kind)}
+            />
+          </div>
+
+          {/* 1-CLICK TRANSPARENT FIGURE + RUG COPY / DOWNLOAD BAR */}
+          {!cleanPhotoMode && (
+            <div className="relative z-30 flex flex-wrap items-center justify-center gap-2 pt-1.5 pb-0.5 shrink-0">
               <button
-                key={btn.id}
                 type="button"
-                onClick={() => handleLeftToolClick(btn.id)}
-                style={btn.active ? GOLD_TILE_ACTIVE_STYLE : CREAM_BUTTON_STYLE}
-                className={`relative flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 lg:w-full lg:flex-1 lg:px-1 lg:py-1 rounded-[18px] overflow-hidden transition-transform duration-150 cursor-pointer shrink-0 hover:scale-[1.03] active:scale-[0.97] ${
-                  btn.active ? 'text-[#3c1a04] scale-[1.02]' : 'text-[#441e0b]'
+                disabled={copyingTransparent}
+                onClick={() => void handleCopyTransparentModelWithRug()}
+                title="Copia SOLO el modelo y la alfombra a sus pies con fondo 100% transparente (PNG)"
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 text-xs sm:text-[13px] font-extrabold shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 ${
+                  justCopiedTransparent
+                    ? 'bg-[#2c7a4b] border-[#a5e3be] text-white'
+                    : 'bg-gradient-to-b from-[#ffe478] via-[#f5bd2c] to-[#dc9410] border-[#9e6208] text-[#3d1b05]'
                 }`}
               >
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 rounded-[10px]"
-                  style={{
-                    background: btn.active
-                      ? 'radial-gradient(ellipse at 50% 42%, rgba(255,228,108,0.88) 0%, rgba(248,195,48,0.72) 78%, rgba(226,158,18,0.38) 100%)'
-                      : 'radial-gradient(ellipse at 50% 42%, rgba(255,248,236,0.82) 0%, rgba(247,232,210,0.62) 78%, rgba(235,212,182,0.28) 100%)',
-                  }}
-                />
-                <span className={`relative z-10 ${btn.active ? 'text-[#6a300c]' : 'text-[#a11e4a]'}`}>
-                  {btn.icon}
-                </span>
-                <span className="relative z-10 text-[11.5px] sm:text-[13px] font-extrabold leading-tight tracking-tight whitespace-nowrap drop-shadow-[0_1px_0_rgba(255,252,240,0.85)]">
-                  {btn.label}
+                {justCopiedTransparent ? (
+                  <Check className="w-4 h-4" strokeWidth={2.8} />
+                ) : (
+                  <Copy className="w-4 h-4" strokeWidth={2.4} />
+                )}
+                <span>
+                  {justCopiedTransparent
+                    ? '¡Copiado PNG transparente!'
+                    : copyingTransparent
+                      ? 'Preparando PNG...'
+                      : 'Copiar figura + alfombra (sin fondo)'}
                 </span>
               </button>
-            ))}
-          </nav>
-        )}
 
-        {/* 2. LEFT 4-VIEW BRAIDED-CREAM CROCHET ROPE COLUMN */}
-        {!cleanPhotoMode && (
-          <aside
-            aria-label="Cuatro vistas del modelo oficial"
-            style={CREAM_ROPE_FRAME_STYLE}
-            className="hidden md:flex flex-col gap-1.5 p-1 w-[104px] xl:w-[116px] shrink-0 min-h-0"
-          >
-            {OFFICIAL_TURNAROUND_TILES.map((tile) => {
-              const isActive = !isSpinning360 && activeTurnaroundId === tile.id;
-              return (
+              <button
+                type="button"
+                disabled={copyingTransparent}
+                onClick={() => void handleDownloadTransparentModelWithRug()}
+                title="Descargar PNG con fondo transparente (solo el modelo y la alfombra)"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#fff6e6]/95 hover:bg-white border-2 border-[#cfa16a] text-[#4f260e] text-xs font-bold shadow-sm cursor-pointer transition-colors disabled:opacity-60"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Descargar PNG</span>
+              </button>
+
+              {(selectedTop || selectedBottom) && (
                 <button
-                  key={tile.id}
                   type="button"
                   onClick={() => {
                     playSfx('click');
-                    setIsSpinning360(false);
-                    viewer3DRef.current?.setTargetAngleDeg(tile.angleDeg);
+                    setSelectedTopId(null);
+                    setSelectedBottomId(null);
+                    setTopColorOverride(null);
+                    setBottomColorOverride(null);
                   }}
-                  title={`Ver ${tile.label} (${tile.angleDeg}°)`}
-                  className={`group relative flex-1 min-h-0 rounded-xl overflow-hidden transition-all cursor-pointer flex items-center justify-center p-1 ${
-                    isActive
-                      ? 'bg-[#fae8de] ring-[3px] ring-[#f2b322] shadow-[0_4px_12px_rgba(204,132,16,0.4)]'
-                      : 'bg-[#f4dfd4]/90 border border-[#d6ab84] hover:border-[#b97744] opacity-95 hover:opacity-100'
-                  }`}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-[#fff6e6]/88 hover:bg-white border border-[#d6ac7a] text-[#6a3a1a] text-xs font-bold shadow-sm cursor-pointer transition-colors"
                 >
-                  <img
-                    src={tile.src}
-                    alt={tile.label}
-                    draggable={false}
-                    className="w-full h-full object-contain object-center"
-                  />
-                  <span className="absolute inset-x-0 bottom-0 py-0.5 bg-[#5c3118]/85 text-[#fff1d4] text-[9px] font-bold text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    {tile.label}
-                  </span>
+                  <X className="w-3.5 h-3.5" />
+                  <span>Modelo base</span>
                 </button>
-              );
-            })}
-          </aside>
-        )}
-
-        {/* 3. LARGE CENTRAL 2.5D PHOTOGRAPHIC MALE MODEL ON PHOTOREALISTIC CIRCULAR CROCHET RUG */}
-        <main className="relative flex-1 flex flex-col min-w-0 min-h-[440px] lg:min-h-0 overflow-hidden">
-          <VitruvianMan3D
-            ref={viewer3DRef}
-            selectedTop={selectedTop}
-            selectedBottom={selectedBottom}
-            overrideTopPalette={topColorOverride}
-            overrideBottomPalette={bottomColorOverride}
-            showClothing={showClothing}
-            knitRelief={knitRelief}
-            poseIndex={poseIndex}
-            isSpinning360={isSpinning360}
-            spinSpeed={preferences.spinSpeed}
-            isAnimatingPose={isAnimatingPose}
-            lightPreset={lightPreset}
-            qualityLevel={effectiveQuality}
-            measurements={measurements}
-            manifestBundle={manifestBundle}
-            hideBottomSpinBadge={true}
-            hideDefaultFloorBasket={true}
-            cleanStageMode={cleanPhotoMode || decorEditMode}
-            reducedMotion={effectiveReducedMotion}
-            soundEnabled={preferences.soundEnabled}
-            curtainsOpen={curtainsOpen}
-            sewingPaused={sewingPaused}
-            onToggleSewingPaused={() => {
-              playSfx(sewingPaused ? 'toggleOn' : 'toggleOff');
-              setSewingPaused((prev) => !prev);
-            }}
-            onToggleSpin360={() => {
-              playSfx(isSpinning360 ? 'toggleOff' : 'toggleOn');
-              setIsSpinning360((prev) => !prev);
-            }}
-            onStopSpin360={() => setIsSpinning360(false)}
-            onYawChange={setYawDeg}
-            onZoomChange={setViewerZoom}
-            onClearTop={() => {
-              setSelectedTopId(null);
-              setTopColorOverride(null);
-            }}
-            onClearBottom={() => {
-              setSelectedBottomId(null);
-              setBottomColorOverride(null);
-            }}
-            onResetColors={handleResetYarnColors}
-            onRequestNaturalPose={() => setPoseIndex(0)}
-            onEditActiveGarment={() => {
-              const target = selectedTop ?? selectedBottom;
-              if (target) handleOpenEditDesign(target);
-            }}
-          />
-
-          {/* Editable Studio Decorations Layer (strictly behind model & pointer-events-none when not editing) */}
-          <VestidorDecorCanvas
-            items={decorItems}
-            editMode={decorEditMode && !cleanPhotoMode}
-            reducedMotion={effectiveReducedMotion}
-            shortcutsDisabled={
-              editorModalOpen ||
-              comparisonOpen ||
-              detailInspectorOpen ||
-              historyDrawerOpen ||
-              settingsDrawerOpen ||
-              poseDrawerOpen
-            }
-            onChangeItems={handleUpdateDecorItems}
-            onExitEditMode={() => setDecorEditMode(false)}
-            onNotify={onNotify}
-            onPlaySfx={(kind) => playSfx(kind)}
-          />
+              )}
+            </div>
+          )}
         </main>
 
-        {/* 4. RIGHT CHUNKY 3D PASTEL-PINK CROCHET WARDROBE PANEL + BOTTOM LARGE GOLDEN GIRAR 360° */}
+        {/* 2. RIGHT INTUITIVE HIGH-FASHION RUNWAY & POSES PANEL */}
         {!cleanPhotoMode && (
-          <section className="flex flex-col lg:w-[465px] xl:w-[535px] 2xl:w-[585px] shrink-0 min-h-0 gap-2">
+          <section className="flex flex-col lg:w-[490px] xl:w-[565px] 2xl:w-[620px] shrink-0 min-h-0">
             <div
               style={PINK_PANEL_STYLE}
               onDragOver={(e) => {
@@ -1553,270 +1232,278 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                   void handleBatchCreateFromFiles(e.dataTransfer.files);
                 }
               }}
-              className="flex-1 flex flex-col min-h-0 p-1.5 sm:p-2 overflow-hidden"
+              className="flex-1 flex flex-col min-h-0 p-2 sm:p-2.5 overflow-hidden"
             >
-              {/* TOP CARVED WALNUT-BURGUNDY 6-CATEGORY BAR */}
-              <div
-                style={WALNUT_WOOD_BG_STYLE}
-                className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1.5 rounded-2xl border-2 border-[#a87058]/60 shadow-[inset_0_2px_8px_rgba(24,8,4,0.55),0_3px_8px_rgba(72,30,18,0.3)] shrink-0"
-              >
-                {NEW_CATALOG_CATEGORIES.map((cat) => {
-                  const active = activeCategory === cat.id;
-                  return (
+              {/* CLEAN TOP SWITCH: PRENDAS DE PASARELA vs POSES DEL MODELO */}
+              <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+                <div className="inline-flex items-center p-1 rounded-2xl bg-[#f4e0c8]/90 border border-[#d2a574] shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSfx('click');
+                      setRightPanelTab('prendas');
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                      rightPanelTab === 'prendas'
+                        ? 'bg-gradient-to-b from-[#ffe273] to-[#e69e18] text-[#3d1b05] shadow-sm'
+                        : 'text-[#673718] hover:text-[#3d1b05]'
+                    }`}
+                  >
+                    Prendas ({catalogDesigns.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSfx('click');
+                      setRightPanelTab('poses');
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                      rightPanelTab === 'poses'
+                        ? 'bg-gradient-to-b from-[#ffe273] to-[#e69e18] text-[#3d1b05] shadow-sm'
+                        : 'text-[#673718] hover:text-[#3d1b05]'
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Poses ({RUNWAY_MODEL_POSES.length})</span>
+                  </button>
+                </div>
+
+                {rightPanelTab === 'prendas' && (
+                  <span className="text-[11px] font-bold text-[#6e3d1d] font-mono-tab pr-1">
+                    {rawCategoryCount} diseños
+                  </span>
+                )}
+              </div>
+
+              {rightPanelTab === 'prendas' ? (
+                <>
+                  {/* CLEAN INTUITIVE CATEGORY PILLS (no clunky wood strip, no white borders) */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1.5 shrink-0">
+                    {(['Todas', ...NEW_CATALOG_CATEGORIES.map((c) => c.id)] as const).map(
+                      (catId) => {
+                        const active = activeCategory === catId;
+                        return (
+                          <button
+                            key={catId}
+                            type="button"
+                            onClick={() => {
+                              playSfx('click');
+                              setActiveCategory(catId);
+                            }}
+                            className={`px-3 py-1 rounded-full text-[11.5px] font-extrabold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                              active
+                                ? 'bg-[#5c2e14] text-[#fff3d6] shadow-sm'
+                                : 'bg-[#fff7ea]/85 hover:bg-white text-[#5d3015] border border-[#d7ae7d]'
+                            }`}
+                          >
+                            {catId}
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+
+                  {/* HIGH-FASHION RUNWAY HOUSES PILLS (Milán, París, Amalfi, Florencia, NY, Montecarlo...) */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2 shrink-0">
                     <button
-                      key={cat.id}
                       type="button"
                       onClick={() => {
                         playSfx('click');
-                        setActiveCategory(cat.id);
-                        setActiveTag(null);
-                        setActiveLeftTool('prendas');
+                        setActiveRunwayId('todas');
                       }}
-                      style={active ? GOLD_TILE_ACTIVE_STYLE : undefined}
-                      className={`relative flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-xl overflow-hidden transition-all cursor-pointer ${
-                        active
-                          ? 'text-[#3c1a04] font-extrabold'
-                          : 'text-[#fdf0de] hover:bg-white/10 font-semibold border border-white/10'
+                      className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                        activeRunwayId === 'todas'
+                          ? 'bg-[#c57d18] text-white shadow-sm'
+                          : 'bg-[#f8ead6]/80 hover:bg-[#fff7ea] text-[#6d3d1d] border border-[#dcb686]/80'
                       }`}
                     >
-                      {active && (
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-0 rounded-lg"
-                          style={{
-                            background:
-                              'radial-gradient(ellipse at 50% 45%, rgba(255,226,104,0.88) 0%, rgba(246,192,42,0.74) 80%, rgba(224,154,18,0.38) 100%)',
-                          }}
-                        />
-                      )}
-                      <span className="relative z-10">
-                        <CategoryGarmentIcon category={cat.id} active={active} />
-                      </span>
-                      <span className="relative z-10 text-[10px] leading-none tracking-tight whitespace-nowrap">
-                        {cat.label}
-                      </span>
+                      Todas las pasarelas
                     </button>
-                  );
-                })}
-              </div>
-
-              {/* CLEAN CATALOG HEADER BAR (+ Añadir diseño, subtle filter/history triggers) */}
-              <div className="flex items-center justify-between gap-2 mt-2 mb-1.5 px-1 shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <h2 className="font-display text-sm sm:text-base font-extrabold text-[#4d2510] truncate drop-shadow-[0_1px_0_rgba(255,248,236,0.7)]">
-                    {activeCategory}
-                  </h2>
-                  <span className="text-xs font-extrabold text-[#6c3d1e] font-mono-tab">
-                    ({rawCategoryCount})
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playSfx('click');
-                      setShowFilters((prev) => !prev);
-                    }}
-                    title="Buscar, filtrar, ordenar o subir varias fotos"
-                    aria-label="Buscar y filtrar catálogo"
-                    className={`w-7 h-7 rounded-xl border flex items-center justify-center shadow-sm cursor-pointer transition-colors ${
-                      showFilters || searchQuery || onlyFavorites || activeTag
-                        ? 'bg-[#ffd862] border-[#b7740c] text-[#421f07]'
-                        : 'bg-[#fff4e2]/92 hover:bg-white border-[#c89b6a] text-[#5e3116]'
-                    }`}
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playSfx('click');
-                      setHistoryDrawerOpen(true);
-                    }}
-                    title="Historial y papelera de recuperación"
-                    aria-label="Historial y papelera"
-                    className="relative w-7 h-7 rounded-xl bg-[#fff4e2]/92 hover:bg-white border border-[#c89b6a] text-[#5e3116] flex items-center justify-center shadow-sm cursor-pointer transition-colors"
-                  >
-                    <History className="w-3.5 h-3.5" />
-                    {trashDesigns.length > 0 && (
-                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#b32645] text-white text-[8.5px] font-bold flex items-center justify-center">
-                        {trashDesigns.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {(selectedTop || selectedBottom) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playSfx('click');
-                        setSelectedTopId(null);
-                        setSelectedBottomId(null);
-                        setTopColorOverride(null);
-                        setBottomColorOverride(null);
-                      }}
-                      className="px-2.5 py-1 rounded-xl bg-[#fff4e2]/92 hover:bg-white border border-[#c89b6a] text-[#5e3116] text-[11px] font-bold shadow-sm cursor-pointer transition-colors"
-                    >
-                      Quitar ropa
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleOpenAddDesign}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-gradient-to-b from-[#ffe26b] via-[#f6be2a] to-[#df9710] hover:brightness-105 border-2 border-[#a86a08] text-[#421f07] text-[11.5px] font-extrabold shadow-sm cursor-pointer transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" strokeWidth={2.8} />
-                    <span>Añadir diseño</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* DISCREET SEARCH / FILTER / SORT / BATCH BAR (auto-visible on demand or when searching) */}
-              {(showFilters || rawCategoryCount > 0) && (
-                <CatalogFilterBar
-                  searchQuery={searchQuery}
-                  onlyFavorites={onlyFavorites}
-                  activeTag={activeTag}
-                  availableTags={availableCategoryTags}
-                  sortMode={sortMode}
-                  trashCount={trashDesigns.length}
-                  historyCount={historyEntries.length}
-                  onSearchChange={setSearchQuery}
-                  onToggleFavorites={() => {
-                    playSfx('click');
-                    setOnlyFavorites((v) => !v);
-                  }}
-                  onSelectTag={(tag) => {
-                    playSfx('click');
-                    setActiveTag(tag);
-                  }}
-                  onChangeSort={(m) => {
-                    playSfx('click');
-                    setSortMode(m);
-                  }}
-                  onBatchUploadFiles={(files) => void handleBatchCreateFromFiles(files)}
-                  onOpenHistory={() => {
-                    playSfx('click');
-                    setHistoryDrawerOpen(true);
-                  }}
-                />
-              )}
-
-              {/* CATALOG GRID OR CLEAN EMPTY-COLLECTION STATE ON REAL WOVEN LINEN */}
-              <div className="flex-1 min-h-[185px] overflow-y-auto studio-scroll px-0.5">
-                {!catalogLoaded ? (
-                  <div className="h-full flex items-center justify-center text-xs font-bold text-[#6e3d1e]">
-                    Cargando catálogo...
-                  </div>
-                ) : rawCategoryCount === 0 ? (
-                  <div
-                    className={`h-full min-h-[195px] flex flex-col items-center justify-center text-center px-5 py-5 rounded-2xl border-2 border-dashed backdrop-blur-[1px] shadow-inner transition-colors ${
-                      catalogFileDragOver
-                        ? 'border-[#d48b1b] bg-[#fff3cc]/85'
-                        : 'border-[#ba8b5e]/80 bg-[#fff8ec]/64'
-                    }`}
-                  >
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-b from-[#fff3cf] to-[#f2cf96] border-2 border-[#cf9448] flex items-center justify-center text-[#91521b] shadow-sm mb-3">
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-                    <p className="font-editorial text-sm sm:text-[15.5px] font-bold text-[#4a240e] leading-snug max-w-[300px]">
-                      {EMPTY_CATALOG_MESSAGE}
-                    </p>
-                    <p className="mt-1.5 text-[11px] text-[#754626] max-w-[285px]">
-                      Añade tus propios diseños reales de «{activeCategory}» o arrastra varias fotografías directamente aquí.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleOpenAddDesign}
-                      style={GOLD_PILL_BUTTON_STYLE}
-                      className="relative mt-4 inline-flex items-center justify-center rounded-full overflow-hidden text-[#3d1b05] text-xs font-extrabold cursor-pointer transition-transform hover:scale-[1.03] active:scale-[0.98]"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 rounded-full"
-                        style={{
-                          background:
-                            'radial-gradient(ellipse at 50% 45%, rgba(255,228,108,0.88) 0%, rgba(246,192,42,0.72) 78%, rgba(224,154,18,0.34) 100%)',
-                        }}
-                      />
-                      <span className="relative z-10 inline-flex items-center gap-1.5 px-3 py-0.5 drop-shadow-[0_1px_0_rgba(255,250,220,0.85)]">
-                        <Plus className="w-3.5 h-3.5" strokeWidth={2.8} />
-                        <span>Añadir diseño</span>
-                      </span>
-                    </button>
-                  </div>
-                ) : categoryDesigns.length === 0 ? (
-                  <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center px-5 py-5 rounded-2xl border-2 border-dashed border-[#ba8b5e]/70 bg-[#fff8ec]/64">
-                    <p className="text-xs font-bold text-[#5a2f16]">
-                      No hay diseños en «{activeCategory}» que coincidan con el filtro actual.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setOnlyFavorites(false);
-                        setActiveTag(null);
-                      }}
-                      className="mt-2.5 px-3 py-1 rounded-xl bg-[#f3dfc0] hover:bg-[#e8cba0] border border-[#cfa574] text-xs font-bold text-[#4d2510] cursor-pointer"
-                    >
-                      Limpiar filtros
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 pb-1">
-                    {categoryDesigns.map((garment, idx) => {
-                      const isWorn =
-                        showClothing &&
-                        (selectedTopId === garment.id || selectedBottomId === garment.id);
+                    {RUNWAY_HOUSE_EDITIONS.map((edition) => {
+                      const active = activeRunwayId === edition.id;
                       return (
-                        <CatalogDesignCard
-                          key={garment.id}
-                          garment={garment}
-                          isWorn={isWorn}
-                          canMoveLeft={idx > 0}
-                          canMoveRight={idx < categoryDesigns.length - 1}
-                          isDragTarget={dragTargetCardId === garment.id && draggingCardId !== garment.id}
-                          onWear={() => handleWearGarment(garment)}
-                          onEdit={() => handleOpenEditDesign(garment)}
-                          onInspect={() => {
+                        <button
+                          key={edition.id}
+                          type="button"
+                          title={`${edition.houseName} — ${edition.inspiration}`}
+                          onClick={() => {
                             playSfx('click');
-                            setDetailInspectorGarment(garment);
-                            setDetailInspectorOpen(true);
+                            setActiveRunwayId(edition.id);
                           }}
-                          onDuplicate={() => handleDuplicateDesign(garment)}
-                          onToggleFavorite={() => handleToggleFavorite(garment.id)}
-                          onPin={() => {
-                            playSfx('save');
-                            onPinGarmentToNotebook(garment);
-                            onNotify(`Enviado al cuaderno: ${garment.name}`);
-                          }}
-                          onDelete={() => handleDeleteDesign(garment.id)}
-                          onMove={(dir) => handleMoveCardStep(garment.id, dir)}
-                          onDragStart={() => setDraggingCardId(garment.id)}
-                          onDragOver={(e) => {
-                            if (draggingCardId && draggingCardId !== garment.id) {
-                              e.preventDefault();
-                              setDragTargetCardId(garment.id);
-                            }
-                          }}
-                          onDrop={() => {
-                            if (draggingCardId && draggingCardId !== garment.id) {
-                              handleReorderCategoryDesigns(draggingCardId, garment.id);
-                            }
-                            setDraggingCardId(null);
-                            setDragTargetCardId(null);
-                          }}
-                          onDragEnd={() => {
-                            setDraggingCardId(null);
-                            setDragTargetCardId(null);
-                          }}
-                        />
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                            active
+                              ? 'bg-[#3e210e] text-[#ffefc8] shadow-sm ring-1 ring-[#f2c14e]'
+                              : 'bg-[#f8ead6]/80 hover:bg-[#fff7ea] text-[#643618] border border-[#dcb686]/80'
+                          }`}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full border border-black/15 shrink-0"
+                            style={{ backgroundColor: edition.swatchHex }}
+                          />
+                          <span>{edition.shortLabel}</span>
+                        </button>
                       );
                     })}
                   </div>
-                )}
-              </div>
+
+                  {/* CLEAN GARMENT GRID */}
+                  <div className="flex-1 min-h-[185px] overflow-y-auto studio-scroll px-0.5">
+                    {!catalogLoaded ? (
+                      <div className="h-full flex items-center justify-center text-xs font-bold text-[#6e3d1e]">
+                        Cargando colección de pasarelas...
+                      </div>
+                    ) : categoryDesigns.length === 0 ? (
+                      <div
+                        className={`h-full min-h-[180px] flex flex-col items-center justify-center text-center px-5 py-5 rounded-2xl border-2 border-dashed ${
+                          catalogFileDragOver
+                            ? 'border-[#d48b1b] bg-[#fff3cc]/85'
+                            : 'border-[#ba8b5e]/75 bg-[#fff8ec]/64'
+                        }`}
+                      >
+                        <p className="text-xs font-bold text-[#5a2f16]">
+                          No hay prendas en esta combinación de categoría y pasarela.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveCategory('Todas');
+                            setActiveRunwayId('todas');
+                          }}
+                          className="mt-2.5 px-3.5 py-1.5 rounded-full bg-[#5c2e14] text-[#fff2d4] text-xs font-bold cursor-pointer"
+                        >
+                          Ver toda la colección
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pb-2">
+                          {displayedDesigns.map((garment, idx) => {
+                            const isWorn =
+                              showClothing &&
+                              (selectedTopId === garment.id || selectedBottomId === garment.id);
+                            return (
+                              <CatalogDesignCard
+                                key={garment.id}
+                                garment={garment}
+                                isWorn={isWorn}
+                                canMoveLeft={idx > 0}
+                                canMoveRight={idx < displayedDesigns.length - 1}
+                                isDragTarget={
+                                  dragTargetCardId === garment.id && draggingCardId !== garment.id
+                                }
+                                onWear={() => handleWearGarment(garment)}
+                                onEdit={() => handleOpenEditDesign(garment)}
+                                onInspect={() => {
+                                  playSfx('click');
+                                  setDetailInspectorGarment(garment);
+                                  setDetailInspectorOpen(true);
+                                }}
+                                onDuplicate={() => handleDuplicateDesign(garment)}
+                                onToggleFavorite={() => handleToggleFavorite(garment.id)}
+                                onPin={() => {
+                                  playSfx('save');
+                                  onPinGarmentToNotebook(garment);
+                                  onNotify(`Enviado al cuaderno: ${garment.name}`);
+                                }}
+                                onDelete={() => handleDeleteDesign(garment.id)}
+                                onMove={(dir) => handleMoveCardStep(garment.id, dir)}
+                                onDragStart={() => setDraggingCardId(garment.id)}
+                                onDragOver={(e) => {
+                                  if (draggingCardId && draggingCardId !== garment.id) {
+                                    e.preventDefault();
+                                    setDragTargetCardId(garment.id);
+                                  }
+                                }}
+                                onDrop={() => {
+                                  if (draggingCardId && draggingCardId !== garment.id) {
+                                    handleReorderCategoryDesigns(draggingCardId, garment.id);
+                                  }
+                                  setDraggingCardId(null);
+                                  setDragTargetCardId(null);
+                                }}
+                                onDragEnd={() => {
+                                  setDraggingCardId(null);
+                                  setDragTargetCardId(null);
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+
+                        {visibleCount < categoryDesigns.length && (
+                          <div className="flex justify-center pt-1 pb-2">
+                            <button
+                              type="button"
+                              onClick={() => setVisibleCount((prev) => prev + 36)}
+                              className="px-4 py-1.5 rounded-full bg-[#fff6e6] hover:bg-white border-2 border-[#d1a26c] text-[#4f260e] text-xs font-extrabold shadow-sm cursor-pointer transition-colors"
+                            >
+                              Ver más diseños ({categoryDesigns.length - visibleCount} restantes)
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* CLEAN 2D POSES VISUAL GALLERY */
+                <div className="flex-1 min-h-[200px] overflow-y-auto studio-scroll px-0.5">
+                  <div className="grid grid-cols-2 gap-2.5 pb-2">
+                    {RUNWAY_MODEL_POSES.map((pose) => {
+                      const active = activePose2DId === pose.id;
+                      return (
+                        <button
+                          key={pose.id}
+                          type="button"
+                          onClick={() => {
+                            playSfx('click');
+                            setActivePose2DId(pose.id);
+                            onNotify(`Pose 2D aplicada: ${pose.title}`);
+                          }}
+                          className={`group relative rounded-2xl overflow-hidden text-left transition-all cursor-pointer p-2 flex flex-col ${
+                            active
+                              ? 'bg-[#fff9ed] ring-[3px] ring-[#f7b924] shadow-md'
+                              : 'bg-[#fcf2e3]/95 border-2 border-[#d4ad82] hover:border-[#b9773f]'
+                          }`}
+                        >
+                          <div className="relative w-full aspect-[3/3.4] rounded-xl bg-[#f5e5d0]/75 overflow-hidden flex items-end justify-center p-1.5">
+                            <img
+                              src={pose.previewSrc}
+                              alt={pose.title}
+                              loading="lazy"
+                              draggable={false}
+                              className="w-full h-full object-contain object-bottom transition-transform duration-200 group-hover:scale-[1.03]"
+                              style={{
+                                transform: pose.flipX
+                                  ? 'scaleX(-1)'
+                                  : pose.framing === 'mid'
+                                    ? 'scale(1.3) translateY(14%)'
+                                    : undefined,
+                              }}
+                            />
+                            <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-[#4a2610]/85 text-[#ffefc8] text-[9px] font-bold">
+                              {pose.badge}
+                            </span>
+                            {active && (
+                              <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#f5b924] text-[#3e1d05] flex items-center justify-center shadow">
+                                <Check className="w-3 h-3" strokeWidth={3} />
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1.5 px-0.5">
+                            <p className="text-xs font-extrabold text-[#49230e] leading-tight">
+                              {pose.title}
+                            </p>
+                            <p className="text-[10px] text-[#784826] leading-snug mt-0.5 line-clamp-2">
+                              {pose.subtitle}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* BOTTOM PHOTOREALISTIC BRAIDED CROCHET «COLORES DISPONIBLES» TRAY */}
               <div className="relative mt-2 pt-3 shrink-0">
@@ -1874,123 +1561,6 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                     <ChevronRight className="w-5 h-5" strokeWidth={2.8} />
                   </button>
                 </div>
-              </div>
-            </div>
-
-            {/* BOTTOM LARGE GOLDEN CROCHET «GIRAR 360°» BUTTON FLANKED BY CARVED WALNUT WOOD ARROWS */}
-            <div className="flex items-center justify-center gap-2 sm:gap-2.5 px-2 shrink-0 xl:pr-24">
-              <button
-                type="button"
-                onClick={() => {
-                  playSfx('click');
-                  setIsSpinning360(false);
-                  viewer3DRef.current?.stepAngle(-1);
-                }}
-                title="Girar a la vista anterior"
-                aria-label="Girar a la izquierda"
-                style={WOOD_ARROW_BTN_STYLE}
-                className="w-11 h-11 rounded-2xl border-2 border-[#c8965d] text-[#ffefd0] flex items-center justify-center cursor-pointer transition-transform hover:scale-105 active:scale-95 shrink-0"
-              >
-                <ArrowLeft className="w-5 h-5" strokeWidth={2.6} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  playSfx(isSpinning360 ? 'toggleOff' : 'toggleOn');
-                  setIsSpinning360((prev) => !prev);
-                }}
-                style={GOLD_PILL_BUTTON_STYLE}
-                className="relative flex-1 max-w-[245px] py-1.5 px-4 rounded-full overflow-hidden text-[#3c1904] font-extrabold text-base sm:text-lg tracking-tight flex items-center justify-center gap-2 cursor-pointer transition-transform hover:scale-[1.03] active:scale-[0.98]"
-              >
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 rounded-full"
-                  style={{
-                    background:
-                      'radial-gradient(ellipse at 50% 44%, rgba(255,228,108,0.9) 0%, rgba(246,192,42,0.75) 78%, rgba(224,154,18,0.34) 100%)',
-                  }}
-                />
-                <span className="relative z-10 flex items-center gap-2">
-                  {isSpinning360 ? (
-                    <Pause className="w-5 h-5 fill-current" />
-                  ) : (
-                    <RefreshCw className="w-5 h-5" strokeWidth={2.7} />
-                  )}
-                  <span className="drop-shadow-[0_1px_0_rgba(255,248,210,0.9)] whitespace-nowrap">
-                    {isSpinning360 ? 'Pausar 360°' : 'Girar 360°'}
-                  </span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  playSfx('click');
-                  setIsSpinning360(false);
-                  viewer3DRef.current?.stepAngle(1);
-                }}
-                title="Girar a la siguiente vista"
-                aria-label="Girar a la derecha"
-                style={WOOD_ARROW_BTN_STYLE}
-                className="w-11 h-11 rounded-2xl border-2 border-[#c8965d] text-[#ffefd0] flex items-center justify-center cursor-pointer transition-transform hover:scale-105 active:scale-95 shrink-0"
-              >
-                <ArrowRight className="w-5 h-5" strokeWidth={2.6} />
-              </button>
-
-              {/* Compact Speed + Zoom - / + + Reset Controls */}
-              <div className="hidden sm:flex items-center gap-1 ml-0.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSfx('click');
-                    const nextIdx =
-                      (SPIN_SPEED_ORDER.indexOf(preferences.spinSpeed) + 1) %
-                      SPIN_SPEED_ORDER.length;
-                    const nextSpeed = SPIN_SPEED_ORDER[nextIdx];
-                    updatePreferences({ spinSpeed: nextSpeed });
-                    onNotify(`Velocidad de giro: ${nextSpeed}`);
-                  }}
-                  title={`Velocidad de giro: ${preferences.spinSpeed} (pulsa para cambiar)`}
-                  aria-label="Cambiar velocidad de giro"
-                  className="h-9 px-2 rounded-xl bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#5e3116] text-[11px] font-extrabold font-mono-tab flex items-center gap-1 shadow cursor-pointer"
-                >
-                  <Gauge className="w-3.5 h-3.5" />
-                  <span>{SPIN_SPEED_SHORT[preferences.spinSpeed]}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSfx('click');
-                    viewer3DRef.current?.zoomBy(1.1);
-                  }}
-                  title="Alejar"
-                  aria-label="Alejar zoom"
-                  className="w-9 h-9 rounded-xl bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#5e3116] flex items-center justify-center shadow cursor-pointer"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSfx('click');
-                    viewer3DRef.current?.zoomBy(-1.1);
-                  }}
-                  title="Acercar"
-                  aria-label="Acercar zoom"
-                  className="w-9 h-9 rounded-xl bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#5e3116] flex items-center justify-center shadow cursor-pointer"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetAllView}
-                  title="Restablecer vista"
-                  aria-label="Restablecer vista"
-                  className="w-9 h-9 rounded-xl bg-[#fff5e4]/92 hover:bg-white border-2 border-[#c8945e] text-[#5e3116] flex items-center justify-center shadow cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </button>
               </div>
             </div>
           </section>
@@ -2140,7 +1710,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
       {/* ADD / EDIT DESIGN MODAL (+ Añadir diseño) */}
       <DesignEditorModal
         isOpen={editorModalOpen}
-        defaultCategory={activeCategory}
+        defaultCategory={activeCategory === 'Todas' ? 'Camisas' : activeCategory}
         editingGarment={editingGarment}
         soundEnabled={preferences.soundEnabled}
         onClose={() => {

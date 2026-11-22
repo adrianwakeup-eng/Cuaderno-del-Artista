@@ -7,7 +7,14 @@ import React, {
   useState,
 } from 'react';
 import { Camera, ChevronLeft, ChevronRight, Info, RotateCcw, X } from 'lucide-react';
-import type { DressingRoomGarment, VestidorSpinSpeed } from '../types/crochet';
+import type { DressingRoomGarment, RunwayColorGrade, VestidorSpinSpeed } from '../types/crochet';
+import type { StaticModelPose2D } from '../data/pasarelasAltaModaCatalog';
+import {
+  composeTransparentModelWithRug,
+  isGradeIdentity,
+  renderSkinSafeRunwayImage,
+  type TransparentModelWithRugResult,
+} from '../utils/garmentRunwayRenderer';
 import {
   STUDIO_LIGHT_PRESETS,
   type BodyMeasurements,
@@ -32,6 +39,7 @@ import { StageMacrameCurtains, StageVintageSewingMachine } from './VestidorDecor
 
 export interface PhotographicAvatarViewerHandle {
   captureSnapshot: (options?: { clean?: boolean }) => string | null;
+  exportTransparentModelWithRug: () => Promise<TransparentModelWithRugResult | null>;
   getCurrentFrameInfo: () => { src: string; label: string; angleDeg: number };
   setTargetYaw: (rad: number) => void;
   setTargetAngleDeg: (deg: number) => void;
@@ -64,6 +72,8 @@ export interface PhotographicAvatarViewerProps {
   soundEnabled?: boolean;
   curtainsOpen?: boolean;
   sewingPaused?: boolean;
+  static2DMode?: boolean;
+  activePose2D?: StaticModelPose2D;
   onToggleSewingPaused?: () => void;
   onToggleSpin360: () => void;
   onStopSpin360: () => void;
@@ -184,6 +194,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       soundEnabled = false,
       curtainsOpen = true,
       sewingPaused = false,
+      static2DMode = false,
+      activePose2D,
       onToggleSewingPaused,
       onToggleSpin360,
       onStopSpin360,
@@ -318,12 +330,91 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       ]
     );
 
+    const activeGarment = showClothing ? (selectedTop ?? selectedBottom) : null;
+
+    // Resolve the raw 2D source respecting dedicated 2D pose photos when selected
+    const effectiveRawModelSrc = useMemo(() => {
+      if (customPhoto?.url) return customPhoto.url;
+      if (static2DMode && activePose2D) {
+        if (!activeGarment && activePose2D.overrideBaseSrc) {
+          return activePose2D.overrideBaseSrc;
+        }
+        if (activeGarment && activePose2D.dressedOverrideSrc) {
+          return activePose2D.dressedOverrideSrc;
+        }
+        if (
+          activePose2D.overrideBaseSrc &&
+          (activePose2D.id === 'perfil-izquierdo' ||
+            activePose2D.id === 'perfil-derecho' ||
+            activePose2D.id === 'espalda-editorial')
+        ) {
+          return activePose2D.overrideBaseSrc;
+        }
+      }
+      return resolved.activeFrame.src;
+    }, [customPhoto, static2DMode, activePose2D, activeGarment, resolved.activeFrame.src]);
+
+    // Combine runway couture color grade with optional yarn-ball tint (skin-safe via garmentMaskUrl)
+    const effectiveColorGrade = useMemo<RunwayColorGrade | null>(() => {
+      if (!activeGarment || customPhoto?.url) return null;
+      if (
+        static2DMode &&
+        activePose2D &&
+        (activePose2D.id === 'perfil-izquierdo' ||
+          activePose2D.id === 'perfil-derecho' ||
+          activePose2D.id === 'espalda-editorial' ||
+          activePose2D.id === 'manos-bolsillos')
+      ) {
+        return null;
+      }
+      const overrideHex = overrideTopPalette?.[0] || overrideBottomPalette?.[0];
+      if (overrideHex) {
+        return {
+          ...(activeGarment.runwayColorGrade ?? {}),
+          tintHex: overrideHex,
+          tintStrength: 0.34,
+          satScale: 1.04,
+        };
+      }
+      return activeGarment.runwayColorGrade ?? null;
+    }, [activeGarment, customPhoto, static2DMode, activePose2D, overrideTopPalette, overrideBottomPalette]);
+
+    const [gradedSrc, setGradedSrc] = useState<string>('');
+
+    useEffect(() => {
+      let alive = true;
+      if (!effectiveRawModelSrc) return;
+      if (!effectiveColorGrade || isGradeIdentity(effectiveColorGrade)) {
+        setGradedSrc(effectiveRawModelSrc);
+        return;
+      }
+      // Show raw immediately while cached/rendered graded version resolves (~15ms)
+      void renderSkinSafeRunwayImage(
+        effectiveRawModelSrc,
+        activeGarment?.garmentMaskUrl,
+        effectiveColorGrade,
+        640
+      )
+        .then((outUrl) => {
+          if (alive) setGradedSrc(outUrl);
+        })
+        .catch(() => {
+          if (alive) setGradedSrc(effectiveRawModelSrc);
+        });
+      return () => {
+        alive = false;
+      };
+    }, [effectiveRawModelSrc, activeGarment?.garmentMaskUrl, effectiveColorGrade]);
+
+    const targetDisplaySrc = gradedSrc || effectiveRawModelSrc;
+
     useEffect(() => {
       preloadPhotoUrls(resolved.availableFrames.map((f) => f.src));
     }, [resolved.availableFrames]);
 
     useEffect(() => {
-      const nextSrc = resolved.activeFrame.src;
+      const nextSrc = targetDisplaySrc;
+      if (!nextSrc) return;
       if (!displayedSrc) {
         setDisplayedSrc(nextSrc);
         return;
@@ -341,8 +432,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         setPreviousSrc(null);
         setIsFading(false);
         fadeTimerRef.current = null;
-      }, 280);
-    }, [resolved.activeFrame.src, displayedSrc]);
+      }, 220);
+    }, [targetDisplaySrc, displayedSrc]);
 
     useEffect(() => {
       return () => {
@@ -530,13 +621,25 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       [lightPreset, knitRelief, resolved.outfitName, resolved.activeFrame.label]
     );
 
+    const exportTransparentModelWithRug = useCallback(async () => {
+      const modelSrc = displayedSrc || targetDisplaySrc || resolved.activeFrame.src;
+      if (!modelSrc) return null;
+      return composeTransparentModelWithRug({
+        modelSrc,
+        rugSrc: '/vestidor/artisan/crochet-rug.png',
+        flipX: Boolean(static2DMode && activePose2D?.flipX),
+        includeRug: true,
+      });
+    }, [displayedSrc, targetDisplaySrc, resolved.activeFrame.src, static2DMode, activePose2D?.flipX]);
+
     useImperativeHandle(
       ref,
       () => ({
         captureSnapshot,
+        exportTransparentModelWithRug,
         getCurrentFrameInfo: () => ({
-          src: displayedSrc || resolved.activeFrame.src,
-          label: resolved.activeFrame.label,
+          src: displayedSrc || targetDisplaySrc || resolved.activeFrame.src,
+          label: static2DMode && activePose2D ? activePose2D.title : resolved.activeFrame.label,
           angleDeg: Math.round(resolved.resolvedAngleDeg),
         }),
         setTargetYaw: (rad: number) => {
@@ -574,8 +677,12 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       }),
       [
         captureSnapshot,
+        exportTransparentModelWithRug,
         stepAngle,
         displayedSrc,
+        targetDisplaySrc,
+        static2DMode,
+        activePose2D,
         resolved.activeFrame.src,
         resolved.activeFrame.label,
         resolved.resolvedAngleDeg,
@@ -584,6 +691,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
 
     const handlePointerDown = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
+        if (static2DMode) return;
         if ((e.target as HTMLElement).closest('button')) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -625,6 +733,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
 
     const handlePointerMove = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
+        if (static2DMode) return;
         if (activePointersRef.current.has(e.pointerId)) {
           activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
         }
@@ -721,42 +830,66 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       }
     }, []);
 
-    const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom((prev) => {
-        const next = Math.max(0.85, Math.min(2.6, Number((prev + delta).toFixed(2))));
-        if (next <= 1.04) setPan({ x: 0, y: 0 });
-        return next;
-      });
-    }, []);
+    const handleWheel = useCallback(
+      (e: React.WheelEvent<HTMLDivElement>) => {
+        if (static2DMode) return;
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        setZoom((prev) => {
+          const next = Math.max(0.85, Math.min(2.6, Number((prev + delta).toFixed(2))));
+          if (next <= 1.04) setPan({ x: 0, y: 0 });
+          return next;
+        });
+      },
+      [static2DMode]
+    );
 
     const handleDoubleClick = useCallback(() => {
+      if (static2DMode) return;
       playClick();
       setZoom(1.0);
       setPan({ x: 0, y: 0 });
       setParallax({ x: 0, y: 0 });
-    }, [playClick]);
+    }, [playClick, static2DMode]);
 
     const mood = STUDIO_MOOD_MAP[lightPreset] ?? STUDIO_MOOD_MAP.vestidor_lujo;
 
     const framingScale = useMemo(() => {
+      if (static2DMode && activePose2D) {
+        if (activePose2D.framing === 'mid') return 1.28;
+        if (activePose2D.framing === 'wide') return 0.92;
+        return 1.0;
+      }
       const h = measurements?.height ?? 1.0;
       return Math.max(0.94, Math.min(1.04, 1 + (h - 1) * 0.35));
-    }, [measurements?.height]);
+    }, [measurements?.height, static2DMode, activePose2D]);
 
-    const floatY = isAnimatingPose && !reducedMotion ? Math.sin(cameraFloatPhase * 1.45) * 3.5 : 0;
-    const floatX = isAnimatingPose && !reducedMotion ? Math.cos(cameraFloatPhase * 0.85) * 3.0 : 0;
+    const floatY =
+      !static2DMode && isAnimatingPose && !reducedMotion
+        ? Math.sin(cameraFloatPhase * 1.45) * 3.5
+        : 0;
+    const floatX =
+      !static2DMode && isAnimatingPose && !reducedMotion
+        ? Math.cos(cameraFloatPhase * 0.85) * 3.0
+        : 0;
     const floatScale =
-      isAnimatingPose && !reducedMotion ? 1 + Math.sin(cameraFloatPhase * 1.45) * 0.006 : 1;
+      !static2DMode && isAnimatingPose && !reducedMotion
+        ? 1 + Math.sin(cameraFloatPhase * 1.45) * 0.006
+        : 1;
 
     const parallaxStrength =
-      reducedMotion || qualityLevel === 'medio' ? 0 : qualityLevel === 'ultra' ? 0.9 : 0.65;
+      static2DMode || reducedMotion || qualityLevel === 'medio'
+        ? 0
+        : qualityLevel === 'ultra'
+          ? 0.9
+          : 0.65;
     const bgParallaxX = -parallax.x * 6 * parallaxStrength + floatX * -0.4;
     const bgParallaxY = -parallax.y * 4 * parallaxStrength;
     const rugParallaxX = parallax.x * 2.5 * parallaxStrength + floatX * 0.25;
     const modelParallaxX = parallax.x * 4 * parallaxStrength + floatX;
     const modelParallaxY = parallax.y * 1.8 * parallaxStrength + floatY;
+    const poseFlipX = Boolean(static2DMode && activePose2D?.flipX);
+    const poseOriginY = static2DMode && activePose2D?.framing === 'mid' ? '28%' : '100%';
 
     const activeFilter = knitRelief ? mood.imageFilter : mood.imageFilterFlat;
     const activeShadow = knitRelief
@@ -781,11 +914,13 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
         className={`relative w-full h-full min-h-[380px] flex flex-col items-center justify-end overflow-hidden select-none touch-none ${
-          isDragging
-            ? 'cursor-grabbing'
-            : zoom > 1.08
-              ? 'cursor-move'
-              : 'cursor-grab'
+          static2DMode
+            ? 'cursor-default'
+            : isDragging
+              ? 'cursor-grabbing'
+              : zoom > 1.08
+                ? 'cursor-move'
+                : 'cursor-grab'
         }`}
       >
         {/* =================================================================
@@ -898,8 +1033,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
                 transform: `translate3d(${modelParallaxX}px, ${modelParallaxY}px, 0) scale(${
                   framingScale * floatScale
                 })`,
-                transformOrigin: '50% 100%',
-                transition: isDragging ? 'none' : 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transformOrigin: `50% ${poseOriginY}`,
+                transition: isDragging ? 'none' : 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
               <div className="relative w-full h-full min-h-0 flex items-end justify-center">
@@ -917,25 +1052,26 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
                     alt=""
                     aria-hidden="true"
                     draggable={false}
-                    className="absolute inset-0 w-full h-full object-contain object-bottom transition-opacity duration-300 ease-out"
+                    className="absolute inset-0 w-full h-full object-contain object-bottom transition-opacity duration-200 ease-out"
                     style={{
                       opacity: isFading ? 0 : 1,
                       filter: combinedImgFilter,
+                      transform: poseFlipX ? 'scaleX(-1)' : undefined,
                     }}
                   />
                 )}
 
                 <img
                   ref={activeImgRef}
-                  key={resolved.activeFrame.src}
-                  src={displayedSrc || resolved.activeFrame.src}
-                  alt={`${resolved.outfitName} — ${resolved.activeFrame.label}`}
+                  src={displayedSrc || targetDisplaySrc || resolved.activeFrame.src}
+                  alt={`${resolved.outfitName} — ${activePose2D?.title ?? resolved.activeFrame.label}`}
                   draggable={false}
                   decoding="async"
-                  className="relative max-w-full max-h-full w-full h-full object-contain object-bottom transition-opacity duration-300 ease-out"
+                  className="relative max-w-full max-h-full w-full h-full object-contain object-bottom transition-opacity duration-200 ease-out"
                   style={{
                     opacity: 1,
                     filter: combinedImgFilter,
+                    transform: poseFlipX ? 'scaleX(-1)' : undefined,
                   }}
                 />
               </div>
@@ -998,8 +1134,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           </div>
         )}
 
-        {/* LAYER 4B: Subtle Real Angle / Zoom Indicator Top-Right (hidden in Clean Stage Mode) */}
-        {!cleanStageMode && (
+        {/* LAYER 4B: Subtle Real Angle / Zoom Indicator Top-Right (hidden in Clean Stage Mode or Static 2D Mode) */}
+        {!cleanStageMode && !static2DMode && (
           <div className="pointer-events-none absolute top-2 right-2.5 z-30 flex flex-col items-end gap-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#fff7ea]/90 border border-[#d6ab77] text-[#593017] text-[10px] font-bold shadow-sm font-mono-tab">
               <span>
@@ -1023,8 +1159,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           </div>
         )}
 
-        {/* LAYER 4C: Honest Availability Notice Banner (ONLY when a photo/angle/pose/color is missing & not in Clean Mode) */}
-        {!cleanStageMode && resolved.noticeTitle && resolved.noticeMessage && (
+        {/* LAYER 4C: Honest Availability Notice Banner (ONLY when not in Clean Mode or Static 2D Mode) */}
+        {!cleanStageMode && !static2DMode && resolved.noticeTitle && resolved.noticeMessage && (
           <div className="pointer-events-auto absolute inset-x-3 sm:inset-x-5 bottom-[54px] z-30 flex justify-center">
             <div className="max-w-md w-full rounded-2xl bg-[#fff8ec]/95 backdrop-blur-md border-2 border-[#dca86a] shadow-[0_12px_28px_rgba(74,36,14,0.28)] px-3.5 py-2.5 text-left">
               <div className="flex items-start gap-2">

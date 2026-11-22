@@ -67,6 +67,25 @@ export const CatalogDesignCard: React.FC<CatalogDesignCardProps> = React.memo(
       garment.modelViews?.front ||
       '';
     const cropStyle = getNonDestructiveCropStyle(garment.photoCrops?.['garment-front']);
+    const grade = garment.runwayColorGrade;
+    const runwayThumbFilter = grade
+      ? [
+          grade.hueDeg ? `hue-rotate(${grade.hueDeg}deg)` : '',
+          grade.satScale && grade.satScale !== 1 ? `saturate(${grade.satScale})` : '',
+          grade.lightScale && grade.lightScale !== 1 ? `brightness(${grade.lightScale})` : '',
+          grade.contrastScale && grade.contrastScale !== 1 ? `contrast(${grade.contrastScale})` : '',
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined
+      : undefined;
+    const imgStyle: React.CSSProperties = {
+      ...cropStyle,
+      ...(runwayThumbFilter ? { filter: runwayThumbFilter } : {}),
+    };
+    const runwayBadge =
+      garment.runwayHouseId && garment.runwayHouseId !== 'original'
+        ? garment.tags?.[garment.tags.length - 1]
+        : null;
     const modelViewCount = Object.values(garment.modelViews ?? {}).filter(Boolean).length;
 
     return (
@@ -101,7 +120,7 @@ export const CatalogDesignCard: React.FC<CatalogDesignCardProps> = React.memo(
               alt={garment.name}
               draggable={false}
               loading="lazy"
-              style={cropStyle}
+              style={imgStyle}
               className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
             />
           </div>
@@ -143,15 +162,28 @@ export const CatalogDesignCard: React.FC<CatalogDesignCardProps> = React.memo(
           <Heart className={`w-3 h-3 ${garment.favorite ? 'fill-current' : ''}`} />
         </button>
 
-        {/* Quiet model-photo count indicator */}
-        {modelViewCount > 0 && (
+        {/* Runway house edition badge or quiet model-photo count indicator */}
+        {runwayBadge ? (
           <span
-            title={`${modelViewCount} ${modelViewCount === 1 ? 'vista' : 'vistas'} del modelo asociadas`}
-            className="absolute top-1.5 left-1.5 z-10 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#2e6b48]/90 text-[#effdf4] text-[8.5px] font-bold shadow group-hover:opacity-0 transition-opacity"
+            title={garment.runwayHouseName || runwayBadge}
+            className="absolute top-1.5 left-1.5 z-10 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#3e210e]/85 text-[#ffefc8] text-[8.5px] font-bold shadow group-hover:opacity-0 transition-opacity"
           >
-            <Camera className="w-2.5 h-2.5" />
-            <span className="font-mono-tab">{modelViewCount}v</span>
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: garment.accentColor }}
+            />
+            <span>{runwayBadge}</span>
           </span>
+        ) : (
+          modelViewCount > 0 && (
+            <span
+              title={`${modelViewCount} ${modelViewCount === 1 ? 'vista' : 'vistas'} del modelo asociadas`}
+              className="absolute top-1.5 left-1.5 z-10 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#2e6b48]/90 text-[#effdf4] text-[8.5px] font-bold shadow group-hover:opacity-0 transition-opacity"
+            >
+              <Camera className="w-2.5 h-2.5" />
+              <span className="font-mono-tab">{modelViewCount}v</span>
+            </span>
+          )
         )}
 
         {/* Hover Action Toolbar: Inspect, Edit, Duplicate, Pin, Delete */}
