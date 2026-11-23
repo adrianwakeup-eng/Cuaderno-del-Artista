@@ -3,6 +3,7 @@ import { Minimize2, SlidersHorizontal } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { User } from 'firebase/auth';
 import { CoverScreen } from './components/CoverScreen';
+import { BackgroundTurntablePill } from './components/CoverTurntable';
 import { CrochetTransition } from './components/CrochetTransition';
 import {
   RightStudioDock,
@@ -1657,6 +1658,7 @@ export default function App() {
         onNotify={showToast}
       />
 
+      {bookState !== 'cover' && <BackgroundTurntablePill />}
       <OfflineIndicator />
     </div>
   );

@@ -9,12 +9,13 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import crochetArtistDeskImg from '../assets/images/desk_antique_button_box_clean_1795280363060.jpg';
+import crochetArtistDeskImg from '../assets/images/desk_turntable_clean.jpg';
 import type { DeskNoteItem } from '../types/crochet';
 import { audioEngine } from '../utils/audioEngine';
 import { fairyMusicPlayer } from '../utils/fairyMusicPlayer';
 import { PWAInstallButton } from './WindowsDesktopControls';
 import { ButterflyWingsIcon, CoverMagicFairy } from './CoverMagicFairy';
+import { CoverTurntable } from './CoverTurntable';
 
 interface CoverScreenProps {
   sfxEnabled: boolean;
@@ -325,14 +326,17 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
         ref={stageRef}
         className="relative z-10 flex-1 min-h-0 w-full overflow-hidden book-stage"
       >
-        {/* Crochet Artist Desk Background Photo with Antique Button Box */}
+        {/* Crochet Artist Desk Background Photo with Clean Wood Surface for the Luxury Gold Turntable */}
         <img
           src={crochetArtistDeskImg}
-          alt="Escritorio de artista del crochet con ovillos, agujas, tijeras, caja de botones antigua y cuaderno de cuero"
+          alt="Escritorio de artista del crochet con ovillos, agujas, tijeras, tocadiscos dorado lujoso y cuaderno de cuero"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover select-none"
           draggable={false}
         />
+
+        {/* Luxury 24k Gold Interactive Turntable + Classical Sheet Music Voice-Notes & MP3 Player */}
+        <CoverTurntable stageRef={stageRef} />
 
         {/* Subtle warm vignette & floating golden yarn dust motes */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#160b05]/45 via-transparent to-[#160b05]/15" />
