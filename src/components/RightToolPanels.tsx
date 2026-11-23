@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowDown,
@@ -33,6 +33,7 @@ import {
   Redo2,
   RotateCcw,
   Save,
+  Search,
   Settings,
   Shapes,
   Sparkles,
@@ -58,10 +59,17 @@ import type {
 } from '../types/crochet';
 import { audioEngine } from '../utils/audioEngine';
 import {
-  ALL_BRUSH_META_MAP,
+  CATALOG_BRUSHES_BY_FAMILY,
+  CATALOG_TEXTURE_BRUSHES,
   DIFUMINADO_PRESETS,
   HYPERREAL_PINCEL_PRESETS,
+  TEXTURE_FAMILIES,
+  TOTAL_TEXTURE_BRUSH_COUNT,
+  getBrushPresetMeta,
+  type BrushPresetMeta,
+  type TextureFamilyId,
 } from '../utils/hyperrealBrushEngine';
+import { LiveTexturePreview, useFavoriteBrushes } from './TextureBrushSwatch';
 import { YarnBall3D } from './CrochetDecorations';
 import { MandalaNavIcon } from './CrochetMandalaSvg';
 
@@ -684,6 +692,12 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   );
   const [openDrawer, setOpenDrawer] = useState<'abrir' | 'figuras' | 'imagen' | 'rotar' | null>(null);
   const [paletteFocus, setPaletteFocus] = useState<'todo' | 'color' | 'difuminados' | 'capas'>('todo');
+  const [textureFamilyFilter, setTextureFamilyFilter] = useState<
+    'destacados' | 'favoritos' | TextureFamilyId
+  >('destacados');
+  const [textureSearch, setTextureSearch] = useState('');
+  const [visibleTextureCount, setVisibleTextureCount] = useState(24);
+  const { favoriteSet, toggleFavorite } = useFavoriteBrushes();
   const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -691,6 +705,10 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
     else if (brush.category === 'pinceles') setChalkMode('pinceles');
     else setChalkMode('difuminados');
   }, [activeTool, brush.category]);
+
+  useEffect(() => {
+    setVisibleTextureCount(24);
+  }, [textureFamilyFilter, textureSearch]);
 
   const handleElectronAction = (action: 'minimize' | 'maximize' | 'close') => {
     audioEngine.playStitchClick();
@@ -719,9 +737,49 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
     setOpenDrawer((prev) => (prev === drawer ? null : drawer));
   };
 
+  const filteredPincelPresets: BrushPresetMeta[] = useMemo(() => {
+    const q = textureSearch.trim().toLowerCase();
+    if (q) {
+      const matches: BrushPresetMeta[] = [];
+      for (const p of HYPERREAL_PINCEL_PRESETS) {
+        if (
+          p.label.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q)
+        ) {
+          matches.push(p);
+        }
+      }
+      for (const c of CATALOG_TEXTURE_BRUSHES) {
+        if (
+          c.label.toLowerCase().includes(q) ||
+          c.familyLabel.toLowerCase().includes(q) ||
+          c.description.toLowerCase().includes(q)
+        ) {
+          matches.push(c);
+        }
+      }
+      return matches;
+    }
+    if (textureFamilyFilter === 'destacados') return HYPERREAL_PINCEL_PRESETS;
+    if (textureFamilyFilter === 'favoritos') {
+      const favs: BrushPresetMeta[] = [];
+      for (const p of HYPERREAL_PINCEL_PRESETS) {
+        if (favoriteSet.has(p.id)) favs.push(p);
+      }
+      for (const c of CATALOG_TEXTURE_BRUSHES) {
+        if (favoriteSet.has(c.id)) favs.push(c);
+      }
+      return favs;
+    }
+    return CATALOG_BRUSHES_BY_FAMILY[textureFamilyFilter] || [];
+  }, [textureFamilyFilter, textureSearch, favoriteSet]);
+
   const swatchList =
-    chalkMode === 'pinceles' ? HYPERREAL_PINCEL_PRESETS : DIFUMINADO_PRESETS;
-  const activeBrushMeta = ALL_BRUSH_META_MAP[brush.preset];
+    chalkMode === 'pinceles'
+      ? filteredPincelPresets.slice(0, visibleTextureCount)
+      : DIFUMINADO_PRESETS;
+  const totalPincelCatalogCount = TOTAL_TEXTURE_BRUSH_COUNT + HYPERREAL_PINCEL_PRESETS.length;
+  const activeBrushMeta = getBrushPresetMeta(brush.preset);
   const canPrev = currentSpreadIndex > 0;
   const canNext = currentSpreadIndex < totalBookSpreads - 1;
 
@@ -1761,48 +1819,213 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-3 gap-1 mb-1.5">
-                    {swatchList.map((preset, idx) => {
-                      const active = brush.preset === preset.id && activeTool === 'draw';
-                      return (
-                        <motion.button
-                          key={preset.id}
+                  {chalkMode === 'pinceles' && (
+                    <div className="space-y-1.5 mb-1.5">
+                      {/* Search + Full 2,412 Library Button */}
+                      <div className="flex items-center gap-1">
+                        <div className="relative flex-1 min-w-0">
+                          <Search className="w-3 h-3 text-[#c89d60] absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={textureSearch}
+                            onChange={(e) => setTextureSearch(e.target.value)}
+                            placeholder={`Buscar (${totalPincelCatalogCount.toLocaleString('es-ES')})...`}
+                            className="w-full pl-5 pr-5 py-1 rounded-md bg-[#140903] border border-[#b98241]/40 text-[10px] text-[#f9e7c6] placeholder:text-[#9c784d] focus:outline-none focus:border-[#f0c06c]"
+                          />
+                          {textureSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setTextureSearch('')}
+                              aria-label="Limpiar búsqueda"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-[#cfa467] hover:text-white cursor-pointer"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                        <button
                           type="button"
-                          whileHover={{ scale: 1.04 }}
-                          whileTap={{ scale: 0.94 }}
                           onClick={() => {
-                            audioEngine.playYarnPluck(idx % 6);
-                            onChangeBrush({
-                              category: chalkMode,
-                              preset: preset.id,
-                              size: preset.defaultSize,
-                              opacity: preset.defaultOpacity,
-                              softness: preset.defaultSoftness,
-                            });
-                            onSelectTool('draw');
+                            audioEngine.playRetroPop(2);
+                            onGoToSection('pinceles');
                           }}
-                          title={`${preset.label} — ${preset.description}`}
-                          className={`rounded-md px-1 py-1 border transition-colors cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
-                            active
-                              ? 'bg-[#4f2b14] border-[#ffd88a] ring-1 ring-[#eab860] shadow-[0_0_10px_rgba(234,184,96,0.35)]'
-                              : 'bg-[#160a04]/85 border-[#8b5d31]/40 hover:border-[#cfa158]'
+                          title={`Abrir biblioteca completa con ${totalPincelCatalogCount.toLocaleString('es-ES')} texturas hiperrealistas`}
+                          className="px-1.5 py-1 rounded-md bg-gradient-to-b from-[#b4742d] to-[#7c4516] border border-[#f2c87a]/55 text-[9.5px] font-medium text-[#fff5df] hover:brightness-110 flex items-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>{totalPincelCatalogCount.toLocaleString('es-ES')}</span>
+                        </button>
+                      </div>
+
+                      {/* Horizontal Family Filter Chips */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 studio-scroll">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTextureSearch('');
+                            setTextureFamilyFilter('destacados');
+                          }}
+                          className={`px-1.5 py-0.5 rounded-full text-[9.5px] border shrink-0 transition-colors cursor-pointer ${
+                            !textureSearch && textureFamilyFilter === 'destacados'
+                              ? 'bg-[#8d5222] border-[#ffe3a3] text-white font-medium'
+                              : 'bg-[#1a0d05] border-[#8b5d31]/40 text-[#dec299] hover:border-[#cfa158]'
                           }`}
                         >
-                          <HyperrealBrushSwatch
-                            presetId={preset.id}
-                            color={preset.tint}
-                          />
-                          <span
-                            className={`text-[9px] leading-none truncate w-full text-center ${
-                              active ? 'text-[#fff4da] font-semibold' : 'text-[#d9be97]'
-                            }`}
+                          ★ Top (12)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTextureSearch('');
+                            setTextureFamilyFilter('favoritos');
+                          }}
+                          className={`px-1.5 py-0.5 rounded-full text-[9.5px] border shrink-0 transition-colors cursor-pointer inline-flex items-center gap-0.5 ${
+                            !textureSearch && textureFamilyFilter === 'favoritos'
+                              ? 'bg-[#8d3340] border-[#ffb8c2] text-white font-medium'
+                              : 'bg-[#1a0d05] border-[#8b5d31]/40 text-[#dec299] hover:border-[#cfa158]'
+                          }`}
+                        >
+                          <Heart className="w-2.5 h-2.5 fill-current" />
+                          <span>{favoriteSet.size}</span>
+                        </button>
+                        {TEXTURE_FAMILIES.map((fam) => {
+                          const activeFam = !textureSearch && textureFamilyFilter === fam.id;
+                          return (
+                            <button
+                              key={fam.id}
+                              type="button"
+                              onClick={() => {
+                                setTextureSearch('');
+                                setTextureFamilyFilter(fam.id);
+                              }}
+                              title={`${fam.label} (${fam.count} texturas)`}
+                              className={`px-1.5 py-0.5 rounded-full text-[9.5px] border shrink-0 transition-colors cursor-pointer inline-flex items-center gap-1 ${
+                                activeFam
+                                  ? 'bg-[#8d5222] border-[#ffe3a3] text-white font-medium'
+                                  : 'bg-[#1a0d05] border-[#8b5d31]/40 text-[#dec299] hover:border-[#cfa158]'
+                              }`}
+                            >
+                              <span
+                                className="w-1.5 h-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: fam.tint }}
+                              />
+                              <span>{fam.shortLabel}</span>
+                              <span className="text-[8px] opacity-75">{fam.count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {chalkMode === 'pinceles' && swatchList.length === 0 ? (
+                    <div className="mb-1.5 py-4 px-2 rounded-lg bg-[#160a04]/75 border border-[#8b5d31]/30 text-center text-[10px] text-[#cda97a]">
+                      {textureFamilyFilter === 'favoritos' && !textureSearch
+                        ? 'Aún no tienes pinceles favoritos. Toca ♥ en cualquier textura para guardarla aquí.'
+                        : 'No se encontraron texturas con ese nombre.'}
+                    </div>
+                  ) : (
+                    <div
+                      className={`grid grid-cols-3 gap-1 mb-1.5 ${
+                        chalkMode === 'pinceles'
+                          ? 'max-h-[214px] overflow-y-auto studio-scroll pr-0.5'
+                          : ''
+                      }`}
+                    >
+                      {swatchList.map((preset, idx) => {
+                        const active = brush.preset === preset.id && activeTool === 'draw';
+                        const isCatalog = preset.id.startsWith('tex-');
+                        const isFav = favoriteSet.has(preset.id);
+                        const parts = isCatalog ? preset.label.split(' · ') : null;
+                        const mainTitle = parts ? parts[0] : preset.shortLabel;
+                        const subTag = parts && parts[1] ? parts[1] : null;
+                        return (
+                          <div key={preset.id} className="relative group">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                audioEngine.playYarnPluck(idx % 6);
+                                onChangeBrush({
+                                  category: chalkMode,
+                                  preset: preset.id,
+                                  size: preset.defaultSize,
+                                  opacity: preset.defaultOpacity,
+                                  softness: preset.defaultSoftness,
+                                });
+                                onSelectTool('draw');
+                              }}
+                              title={`${preset.label} — ${preset.description}`}
+                              className={`w-full rounded-md px-1 py-1 border transition-colors cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                                active
+                                  ? 'bg-[#4f2b14] border-[#ffd88a] ring-1 ring-[#eab860] shadow-[0_0_10px_rgba(234,184,96,0.35)]'
+                                  : 'bg-[#160a04]/85 border-[#8b5d31]/40 hover:border-[#cfa158]'
+                              }`}
+                            >
+                              {isCatalog ? (
+                                <LiveTexturePreview
+                                  presetId={preset.id}
+                                  color={preset.tint}
+                                  heightClass="h-[18px]"
+                                />
+                              ) : (
+                                <HyperrealBrushSwatch
+                                  presetId={preset.id}
+                                  color={preset.tint}
+                                />
+                              )}
+                              <span
+                                className={`text-[8.5px] leading-tight truncate w-full text-center ${
+                                  active ? 'text-[#fff4da] font-semibold' : 'text-[#e2c9a2]'
+                                }`}
+                              >
+                                {mainTitle}
+                              </span>
+                              {subTag && (
+                                <span className="text-[7.5px] leading-none truncate w-full text-center text-[#b78f5c]">
+                                  {subTag}
+                                </span>
+                              )}
+                            </button>
+                            {chalkMode === 'pinceles' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(preset.id);
+                                }}
+                                aria-label={
+                                  isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'
+                                }
+                                title={isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+                                className={`absolute top-0.5 right-0.5 p-0.5 rounded-full transition-opacity cursor-pointer ${
+                                  isFav
+                                    ? 'opacity-100 text-[#ff8fa3]'
+                                    : 'opacity-0 group-hover:opacity-90 text-[#c9a370] hover:text-[#ff8fa3]'
+                                }`}
+                              >
+                                <Heart
+                                  className={`w-2.5 h-2.5 ${isFav ? 'fill-current' : ''}`}
+                                />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {chalkMode === 'pinceles' &&
+                        filteredPincelPresets.length > visibleTextureCount && (
+                          <button
+                            type="button"
+                            onClick={() => setVisibleTextureCount((n) => n + 24)}
+                            className="col-span-3 py-1 rounded-md bg-[#2a1509] hover:bg-[#422310] border border-[#b98241]/45 text-[9.5px] text-[#f6dca8] cursor-pointer transition-colors"
                           >
-                            {preset.shortLabel}
-                          </span>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
+                            Mostrar +24 más ({filteredPincelPresets.length - visibleTextureCount}{' '}
+                            restantes)
+                          </button>
+                        )}
+                    </div>
+                  )}
+
                   {activeBrushMeta && (
                     <div className="mb-1.5 px-2 py-1 rounded-md bg-[#160a04]/75 border border-[#b98241]/25 text-[9.5px] leading-tight text-[#e7cda4]">
                       <span className="font-semibold text-[#ffdfa3]">

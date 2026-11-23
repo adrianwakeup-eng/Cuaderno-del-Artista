@@ -5,15 +5,28 @@ import {
   Volume2,
   Monitor,
   Check,
+  Heart,
   ImagePlus,
   X,
   RotateCcw,
   Search,
+  Sparkles,
 } from 'lucide-react';
 import { CROCHET_STICKERS } from '../data/seedData';
 import type { BrushSettings, FontChoice } from '../types/crochet';
 import type { StickerCategory } from '../data/seedData';
+import {
+  CATALOG_BRUSHES_BY_FAMILY,
+  CATALOG_TEXTURE_BRUSHES,
+  DIFUMINADO_PRESETS,
+  HYPERREAL_PINCEL_PRESETS,
+  TEXTURE_FAMILIES,
+  TOTAL_TEXTURE_BRUSH_COUNT,
+  type BrushPresetMeta,
+  type TextureFamilyId,
+} from '../utils/hyperrealBrushEngine';
 import { CrochetStickerSvg } from './CrochetDecorations';
+import { LiveTexturePreview, useFavoriteBrushes } from './TextureBrushSwatch';
 import { PWAInstallButton } from './WindowsDesktopControls';
 
 /* ---------- 1. Imágenes y Stickers View ---------- */
@@ -284,68 +297,280 @@ export const FontsView: React.FC<{
   );
 };
 
-/* ---------- 3. Difuminados y Pinceles Hiperrealistas Quick Studio ---------- */
+/* ---------- 3. Biblioteca de 2,400+ Texturas Hiperrealistas y Difuminados ---------- */
+type LibraryTab = 'destacados' | 'difuminados' | 'favoritos' | TextureFamilyId;
+
 export const BrushesQuickView: React.FC<{
   brush: BrushSettings;
   onChangeBrush: (patch: Partial<BrushSettings>) => void;
   onActivateDrawMode: () => void;
-}> = ({ brush, onChangeBrush, onActivateDrawMode }) => (
-  <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
-    <div className="max-w-3xl mx-auto rounded-2xl leather-panel p-6 text-[#f6e4c4]">
-      <h2 className="font-display text-xl text-[#ffebc2] mb-1">
-        Estudio de Difuminados y Pinceles Hiperrealistas
-      </h2>
-      <p className="text-xs text-[#d6b688] mb-5">
-        Difumina y armoniza trazos con precisión, o pinta con brochas de texturas hiperrealistas (pelo, arena, piel, plumas, roca, tela y más)
-      </p>
+}> = ({ brush, onChangeBrush, onActivateDrawMode }) => {
+  const [activeTab, setActiveTab] = React.useState<LibraryTab>('destacados');
+  const [search, setSearch] = React.useState('');
+  const [visibleCount, setVisibleCount] = React.useState(36);
+  const { favoriteSet, toggleFavorite } = useFavoriteBrushes();
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        {[
-          { id: 'difuminado-seda', cat: 'difuminados', name: 'Difuminado Seda', desc: 'Arrastra y funde los pigmentos con suavidad para unir colores sin cortes', size: 26, opacity: 68, softness: 88 },
-          { id: 'difuminado-suavizar', cat: 'difuminados', name: 'Suavizador Preciso', desc: 'Difumina bordes y hace los colores más homogéneos y suaves', size: 28, opacity: 65, softness: 92 },
-          { id: 'difuminado-armonizar', cat: 'difuminados', name: 'Armonizador de Color', desc: 'Unifica tonos desiguales equilibrando el lienzo con tu color activo', size: 30, opacity: 58, softness: 90 },
-          { id: 'pelo-animal', cat: 'pinceles', name: 'Pelo de Animal', desc: 'Hebras cónicas direccionales con subpelo oscuro y brillo natural', size: 18, opacity: 88, softness: 30 },
-          { id: 'arena-fina', cat: 'pinceles', name: 'Arena Fina', desc: 'Microgranos minerales con destellos de cuarzo y sombras granuladas', size: 22, opacity: 84, softness: 45 },
-          { id: 'piel-poros', cat: 'pinceles', name: 'Piel y Poros', desc: 'Microtextura dérmica orgánica pensada para retratos hiperrealistas', size: 20, opacity: 55, softness: 65 },
-        ].map((item) => {
-          const active = brush.preset === item.id;
-          return (
+  React.useEffect(() => {
+    setVisibleCount(36);
+  }, [activeTab, search]);
+
+  const totalTextures = TOTAL_TEXTURE_BRUSH_COUNT + HYPERREAL_PINCEL_PRESETS.length;
+
+  const items: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'pinceles' }> =
+    React.useMemo(() => {
+      const q = search.trim().toLowerCase();
+      if (q) {
+        const res: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'pinceles' }> = [];
+        for (const d of DIFUMINADO_PRESETS) {
+          if (d.label.toLowerCase().includes(q) || d.description.toLowerCase().includes(q)) {
+            res.push({ meta: d, category: 'difuminados' });
+          }
+        }
+        for (const p of HYPERREAL_PINCEL_PRESETS) {
+          if (p.label.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)) {
+            res.push({ meta: p, category: 'pinceles' });
+          }
+        }
+        for (const c of CATALOG_TEXTURE_BRUSHES) {
+          if (
+            c.label.toLowerCase().includes(q) ||
+            c.familyLabel.toLowerCase().includes(q) ||
+            c.description.toLowerCase().includes(q)
+          ) {
+            res.push({ meta: c, category: 'pinceles' });
+          }
+        }
+        return res;
+      }
+
+      if (activeTab === 'difuminados') {
+        return DIFUMINADO_PRESETS.map((meta) => ({ meta, category: 'difuminados' as const }));
+      }
+      if (activeTab === 'destacados') {
+        return [
+          ...HYPERREAL_PINCEL_PRESETS.map((meta) => ({ meta, category: 'pinceles' as const })),
+          ...DIFUMINADO_PRESETS.map((meta) => ({ meta, category: 'difuminados' as const })),
+        ];
+      }
+      if (activeTab === 'favoritos') {
+        const favs: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'pinceles' }> = [];
+        for (const d of DIFUMINADO_PRESETS) {
+          if (favoriteSet.has(d.id)) favs.push({ meta: d, category: 'difuminados' });
+        }
+        for (const p of HYPERREAL_PINCEL_PRESETS) {
+          if (favoriteSet.has(p.id)) favs.push({ meta: p, category: 'pinceles' });
+        }
+        for (const c of CATALOG_TEXTURE_BRUSHES) {
+          if (favoriteSet.has(c.id)) favs.push({ meta: c, category: 'pinceles' });
+        }
+        return favs;
+      }
+      return (CATALOG_BRUSHES_BY_FAMILY[activeTab] || []).map((meta) => ({
+        meta,
+        category: 'pinceles' as const,
+      }));
+    }, [activeTab, search, favoriteSet]);
+
+  const displayed = items.slice(0, visibleCount);
+
+  return (
+    <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
+      <div className="max-w-6xl mx-auto rounded-2xl leather-panel p-5 sm:p-6 text-[#f6e4c4] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#b98241]/30 pb-3.5">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#f0c77c]" />
+              <h2 className="font-display text-xl text-[#ffebc2]">
+                Biblioteca de {totalTextures.toLocaleString('es-ES')} Texturas Hiperrealistas
+              </h2>
+            </div>
+            <p className="text-xs text-[#d6b688] mt-1">
+              Explora {TEXTURE_FAMILIES.length} colecciones de texturas hiperrealistas ({TOTAL_TEXTURE_BRUSH_COUNT.toLocaleString('es-ES')} brochas paramétricas + 12 destacadas) y 6 difuminados suaves de precisión. Toca cualquier pincel para pintar de inmediato.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onActivateDrawMode}
+            className="px-4 py-2 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] border border-[#f5d290]/55 text-xs font-medium text-white cursor-pointer shrink-0 shadow"
+          >
+            Volver al Cuaderno
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#c89d60] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Buscar entre ${totalTextures.toLocaleString('es-ES')} texturas (ej: zorro, arena, piel, seda, mármol, oro, escamas, agua, nubes, encaje, perlas...)`}
+              className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#160a04] border border-[#b98241]/45 text-xs text-[#fff0d2] placeholder:text-[#a88255] focus:outline-none focus:border-[#f0c06c]"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#cfa467] hover:text-white cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="text-xs text-[#dfc397] font-mono-tab shrink-0">
+            {items.length.toLocaleString('es-ES')} pinceles
+          </div>
+        </div>
+
+        {/* Family Tabs */}
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              { id: 'destacados', label: '★ Destacados', count: HYPERREAL_PINCEL_PRESETS.length + DIFUMINADO_PRESETS.length },
+              { id: 'difuminados', label: 'Difuminados', count: DIFUMINADO_PRESETS.length },
+              { id: 'favoritos', label: '♥ Favoritos', count: favoriteSet.size },
+            ] as const
+          ).map((tab) => (
             <button
-              key={item.id}
+              key={tab.id}
               type="button"
               onClick={() => {
-                onChangeBrush({
-                  category: item.cat as BrushSettings['category'],
-                  preset: item.id as BrushSettings['preset'],
-                  size: item.size,
-                  opacity: item.opacity,
-                  softness: item.softness,
-                });
-                onActivateDrawMode();
+                setSearch('');
+                setActiveTab(tab.id);
               }}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                active
-                  ? 'bg-[#693a1b] border-[#ecc074] text-white'
-                  : 'bg-[#221208] border-[#b98241]/35 hover:border-[#dfaf62]'
+              className={`px-3 py-1.5 rounded-full text-xs border transition-colors cursor-pointer ${
+                !search && activeTab === tab.id
+                  ? 'bg-gradient-to-b from-[#c9883e] to-[#874d1b] border-[#ffe3a3] text-white font-medium shadow'
+                  : 'bg-[#1f1007] border-[#b98241]/35 text-[#e4c89c] hover:border-[#dfaf62]'
               }`}
             >
-              <p className="font-editorial text-base font-bold text-[#ffebc2]">{item.name}</p>
-              <p className="text-xs text-[#d6b688] mt-1">{item.desc}</p>
+              {tab.label} <span className="opacity-75 text-[10px]">({tab.count})</span>
             </button>
-          );
-        })}
-      </div>
+          ))}
 
-      <button
-        type="button"
-        onClick={onActivateDrawMode}
-        className="px-5 py-2.5 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer"
-      >
-        Ir al Cuaderno y Dibujar Ahora
-      </button>
+          {TEXTURE_FAMILIES.map((fam) => {
+            const active = !search && activeTab === fam.id;
+            return (
+              <button
+                key={fam.id}
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setActiveTab(fam.id);
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                  active
+                    ? 'bg-gradient-to-b from-[#c9883e] to-[#874d1b] border-[#ffe3a3] text-white font-medium shadow'
+                    : 'bg-[#1f1007] border-[#b98241]/35 text-[#e4c89c] hover:border-[#dfaf62]'
+                }`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: fam.tint }}
+                />
+                <span>{fam.shortLabel}</span>
+                <span className="opacity-75 text-[10px]">({fam.count})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Grid of Live Procedural Texture Cards */}
+        {displayed.length === 0 ? (
+          <div className="py-10 text-center text-sm text-[#cfa878] bg-[#190c05]/70 rounded-xl border border-[#b98241]/25">
+            {activeTab === 'favoritos' && !search
+              ? 'Todavía no has guardado pinceles favoritos. Haz clic en ♥ en cualquier textura para tenerla a mano.'
+              : 'No se encontraron texturas para esa búsqueda. Prueba con "pelo", "arena", "piel", "escamas", "oro" o "encaje".'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {displayed.map(({ meta, category }) => {
+              const active = brush.preset === meta.id;
+              const isFav = favoriteSet.has(meta.id);
+              const isDif = category === 'difuminados';
+              return (
+                <div key={meta.id} className="relative group">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChangeBrush({
+                        category,
+                        preset: meta.id,
+                        size: meta.defaultSize,
+                        opacity: meta.defaultOpacity,
+                        softness: meta.defaultSoftness,
+                      });
+                      onActivateDrawMode();
+                    }}
+                    className={`w-full h-full p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 ${
+                      active
+                        ? 'bg-[#693a1b] border-[#ecc074] text-white ring-1 ring-[#f2ca7e]'
+                        : 'bg-[#221208] border-[#b98241]/35 hover:border-[#dfaf62] hover:bg-[#2c170b]'
+                    }`}
+                  >
+                    {isDif ? (
+                      <div className="w-full h-7 rounded bg-[#140903] flex items-center justify-center px-2">
+                        <div
+                          className="w-full h-2.5 rounded-full blur-[2px] opacity-85"
+                          style={{
+                            background: `linear-gradient(90deg, transparent, ${meta.tint}, #fff7e6, transparent)`,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <LiveTexturePreview
+                        presetId={meta.id}
+                        color={meta.tint}
+                        heightClass="h-7"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-editorial text-xs font-bold text-[#ffebc2] leading-snug truncate pr-4">
+                        {meta.label}
+                      </p>
+                      <p className="text-[10px] text-[#d6b688] mt-0.5 line-clamp-2 leading-tight">
+                        {meta.description}
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(meta.id);
+                    }}
+                    aria-label={isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                    className={`absolute top-2 right-2 p-1 rounded-full bg-[#1a0d05]/80 transition-opacity cursor-pointer ${
+                      isFav
+                        ? 'opacity-100 text-[#ff8fa3]'
+                        : 'opacity-0 group-hover:opacity-100 text-[#cfa467] hover:text-[#ff8fa3]'
+                    }`}
+                  >
+                    <Heart className={`w-3 h-3 ${isFav ? 'fill-current' : ''}`} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {items.length > visibleCount && (
+          <div className="flex justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((n) => n + 36)}
+              className="px-5 py-2 rounded-xl bg-[#341c0d] hover:bg-[#4b2914] border border-[#cfa158]/55 text-xs font-medium text-[#ffebc2] cursor-pointer transition-colors"
+            >
+              Cargar +36 texturas más ({(items.length - visibleCount).toLocaleString('es-ES')}{' '}
+              restantes)
+            </button>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ---------- 4. Configuración + Windows .exe Guide ---------- */
 export const SettingsView: React.FC<{

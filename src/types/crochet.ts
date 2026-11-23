@@ -37,6 +37,8 @@ export type BrushPresetId =
   | 'oleo-cerdas'
   | 'grafito-hiper'
   | 'brillo-estelar'
+  // 2,400+ procedural hyperrealistic texture brush catalog IDs
+  | `tex-${string}`
   // Legacy IDs kept for backwards compatibility
   | 'tiza-suave'
   | 'tiza-pastel'
