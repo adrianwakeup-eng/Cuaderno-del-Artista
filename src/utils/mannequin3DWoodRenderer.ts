@@ -269,6 +269,86 @@ function createBaseCathedralWoodMaps(): WoodTextureSet {
   return finalizeTextureSet(dCanvas, bCanvas, rCanvas, THREE.RepeatWrapping);
 }
 
+/**
+ * Generates seamless luminous Classical Greek Pentelic / Carrara marble texture
+ * (warm alabaster-ivory base with whisper-delicate natural pearl-taupe mineral veins!)
+ */
+function createPentelicMarbleMaps(): WoodTextureSet {
+  const size = 512;
+  const dCanvas = document.createElement('canvas');
+  dCanvas.width = size;
+  dCanvas.height = size;
+  const dCtx = dCanvas.getContext('2d')!;
+
+  const bCanvas = document.createElement('canvas');
+  bCanvas.width = size;
+  bCanvas.height = size;
+  const bCtx = bCanvas.getContext('2d')!;
+
+  const rCanvas = document.createElement('canvas');
+  rCanvas.width = size;
+  rCanvas.height = size;
+  const rCtx = rCanvas.getContext('2d')!;
+
+  const dImg = dCtx.createImageData(size, size);
+  const bImg = bCtx.createImageData(size, size);
+  const rImg = rCtx.createImageData(size, size);
+
+  for (let y = 0; y < size; y++) {
+    const ny = (y / size) * Math.PI * 2;
+    for (let x = 0; x < size; x++) {
+      const nx = (x / size) * Math.PI * 2;
+
+      // Multi-octave organic domain-warped Carrara marble veining
+      const warp1 =
+        Math.sin(nx * 2 + Math.cos(ny * 2) * 1.4) * 1.15 +
+        Math.cos(ny * 3 - Math.sin(nx * 2) * 1.1) * 0.65;
+      const warp2 =
+        Math.sin(nx * 5 - ny * 4 + warp1 * 1.2) * 0.42 +
+        Math.cos(nx * 9 + ny * 7 + warp1 * 0.8) * 0.18;
+
+      const veinWave = Math.abs(Math.sin(nx * 2 + ny * 1.5 + warp1 * 1.35 + warp2 * 0.9));
+      // Ultra-delicate crisp marble veins (thin translucent mineral lines, never loud!)
+      const fineVein = Math.pow(Math.max(0, 1 - veinWave), 8.0);
+      const softCloud =
+        (Math.sin(nx * 3 - ny * 2 + warp1 * 0.6) * 0.5 + 0.5) * 0.55 +
+        (Math.cos(nx * 6 + ny * 5 + warp2) * 0.5 + 0.5) * 0.45;
+
+      // Warm antique Pentelic Museum Marble (#dfd5c4 base -> luminous sunlit highlights & sculptural shadows on cream paper!)
+      const cloudAmt = softCloud * 0.22;
+      const veinAmt = fineVein * 0.30;
+      const r = Math.round(224 - cloudAmt * 32 - veinAmt * 72);
+      const g = Math.round(214 - cloudAmt * 36 - veinAmt * 76);
+      const b = Math.round(198 - cloudAmt * 40 - veinAmt * 78);
+
+      const idx = (y * size + x) * 4;
+      dImg.data[idx] = r;
+      dImg.data[idx + 1] = g;
+      dImg.data[idx + 2] = b;
+      dImg.data[idx + 3] = 255;
+
+      const bump = Math.round(150 - fineVein * 28 + (softCloud - 0.5) * 16);
+      bImg.data[idx] = bump;
+      bImg.data[idx + 1] = bump;
+      bImg.data[idx + 2] = bump;
+      bImg.data[idx + 3] = 255;
+
+      // Hand-polished satin-gloss museum marble surface
+      const rough = Math.round(78 + fineVein * 34 + softCloud * 24);
+      rImg.data[idx] = rough;
+      rImg.data[idx + 1] = rough;
+      rImg.data[idx + 2] = rough;
+      rImg.data[idx + 3] = 255;
+    }
+  }
+
+  dCtx.putImageData(dImg, 0, 0);
+  bCtx.putImageData(bImg, 0, 0);
+  rCtx.putImageData(rImg, 0, 0);
+
+  return finalizeTextureSet(dCanvas, bCanvas, rCanvas, THREE.RepeatWrapping);
+}
+
 /** Paint soft warm sculptural ambient occlusion ellipse (seamlessly wraps across u=0/1) */
 function paintAoEllipse(
   ctx: CanvasRenderingContext2D,
@@ -1533,10 +1613,17 @@ interface RendererSingleton {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
+  hemi: THREE.HemisphereLight;
+  keyLight: THREE.DirectionalLight;
+  fillLight: THREE.DirectionalLight;
+  rimLeft: THREE.DirectionalLight;
+  rimRight: THREE.DirectionalLight;
   maleModel: THREE.Group;
   femaleModel: THREE.Group;
   woodMats: THREE.MeshPhysicalMaterial[];
+  sculptedMarbleMat: THREE.MeshPhysicalMaterial;
   sculptedWoodMat: THREE.MeshPhysicalMaterial;
+  glbMeshes: THREE.Mesh[];
   glbLoaded: { male: boolean; female: boolean };
 }
 
@@ -1573,9 +1660,10 @@ function attachSculptedGlbScene(
   const container = new THREE.Group();
   gltfScene.traverse((obj) => {
     if (obj instanceof THREE.Mesh) {
-      obj.material = s.sculptedWoodMat;
+      obj.material = s.sculptedMarbleMat;
       obj.castShadow = true;
       obj.receiveShadow = true;
+      s.glbMeshes.push(obj);
     }
   });
   container.add(gltfScene);
@@ -1719,6 +1807,7 @@ function getSingleton(): RendererSingleton | null {
     scene.add(rimRight);
 
     const baseMaps = createBaseCathedralWoodMaps();
+    const marbleMaps = createPentelicMarbleMaps();
     const maleHeadMaps = createHeadWoodMaps('male');
     const femaleHeadMaps = createHeadWoodMaps('female');
     const maleTorsoMaps = createTorsoPanelWoodMaps('male');
@@ -1745,12 +1834,30 @@ function getSingleton(): RendererSingleton | null {
     const maleTorsoMat = makeWoodMat(maleTorsoMaps, 0.016);
     const femaleTorsoMat = makeWoodMat(femaleTorsoMaps, 0.016);
 
-    // Sculpted humanoid GLB wood material (uses baked 5-tap volumetric SDF AO + physical carved wood-panel grooves!)
+    // Classical Greek Pentelic / Carrara Marble Material (Louvre translucent alabaster-marble glow!)
+    const sculptedMarbleMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#ffffff'),
+      map: marbleMaps.map,
+      bumpMap: marbleMaps.bumpMap,
+      bumpScale: 0.0032,
+      roughnessMap: marbleMaps.roughnessMap,
+      roughness: 0.34,
+      metalness: 0.0,
+      clearcoat: 0.36,
+      clearcoatRoughness: 0.24,
+      sheen: 0.26,
+      sheenColor: new THREE.Color('#fff7eb'),
+      sheenRoughness: 0.42,
+      envMapIntensity: 0.18,
+      vertexColors: true,
+    });
+
+    // Optional Carved Italian Beechwood Material (when user chooses 'wood')
     const sculptedWoodMat = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color('#ffffff'),
       map: baseMaps.map,
       bumpMap: baseMaps.bumpMap,
-      bumpScale: 0.0065,
+      bumpScale: 0.006,
       roughnessMap: baseMaps.roughnessMap,
       roughness: 0.44,
       metalness: 0.0,
@@ -1807,6 +1914,11 @@ function getSingleton(): RendererSingleton | null {
       renderer,
       scene,
       camera,
+      hemi,
+      keyLight,
+      fillLight,
+      rimLeft,
+      rimRight,
       maleModel,
       femaleModel,
       woodMats: [
@@ -1815,9 +1927,12 @@ function getSingleton(): RendererSingleton | null {
         femaleHeadMat,
         maleTorsoMat,
         femaleTorsoMat,
+        sculptedMarbleMat,
         sculptedWoodMat,
       ],
+      sculptedMarbleMat,
       sculptedWoodMat,
+      glbMeshes: [],
       glbLoaded: { male: false, female: false },
     };
     startLoadingSculptedGlbs(singleton);
@@ -1846,10 +1961,48 @@ function renderInternal(opts: MannequinRenderOptions): HTMLCanvasElement | null 
   s.camera.aspect = width / height;
   s.camera.updateProjectionMatrix();
 
+  const isWoodMode = opts.color === 'wood';
+  const isCustomTint = Boolean(opts.color && opts.color !== 'natural' && opts.color !== 'wood');
+
+  // Switch between Classical Greek Marble (default) and Carved Italian Wood
+  const activeGlbMat = isWoodMode ? s.sculptedWoodMat : s.sculptedMarbleMat;
+  for (const mesh of s.glbMeshes) {
+    if (mesh.material !== activeGlbMat) {
+      mesh.material = activeGlbMat;
+    }
+  }
+
+  // Calibrate Louvre museum chiaroscuro lighting for Marble vs. warm atelier lighting for Wood
+  if (isWoodMode) {
+    s.renderer.toneMappingExposure = 0.86;
+    s.hemi.color.setHex(0xffe5c4);
+    s.hemi.groundColor.setHex(0x351001);
+    s.hemi.intensity = 0.24;
+    s.keyLight.color.setHex(0xfff1dc);
+    s.keyLight.intensity = 2.55;
+    s.fillLight.color.setHex(0xd97d3b);
+    s.fillLight.intensity = 0.20;
+    s.rimLeft.color.setHex(0xffe0b4);
+    s.rimLeft.intensity = 1.12;
+  } else {
+    // Dramatic Louvre gallery chiaroscuro -> breathtaking carved marble relief & rich contrast on cream paper!
+    s.renderer.toneMappingExposure = 0.78;
+    s.hemi.color.setHex(0xfff8ee);
+    s.hemi.groundColor.setHex(0x3f3429);
+    s.hemi.intensity = 0.19;
+    s.keyLight.color.setHex(0xfff6e8);
+    s.keyLight.position.set(4.0, 2.8, 1.85);
+    s.keyLight.intensity = 2.68;
+    s.fillLight.color.setHex(0xb8ab98);
+    s.fillLight.intensity = 0.16;
+    s.rimLeft.color.setHex(0xffefd6);
+    s.rimLeft.intensity = 1.05;
+  }
+
   for (const mat of s.woodMats) {
-    if (opts.color && opts.color !== 'natural') {
+    if (isCustomTint && opts.color) {
       mat.color.set(opts.color);
-      mat.color.lerp(new THREE.Color('#ffffff'), 0.24);
+      mat.color.lerp(new THREE.Color('#ffffff'), 0.22);
     } else {
       mat.color.set('#ffffff');
     }

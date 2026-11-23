@@ -2395,6 +2395,26 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     <button
                       type="button"
                       onClick={() =>
+                        updateElement(selectedElement.id, {
+                          color: selectedElement.color === 'wood' ? 'natural' : 'wood',
+                        })
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                      title="Alternar entre Mármol Griego y Madera Tallada"
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full border border-white/60"
+                        style={{
+                          backgroundColor:
+                            selectedElement.color === 'wood' ? '#D99658' : '#EDE4D5',
+                        }}
+                      />
+                      <span>{selectedElement.color === 'wood' ? 'Madera' : 'Mármol'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
                         setEditorSubPanel((p) =>
                           p === 'mannequin-color' ? null : 'mannequin-color'
                         )
@@ -2404,32 +2424,21 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                           ? 'bg-[#6b3d1e] border-[#ebb96a] text-white'
                           : 'bg-[#361d0e] border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18]'
                       }`}
-                      title="Colorear o cambiar tono del maniquí"
+                      title="Teñir la estatua con un color personalizado"
                     >
                       <span
                         className="w-3 h-3 rounded-full border border-white/60"
                         style={{
                           backgroundColor:
-                            selectedElement.color && selectedElement.color !== 'natural'
+                            selectedElement.color &&
+                            selectedElement.color !== 'natural' &&
+                            selectedElement.color !== 'wood'
                               ? selectedElement.color
-                              : '#D99658',
+                              : '#EDE4D5',
                         }}
                       />
                       <span>Color</span>
                     </button>
-
-                    {selectedElement.color && selectedElement.color !== 'natural' && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateElement(selectedElement.id, { color: 'natural' })
-                        }
-                        className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
-                        title="Restaurar madera natural y bronce"
-                      >
-                        Madera
-                      </button>
-                    )}
                   </>
                 );
               })()}
