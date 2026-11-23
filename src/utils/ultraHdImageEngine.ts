@@ -4,6 +4,7 @@ import type {
   NotebookSpread,
   PageElement,
 } from '../types/crochet';
+import { FONT_CSS_MAP } from '../data/calligraphyFonts';
 
 export const TARGET_8K_LONG_EDGE = 7680;
 export const UPLOAD_MIN_ULTRAHD_EDGE = 2400;
@@ -549,16 +550,7 @@ const SHEET_LOGICAL_W = 1840;
 const SHEET_LOGICAL_H = 1200;
 
 function fontFamilyCss(choice?: FontChoice): string {
-  switch (choice) {
-    case 'cormorant':
-      return "'Cormorant Garamond', Georgia, serif";
-    case 'caveat':
-      return "'Caveat', cursive";
-    case 'cinzel':
-      return "'Cinzel', Georgia, serif";
-    default:
-      return "'Lora', Georgia, serif";
-  }
+  return (choice && FONT_CSS_MAP[choice]) || FONT_CSS_MAP.lora;
 }
 
 function buildCssFilterString(f?: ImageFilters): string {

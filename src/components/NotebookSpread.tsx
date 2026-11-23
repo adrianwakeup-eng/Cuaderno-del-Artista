@@ -63,6 +63,12 @@ import type {
   WardrobeSeasonId,
 } from '../types/crochet';
 import { CROCHET_ALPHABET } from '../data/crochetAlphabet';
+import {
+  CALLIGRAPHY_CATEGORIES,
+  CALLIGRAPHY_FONTS,
+  FONT_CLASS_MAP,
+  getFontMeta,
+} from '../data/calligraphyFonts';
 import { CrochetStickerSvg } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
@@ -174,13 +180,6 @@ interface NotebookSpreadProps {
     allRotateAngle: number;
   }) => void;
 }
-
-const FONT_CLASS_MAP: Record<FontChoice, string> = {
-  lora: 'font-body',
-  cormorant: 'font-editorial',
-  caveat: 'font-hand',
-  cinzel: 'font-display',
-};
 
 const DEFAULT_FILTERS: ImageFilters = {
   brightness: 100,
@@ -1251,25 +1250,24 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         : brush.color.toLowerCase() === '#4e2712' || brush.color.toLowerCase() === '#1c130e'
           ? '#F7EED8'
           : brush.color;
+      const activeFontMeta = getFontMeta(selectedFont);
       const newEl: PageElement = {
         id: `el-${Date.now()}`,
         side,
         type: 'text',
         x: Math.max(5, Math.min(68, defaultX)),
         y: Math.max(6, Math.min(82, defaultY)),
-        width: preset === 'title' ? 290 : isCard ? 240 : 230,
+        width: preset === 'title' ? 320 : isCard ? 250 : activeFontMeta.defaultSizePx >= 28 ? 290 : 230,
         content: '',
         color: defaultInk,
         fontSize:
           preset === 'title'
-            ? 26
+            ? Math.max(28, activeFontMeta.defaultSizePx)
             : preset === 'card'
-              ? 16
-              : selectedFont === 'caveat'
-                ? 22
-                : 17,
-        fontFamily: preset === 'title' ? 'cormorant' : selectedFont,
-        fontWeight: preset === 'title' ? 'bold' : 'normal',
+              ? Math.max(18, Math.round(activeFontMeta.defaultSizePx * 0.82))
+              : activeFontMeta.defaultSizePx,
+        fontFamily: preset === 'title' && selectedFont === 'lora' ? 'pinyon' : selectedFont,
+        fontWeight: preset === 'title' && activeFontMeta.category === 'clasica' ? 'bold' : 'normal',
         fontStyle: 'normal',
         textDecoration: 'none',
         textAlign: preset === 'title' ? 'center' : 'left',
@@ -2219,18 +2217,37 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
 
                   <select
                     value={selectedElement.fontFamily || 'lora'}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const nextFont = e.target.value as FontChoice;
+                      const nextMeta = getFontMeta(nextFont);
+                      const currSize = selectedElement.fontSize || 18;
+                      const shouldBoostSize = currSize <= 20 && nextMeta.defaultSizePx >= 28;
                       updateElement(selectedElement.id, {
-                        fontFamily: e.target.value as FontChoice,
-                      })
-                    }
-                    aria-label="Tipografía"
-                    className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] focus:outline-none cursor-pointer"
+                        fontFamily: nextFont,
+                        ...(shouldBoostSize ? { fontSize: nextMeta.defaultSizePx } : {}),
+                      });
+                    }}
+                    aria-label="Caligrafía y tipografía"
+                    title="Elegir caligrafía real, romántica, de poeta antiguo o clásica"
+                    className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/50 text-xs text-[#ffebc2] focus:outline-none cursor-pointer max-w-[162px]"
                   >
-                    <option value="lora">Lora</option>
-                    <option value="cormorant">Cormorant</option>
-                    <option value="caveat">Caligrafía</option>
-                    <option value="cinzel">Clásica</option>
+                    {CALLIGRAPHY_CATEGORIES.filter((c) => c.id !== 'todas').map((cat) => (
+                      <optgroup
+                        key={cat.id}
+                        label={`${cat.badge} ${cat.label}`}
+                        className="bg-[#241207] text-[#f5d8a4]"
+                      >
+                        {CALLIGRAPHY_FONTS.filter((f) => f.category === cat.id).map((font) => (
+                          <option
+                            key={font.id}
+                            value={font.id}
+                            className="bg-[#241207] text-[#fff2d6]"
+                          >
+                            {font.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
 
                   <button

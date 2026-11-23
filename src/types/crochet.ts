@@ -12,7 +12,24 @@ export type StudioSection =
 
 export type PaperStyle = 'grid' | 'dots' | 'plain';
 
-export type FontChoice = 'lora' | 'cormorant' | 'caveat' | 'cinzel';
+export type FontChoice =
+  | 'pinyon'
+  | 'great-vibes'
+  | 'alex-brush'
+  | 'parisienne'
+  | 'tangerine'
+  | 'petit-formal'
+  | 'italianno'
+  | 'mr-de-haviland'
+  | 'allura'
+  | 'lavishly'
+  | 'cinzel-decorative'
+  | 'unifraktur'
+  | 'im-fell'
+  | 'cormorant'
+  | 'lora'
+  | 'caveat'
+  | 'cinzel';
 
 export type BrushCategory = 'pinceles' | 'difuminados' | 'luz' | 'tizas';
 

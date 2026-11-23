@@ -37,6 +37,59 @@
   font-family: var(--font-hand);
 }
 
+/* ---------- Antique Poet, Royal & Romantic Calligraphies ---------- */
+.font-pinyon {
+  font-family: 'Pinyon Script', 'Cormorant Garamond', cursive;
+}
+
+.font-great-vibes {
+  font-family: 'Great Vibes', 'Cormorant Garamond', cursive;
+}
+
+.font-alex-brush {
+  font-family: 'Alex Brush', 'Cormorant Garamond', cursive;
+}
+
+.font-parisienne {
+  font-family: 'Parisienne', 'Cormorant Garamond', cursive;
+}
+
+.font-tangerine {
+  font-family: 'Tangerine', 'Cormorant Garamond', cursive;
+}
+
+.font-petit-formal {
+  font-family: 'Petit Formal Script', 'Cormorant Garamond', cursive;
+}
+
+.font-italianno {
+  font-family: 'Italianno', 'Cormorant Garamond', cursive;
+}
+
+.font-haviland {
+  font-family: 'Mr De Haviland', 'Cormorant Garamond', cursive;
+}
+
+.font-allura {
+  font-family: 'Allura', 'Cormorant Garamond', cursive;
+}
+
+.font-lavishly {
+  font-family: 'Lavishly Yours', 'Pinyon Script', cursive;
+}
+
+.font-cinzel-deco {
+  font-family: 'Cinzel Decorative', 'Cinzel', Georgia, serif;
+}
+
+.font-unifraktur {
+  font-family: 'UnifrakturMaguntia', Georgia, serif;
+}
+
+.font-im-fell {
+  font-family: 'IM Fell English', 'Cormorant Garamond', Georgia, serif;
+}
+
 .font-mono-tab {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

@@ -13,6 +13,11 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { CROCHET_STICKERS } from '../data/seedData';
+import {
+  CALLIGRAPHY_CATEGORIES,
+  CALLIGRAPHY_FONTS,
+  type CalligraphyCategory,
+} from '../data/calligraphyFonts';
 import type { BrushSettings, FontChoice } from '../types/crochet';
 import type { StickerCategory } from '../data/seedData';
 import {
@@ -210,60 +215,97 @@ export const StickersAndImagesView: React.FC<{
   );
 };
 
-/* ---------- 2. Fuentes (Typography Studio) ---------- */
+/* ---------- 2. Fuentes y Caligrafías Antiguas (Royal & Poetic Calligraphy Studio) ---------- */
 export const FontsView: React.FC<{
   selectedFont: FontChoice;
   onSelectFont: (font: FontChoice) => void;
-}> = ({ selectedFont, onSelectFont }) => {
-  const fonts: Array<{
-    id: FontChoice;
-    name: string;
-    sample: string;
-    className: string;
-    desc: string;
-  }> = [
-    {
-      id: 'lora',
-      name: 'Lora Clásica',
-      sample: 'Anillo mágico de 6 puntos bajos, cerrar con punto deslizado.',
-      className: 'font-body',
-      desc: 'Caligrafía editorial cálida y muy legible para explicaciones largas.',
-    },
-    {
-      id: 'cormorant',
-      name: 'Cormorant Grabada',
-      sample: 'Mandala Encaje Borgoña · Colección Otoño',
-      className: 'font-editorial font-semibold',
-      desc: 'Estilo libro de artista europeo para encabezados y portadillas.',
-    },
-    {
-      id: 'caveat',
-      name: 'Manuscrita de Taller',
-      sample: '¡Recordar cambiar a ganchillo 2.25 mm en la vuelta 5!',
-      className: 'font-hand text-2xl',
-      desc: 'Letra cursiva espontánea ideal para anotaciones al margen.',
-    },
-    {
-      id: 'cinzel',
-      name: 'Cinzel Dorada',
-      sample: 'CUADERNO DEL ARTISTA',
-      className: 'font-display',
-      desc: 'Tipografía monumental inspirada en el lomo repujado de cuero.',
-    },
-  ];
+  onWriteInNotebook?: () => void;
+}> = ({ selectedFont, onSelectFont, onWriteInNotebook }) => {
+  const [category, setCategory] = React.useState<'todas' | CalligraphyCategory>('todas');
+  const [livePreviewText, setLivePreviewText] = React.useState('');
+
+  const filteredFonts = React.useMemo(
+    () =>
+      category === 'todas'
+        ? CALLIGRAPHY_FONTS
+        : CALLIGRAPHY_FONTS.filter((f) => f.category === category),
+    [category]
+  );
 
   return (
     <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
-      <div className="max-w-3xl mx-auto">
-        <h2 className="font-display text-xl text-[#f7e2b9] mb-1">
-          Tipografías para tus Notas del Cuaderno
-        </h2>
-        <p className="text-xs text-[#d6b688] mb-5">
-          Elige la fuente activa para los nuevos textos que añadas con la herramienta Texto
-        </p>
+      <div className="max-w-5xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
+          <div>
+            <h2 className="font-display text-xl sm:text-2xl text-[#f7e2b9] mb-1">
+              Caligrafías Reales, Románticas y de Poeta Antiguo
+            </h2>
+            <p className="text-xs text-[#d6b688]">
+              Elige cualquier caligrafía ({CALLIGRAPHY_FONTS.length} estilos listos para escribir en
+              tu cuaderno con la herramienta Texto y exportar en 8K / Vector SVG)
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-64">
+              <input
+                type="text"
+                value={livePreviewText}
+                onChange={(e) => setLivePreviewText(e.target.value)}
+                placeholder="Escribe un verso para probar todas..."
+                className="w-full px-3 py-1.5 rounded-xl bg-[#160a04]/90 border border-[#c99552]/50 text-xs text-[#fff3d6] placeholder:text-[#a88255] focus:outline-none focus:border-[#f5cb73]"
+              />
+              {livePreviewText && (
+                <button
+                  type="button"
+                  onClick={() => setLivePreviewText('')}
+                  aria-label="Limpiar frase de prueba"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#cfa467] hover:text-white cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {onWriteInNotebook && (
+              <button
+                type="button"
+                onClick={onWriteInNotebook}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-b from-[#d1974c] to-[#9b6126] border border-[#f5d290]/55 text-xs font-medium text-white cursor-pointer shrink-0 shadow hover:brightness-110"
+              >
+                Escribir en el cuaderno
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Category Filter Tabs */}
+        <div className="flex flex-wrap gap-1.5 mb-5">
+          {CALLIGRAPHY_CATEGORIES.map((cat) => {
+            const count =
+              cat.id === 'todas'
+                ? CALLIGRAPHY_FONTS.length
+                : CALLIGRAPHY_FONTS.filter((f) => f.category === cat.id).length;
+            const isActive = category === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-full text-xs border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] border-[#ffe3a3] text-white font-medium shadow'
+                    : 'bg-[#1f1007] border-[#b98241]/35 text-[#e4c89c] hover:border-[#dfaf62]'
+                }`}
+              >
+                <span>{cat.badge}</span>
+                <span>{cat.label}</span>
+                <span className="opacity-75 text-[10px]">({count})</span>
+              </button>
+            );
+          })}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {fonts.map((f) => {
+          {filteredFonts.map((f) => {
             const active = selectedFont === f.id;
             return (
               <button
@@ -272,22 +314,29 @@ export const FontsView: React.FC<{
                 onClick={() => onSelectFont(f.id)}
                 className={`p-5 rounded-2xl parchment-page border-2 text-left transition-all cursor-pointer text-[#3e210e] ${
                   active
-                    ? 'border-[#7a202a] ring-2 ring-[#ebbc6e]/70 shadow-xl'
+                    ? 'border-[#7a202a] ring-2 ring-[#ebbc6e]/80 shadow-xl'
                     : 'border-[#a87842]/60 hover:border-[#8e4c2a]'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-display text-sm font-bold text-[#5a2b12]">
-                    {f.name}
-                  </span>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-display text-sm font-bold text-[#5a2b12] truncate">
+                      {f.name}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-[#e6cf9e]/80 border border-[#b48646]/45 text-[10px] font-medium text-[#683a16] shrink-0">
+                      {f.categoryLabel}
+                    </span>
+                  </div>
                   {active && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-[#7a202a]">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#7a202a] shrink-0">
                       <Check className="w-3.5 h-3.5" /> Activa
                     </span>
                   )}
                 </div>
-                <p className={`${f.className} text-lg text-[#45220e] my-3 leading-snug`}>
-                  {f.sample}
+                <p
+                  className={`${f.className} ${f.previewScaleClass} text-[#3b1c0a] my-3 leading-snug break-words`}
+                >
+                  {livePreviewText.trim() || f.sample}
                 </p>
                 <p className="text-xs text-[#734a27]">{f.desc}</p>
               </button>

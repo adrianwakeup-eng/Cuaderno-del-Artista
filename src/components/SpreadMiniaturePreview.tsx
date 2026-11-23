@@ -1,11 +1,11 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import type {
   CopiedPatternData,
-  FontChoice,
   NotebookSpread,
   PageElement,
   PaperStyle,
 } from '../types/crochet';
+import { FONT_CLASS_MAP as MINI_FONT_CLASS } from '../data/calligraphyFonts';
 import { CrochetStickerSvg } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
@@ -15,13 +15,6 @@ import { WARDROBE_SEASONS } from '../utils/wardrobeSeasons';
 const VIRTUAL_PAGE_W = 500;
 const VIRTUAL_SPREAD_W = VIRTUAL_PAGE_W * 2; // 1000
 const VIRTUAL_SPREAD_H = 600;
-
-const MINI_FONT_CLASS: Record<FontChoice, string> = {
-  lora: 'font-body',
-  cormorant: 'font-editorial',
-  caveat: 'font-hand',
-  cinzel: 'font-display',
-};
 
 const PAPER_CLASS: Record<PaperStyle, string> = {
   grid: 'cutting-mat-grid',

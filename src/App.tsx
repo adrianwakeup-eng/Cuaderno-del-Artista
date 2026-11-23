@@ -54,6 +54,7 @@ import {
   exportNotebookSpreadAt8K,
   exportNotebookSpreadAsVectorSvg,
 } from './utils/ultraHdImageEngine';
+import { getFontMeta } from './data/calligraphyFonts';
 import { getDriveAccessToken, initDriveAuth } from './utils/googleDrive';
 
 export default function App() {
@@ -1174,9 +1175,14 @@ export default function App() {
             {activeSection === 'fuentes' && (
               <FontsView
                 selectedFont={workspace.selectedFont}
-                onSelectFont={(font: FontChoice) =>
-                  setWorkspace((prev) => ({ ...prev, selectedFont: font }))
-                }
+                onSelectFont={(font: FontChoice) => {
+                  setWorkspace((prev) => ({ ...prev, selectedFont: font }));
+                  showToast(`Caligrafía activa: ${getFontMeta(font).name}`);
+                }}
+                onWriteInNotebook={() => {
+                  setActiveSection('cuaderno');
+                  setActiveTool('text');
+                }}
               />
             )}
 
