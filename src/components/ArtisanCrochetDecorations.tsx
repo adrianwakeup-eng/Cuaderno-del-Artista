@@ -104,54 +104,71 @@ export const ArtisanCrochetCornerDecor: React.FC<{ animateDecorations?: boolean 
 );
 
 /**
- * Photorealistic 3D circular hand-crocheted concentric rug placed beneath the official
- * photographic male model's feet, with grounded ambient contact shadow & subtle angle marker.
+ * Photorealistic 3D circular hand-crocheted concentric rug placed flat beneath the official
+ * photographic male model's feet, using pure radial-gradient grounding shadows (zero CSS filter
+ * drop-shadow / blur so Safari & WebKit never clip the raster layer inside transformed stages).
  */
-export const CircularCrochetRug: React.FC<{ angleDeg: number }> = ({ angleDeg }) => {
+export const CircularCrochetRug: React.FC<{
+  angleDeg: number;
+  showAngleMarker?: boolean;
+}> = ({ angleDeg, showAngleMarker = true }) => {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
   const markerLeftPct = 50 + Math.cos(rad) * 44;
   const markerTopPct = 50 - Math.sin(rad) * 38;
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center">
-      {/* Grounded floor shadow beneath the thick wool rug */}
+    <div className="relative w-full h-full select-none pointer-events-none">
+      {/* Grounded floor shadow beneath the thick wool rug (pure radial-gradient, Safari-safe) */}
       <div
         aria-hidden="true"
-        className="absolute inset-x-[4%] bottom-[2%] h-[42%] rounded-full blur-md opacity-45"
+        className="absolute -inset-x-[3%] top-[14%] -bottom-[10%] rounded-full"
         style={{
           background:
-            'radial-gradient(ellipse at center, rgba(68,34,14,0.68) 0%, rgba(68,34,14,0.22) 60%, transparent 82%)',
+            'radial-gradient(ellipse 50% 48% at 50% 54%, rgba(62,30,12,0.44) 0%, rgba(62,30,12,0.22) 56%, rgba(62,30,12,0.06) 76%, transparent 94%)',
         }}
       />
 
       {/* High-resolution photorealistic hand-crocheted circular concentric rug */}
       <img
-        src="/vestidor/artisan/crochet-rug.png"
+        src="/vestidor/artisan/crochet-rug.webp"
         alt=""
         aria-hidden="true"
+        width={1100}
+        height={490}
         draggable={false}
-        className="relative w-full h-full object-contain drop-shadow-[0_8px_12px_rgba(68,34,14,0.28)]"
+        decoding="async"
+        className="relative block w-full h-full object-fill select-none pointer-events-none"
       />
 
-      {/* Soft grounded contact shadow right beneath the model's feet */}
+      {/* Soft grounded ambient contact shadow right on the rug center medallion beneath the shoes */}
       <div
         aria-hidden="true"
-        className="absolute left-1/2 top-[51%] -translate-x-1/2 -translate-y-1/2 w-[48%] h-[24%] rounded-full blur-[3px]"
+        className="absolute left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 w-[56%] h-[28%] rounded-full"
         style={{
           background:
-            'radial-gradient(ellipse at center, rgba(52,24,10,0.44) 0%, rgba(52,24,10,0.18) 55%, transparent 82%)',
+            'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(48,20,8,0.42) 0%, rgba(48,20,8,0.18) 54%, rgba(48,20,8,0) 84%)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 w-[42%] h-[15%] rounded-full"
+        style={{
+          background:
+            'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(36,14,4,0.44) 0%, rgba(36,14,4,0.12) 62%, rgba(36,14,4,0) 86%)',
         }}
       />
 
-      {/* Subtle golden stitch marker bead along perimeter showing active 360° viewing angle */}
-      <span
-        aria-hidden="true"
-        className="absolute w-2.5 h-2.5 -ml-1.25 -mt-1.25 rounded-full bg-[#fff7d4] border-2 border-[#b76e14] shadow-[0_0_8px_rgba(255,214,102,0.85)] transition-all duration-300"
-        style={{
-          left: `${markerLeftPct}%`,
-          top: `${markerTopPct}%`,
-        }}
-      />
+      {/* Subtle golden stitch marker bead along perimeter (only shown in 360° turntable mode) */}
+      {showAngleMarker && (
+        <span
+          aria-hidden="true"
+          className="absolute w-2.5 h-2.5 -ml-1.25 -mt-1.25 rounded-full bg-[#fff7d4] border-2 border-[#b76e14] shadow-[0_0_8px_rgba(255,214,102,0.85)] transition-all duration-300"
+          style={{
+            left: `${markerLeftPct}%`,
+            top: `${markerTopPct}%`,
+          }}
+        />
+      )}
     </div>
   );
 };

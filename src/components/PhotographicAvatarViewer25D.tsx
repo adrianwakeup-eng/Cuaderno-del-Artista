@@ -11,7 +11,9 @@ import type { DressingRoomGarment, RunwayColorGrade, VestidorSpinSpeed } from '.
 import type { StaticModelPose2D } from '../data/pasarelasAltaModaCatalog';
 import {
   composeTransparentModelWithRug,
+  estimateBottomPadFractionFromSrc,
   isGradeIdentity,
+  measureImageBottomPadFraction,
   renderSkinSafeRunwayImage,
   type TransparentModelWithRugResult,
 } from '../utils/garmentRunwayRenderer';
@@ -214,6 +216,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
     ref
   ) => {
     const stageRef = useRef<HTMLDivElement | null>(null);
+    const stageAssemblyRef = useRef<HTMLDivElement | null>(null);
     const activeImgRef = useRef<HTMLImageElement | null>(null);
     const backdropImgRef = useRef<HTMLImageElement | null>(null);
     const rugImgRef = useRef<HTMLImageElement | null>(null);
@@ -224,6 +227,37 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
     const playClick = useCallback(() => {
       if (soundEnabled) audioEngine.playStitchClick();
     }, [soundEnabled]);
+
+    // Live measured stage box & model image foot-sole metrics so the circular crochet rug
+    // ALWAYS sits flat underneath the model's shoe soles across every viewport, garment & pose.
+    const [stageBox, setStageBox] = useState<{ w: number; h: number }>({ w: 520, h: 660 });
+    const [modelMetrics, setModelMetrics] = useState<{ aspect: number; bottomPadFrac: number }>({
+      aspect: 1280 / 2160,
+      bottomPadFrac: 0.0416,
+    });
+
+    useEffect(() => {
+      const el = stageAssemblyRef.current;
+      if (!el) return;
+      const updateBox = () => {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 40 && rect.height > 40) {
+          setStageBox((prev) =>
+            Math.abs(prev.w - rect.width) < 1 && Math.abs(prev.h - rect.height) < 1
+              ? prev
+              : { w: rect.width, h: rect.height }
+          );
+        }
+      };
+      updateBox();
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(updateBox);
+        ro.observe(el);
+        return () => ro.disconnect();
+      }
+      window.addEventListener('resize', updateBox);
+      return () => window.removeEventListener('resize', updateBox);
+    }, []);
 
     useEffect(() => {
       const bg = new Image();
@@ -563,35 +597,51 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           ctx.fillRect(0, 0, W, H);
         }
 
-        // 2. Photorealistic 3D circular hand-crocheted rug
-        const rugY = H - 156;
+        // 2. Photorealistic 3D circular hand-crocheted rug flat beneath the model's feet
+        const bottomPadFrac = measureImageBottomPadFraction(img);
+        const rugW = 700;
+        const rugH = Math.round(rugW / 2.85);
+        const rugBottomY = H - 64;
+        const rugTopY = rugBottomY - rugH;
+        const soleY = rugBottomY - Math.round(rugH * 0.48);
+
         ctx.save();
         const rugImg = rugImgRef.current;
         if (rugImg && rugImg.complete && rugImg.naturalWidth > 0) {
-          const rugW = 720;
-          const rugH = (rugImg.naturalHeight / rugImg.naturalWidth) * rugW;
-          ctx.shadowColor = 'rgba(62, 28, 12, 0.32)';
-          ctx.shadowBlur = 18;
-          ctx.shadowOffsetY = 10;
-          ctx.drawImage(rugImg, (W - rugW) / 2, rugY - rugH * 0.5, rugW, rugH);
-          ctx.shadowColor = 'transparent';
+          const rugFloorShadow = ctx.createRadialGradient(
+            W / 2,
+            rugBottomY - rugH * 0.42,
+            rugW * 0.18,
+            W / 2,
+            rugBottomY - rugH * 0.42,
+            rugW * 0.54
+          );
+          rugFloorShadow.addColorStop(0, 'rgba(62, 28, 12, 0.34)');
+          rugFloorShadow.addColorStop(0.72, 'rgba(62, 28, 12, 0.14)');
+          rugFloorShadow.addColorStop(1, 'rgba(62, 28, 12, 0)');
+          ctx.fillStyle = rugFloorShadow;
+          ctx.beginPath();
+          ctx.ellipse(W / 2, rugBottomY - rugH * 0.42, rugW * 0.53, rugH * 0.52, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.drawImage(rugImg, (W - rugW) / 2, rugTopY, rugW, rugH);
         }
 
-        // Grounded foot contact shadow on rug
-        const footShadow = ctx.createRadialGradient(W / 2, rugY + 4, 16, W / 2, rugY + 4, 170);
-        footShadow.addColorStop(0, 'rgba(54, 24, 10, 0.46)');
+        // Grounded foot contact shadows directly under the shoe soles on the rug center medallion
+        const footShadow = ctx.createRadialGradient(W / 2, soleY + 3, 16, W / 2, soleY + 3, 178);
+        footShadow.addColorStop(0, 'rgba(54, 24, 10, 0.44)');
         footShadow.addColorStop(0.58, 'rgba(54, 24, 10, 0.18)');
         footShadow.addColorStop(1, 'rgba(54, 24, 10, 0)');
         ctx.fillStyle = footShadow;
         ctx.beginPath();
-        ctx.ellipse(W / 2, rugY + 4, 170, 26, 0, 0, Math.PI * 2);
+        ctx.ellipse(W / 2, soleY + 3, 178, 25, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
 
-        // 3. Crisp full-resolution photographic model fitted with contain + safety margins flush on the rug
-        const maxDrawH = rugY + 26 - 68;
+        // 3. Crisp full-resolution photographic model with shoe soles anchored squarely on the rug center
+        const maxDrawH = Math.round((soleY - 64) / Math.max(0.5, 1 - bottomPadFrac));
         const maxDrawW = W - 120;
-        const aspect = img.naturalWidth / img.naturalHeight;
+        const aspect = img.naturalWidth / Math.max(1, img.naturalHeight);
         let targetH = maxDrawH;
         let targetW = targetH * aspect;
         if (targetW > maxDrawW) {
@@ -599,7 +649,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           targetH = targetW / aspect;
         }
         const drawX = (W - targetW) / 2;
-        const drawY = rugY + 26 - targetH;
+        const drawY = soleY - targetH * (1 - bottomPadFrac);
 
         ctx.save();
         ctx.filter = knitRelief ? mood.imageFilter : mood.imageFilterFlat;
@@ -999,6 +1049,71 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
 
     const viewCount = resolved.availableFrames.length;
     const shortAngleLabel = resolved.activeFrame.label;
+    const activeDisplaySrc = displayedSrc || targetDisplaySrc || resolved.activeFrame.src;
+
+    const syncModelMetricsFromImg = useCallback((img: HTMLImageElement | null) => {
+      if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return;
+      const nextAspect = img.naturalWidth / img.naturalHeight;
+      const nextPad = measureImageBottomPadFraction(img);
+      setModelMetrics((prev) =>
+        Math.abs(prev.aspect - nextAspect) < 0.002 && Math.abs(prev.bottomPadFrac - nextPad) < 0.002
+          ? prev
+          : { aspect: nextAspect, bottomPadFrac: nextPad }
+      );
+    }, []);
+
+    useEffect(() => {
+      const img = activeImgRef.current;
+      if (img && img.complete && img.naturalWidth > 0) {
+        syncModelMetricsFromImg(img);
+      } else {
+        const estPad = estimateBottomPadFractionFromSrc(activeDisplaySrc);
+        setModelMetrics((prev) =>
+          Math.abs(prev.bottomPadFrac - estPad) < 0.002 ? prev : { ...prev, bottomPadFrac: estPad }
+        );
+      }
+    }, [activeDisplaySrc, syncModelMetricsFromImg]);
+
+    // Pixel-locked Rug + Shoe Sole geometry: guarantees the circular crochet rug ALWAYS lies
+    // flat directly beneath the model's feet with zero floating and zero Safari filter clipping.
+    const stageLayout = useMemo(() => {
+      const RUG_ASPECT = 2.85;
+      const RUG_WIDTH_RATIO = 0.62;
+      const RUG_LANDING_FRAC = 0.48;
+      const padTop = 8;
+      const rugBottom = 6;
+      const availW = Math.max(240, stageBox.w);
+      const availH = Math.max(240, stageBox.h - padTop - rugBottom);
+      const safeAspect = Math.max(0.28, Math.min(1.6, modelMetrics.aspect));
+      const padFrac = Math.max(0, Math.min(0.22, modelMetrics.bottomPadFrac));
+
+      const maxHByHeight =
+        availH / Math.max(0.5, 1 + (RUG_WIDTH_RATIO / RUG_ASPECT) * RUG_LANDING_FRAC - padFrac);
+      const maxHByWidth = (availW * 0.94) / safeAspect;
+      const modelH = Math.max(180, Math.min(maxHByHeight, maxHByWidth));
+      const modelW = modelH * safeAspect;
+
+      const rugW = Math.min(availW * 0.9, modelH * RUG_WIDTH_RATIO);
+      const rugH = rugW / RUG_ASPECT;
+      const soleFromBottom = rugBottom + rugH * RUG_LANDING_FRAC;
+      const modelBottom = soleFromBottom - modelH * padFrac;
+
+      return {
+        rugW: Math.round(rugW),
+        rugH: Math.round(rugH),
+        rugBottom,
+        modelW: Math.round(modelW),
+        modelH: Math.round(modelH),
+        modelBottom: Math.round(modelBottom),
+      };
+    }, [stageBox.w, stageBox.h, modelMetrics.aspect, modelMetrics.bottomPadFrac]);
+
+    const hasStageZoomOrPan =
+      Math.abs(pan.x) > 0.25 || Math.abs(pan.y) > 0.25 || Math.abs(zoom - 1) > 0.002;
+    const hasUnitTransform =
+      Math.abs(framingScale * floatScale - 1) > 0.002 ||
+      Math.abs(modelParallaxX) > 0.25 ||
+      Math.abs(modelParallaxY) > 0.25;
 
     return (
       <div
@@ -1036,7 +1151,10 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
             className="absolute inset-0 transition-all duration-500"
             style={{
               background: mood.radialGlow,
-              transform: `translate3d(${bgParallaxX}px, ${bgParallaxY}px, 0)`,
+              transform:
+                bgParallaxX !== 0 || bgParallaxY !== 0
+                  ? `translate3d(${bgParallaxX}px, ${bgParallaxY}px, 0)`
+                  : undefined,
             }}
           />
           <div
@@ -1050,7 +1168,10 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
             style={{
               background:
                 'radial-gradient(ellipse 80% 72% at 50% 34%, rgba(255,252,244,0.68) 0%, rgba(255,241,226,0.22) 56%, rgba(255,241,226,0) 85%)',
-              transform: `translate3d(${bgParallaxX * 0.5}px, ${bgParallaxY * 0.4}px, 0)`,
+              transform:
+                bgParallaxX !== 0 || bgParallaxY !== 0
+                  ? `translate3d(${bgParallaxX * 0.5}px, ${bgParallaxY * 0.4}px, 0)`
+                  : undefined,
             }}
           />
 
@@ -1079,23 +1200,28 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
 
         {/* =================================================================
             BOUNDED PHOTOGRAPHIC FITTING STAGE (Rug + Contact Shadow + Model)
-            Strictly min-h-0 & overflow-hidden so limbs/head NEVER clip
-            and the model NEVER invades the adjacent catalog panel.
+            Strictly min-h-0 & pixel-locked so the circular crochet rug sits
+            flat underneath the model's shoes across all garments, poses & zoom.
         ================================================================= */}
         <div
           className={`relative z-20 w-full flex-1 min-h-0 flex items-end justify-center pointer-events-none px-2 sm:px-3 ${
             hideBottomSpinBadge
-              ? 'pt-7 sm:pt-8 pb-1 sm:pb-2'
-              : 'pt-7 sm:pt-8 pb-[48px] sm:pb-[52px]'
+              ? 'pt-5 sm:pt-6 pb-1 sm:pb-2'
+              : 'pt-5 sm:pt-6 pb-[48px] sm:pb-[52px]'
           }`}
           style={{
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-            transformOrigin: '50% 88%',
+            transform: hasStageZoomOrPan
+              ? `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`
+              : undefined,
+            transformOrigin: '50% 90%',
             transition: isDragging ? 'none' : 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
           {/* Adaptive Stage Assembly locking Rug, Contact Shadow & Model Feet Anchor */}
-          <div className="relative w-full h-full min-h-0 max-w-[520px] flex flex-col items-center justify-end">
+          <div
+            ref={stageAssemblyRef}
+            className="relative w-full h-full min-h-0 max-w-[540px]"
+          >
             {/* Direct Drag-to-Resize Brass Handle on the 2D Model Frame */}
             {static2DMode && !cleanStageMode && (
               <button
@@ -1115,54 +1241,59 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
               </button>
             )}
 
-            {/* LAYER 2: Photorealistic Circular Hand-Crocheted Rug Beneath Model's Feet */}
+            {/* UNIFIED FIGURE + RUG UNIT: Both rug and model scale together across all poses */}
             <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-center"
+              className="relative w-full h-full"
               style={{
-                transform: `translate3d(${rugParallaxX}px, 0, 0)`,
-                transition: isDragging ? 'none' : 'transform 180ms ease-out',
-              }}
-            >
-              <div className="relative w-[min(92%,448px)] aspect-[2.32/1]">
-                <CircularCrochetRug angleDeg={resolved.resolvedAngleDeg} />
-                {/* Discreet Grounded Foot Contact Shadow anchored directly on the rug center ring */}
-                <div
-                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-[36%] w-[48%] h-[20%] rounded-full"
-                  style={{
-                    background:
-                      'radial-gradient(ellipse 52% 48% at 50% 52%, rgba(56, 26, 10, 0.38) 0%, rgba(56, 26, 10, 0.16) 52%, rgba(56, 26, 10, 0) 80%)',
-                  }}
-                />
-                <div
-                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-[39%] w-[34%] h-[11%] rounded-full"
-                  style={{
-                    background:
-                      'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(44, 18, 6, 0.44) 0%, rgba(44, 18, 6, 0) 76%)',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* LAYER 3: Separated Photographic Character Container
-                Width-proportional padding-bottom locks the soles to the rug center ring across
-                every viewport width (390px -> 2560px). Pure object-fit: contain (never cover!). */}
-            <div
-              className="relative z-20 w-full flex-1 min-h-0 flex items-end justify-center px-1 sm:px-2 pt-1 pb-[clamp(26px,12.5%,64px)]"
-              style={{
-                transform: `translate3d(${modelParallaxX}px, ${modelParallaxY}px, 0) scale(${
-                  framingScale * floatScale
-                })`,
+                transform: hasUnitTransform
+                  ? `translate3d(${modelParallaxX}px, ${modelParallaxY}px, 0) scale(${
+                      framingScale * floatScale
+                    })`
+                  : undefined,
                 transformOrigin: `50% ${poseOriginY}`,
                 transition: isDragging ? 'none' : 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
-              <div className="relative w-full h-full min-h-0 flex items-end justify-center">
+              {/* LAYER 2: Photorealistic Circular Hand-Crocheted Rug Flat Beneath Model's Feet */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute left-1/2 z-10"
+                style={{
+                  bottom: `${stageLayout.rugBottom}px`,
+                  width: `${stageLayout.rugW}px`,
+                  height: `${stageLayout.rugH}px`,
+                  marginLeft: `${-Math.round(stageLayout.rugW / 2)}px`,
+                  transform:
+                    Math.abs(rugParallaxX - modelParallaxX) > 0.25
+                      ? `translate3d(${rugParallaxX - modelParallaxX}px, 0, 0)`
+                      : undefined,
+                  transition: isDragging ? 'none' : 'transform 180ms ease-out',
+                }}
+              >
+                <CircularCrochetRug
+                  angleDeg={resolved.resolvedAngleDeg}
+                  showAngleMarker={!static2DMode}
+                />
+              </div>
+
+              {/* LAYER 3: Separated Photographic Character Container
+                  Exact bottom offset aligns the measured shoe soles to the rug center medallion. */}
+              <div
+                className="pointer-events-none absolute left-1/2 z-20"
+                style={{
+                  bottom: `${stageLayout.modelBottom}px`,
+                  width: `${stageLayout.modelW}px`,
+                  height: `${stageLayout.modelH}px`,
+                  marginLeft: `${-Math.round(stageLayout.modelW / 2)}px`,
+                }}
+              >
                 {knitRelief && (
                   <div
                     aria-hidden="true"
-                    className="absolute inset-x-[22%] top-[8%] bottom-[8%] rounded-full blur-2xl opacity-45 transition-colors duration-500"
-                    style={{ background: mood.rimTint }}
+                    className="absolute inset-x-[12%] top-[6%] bottom-[8%] rounded-full opacity-40 transition-colors duration-500"
+                    style={{
+                      background: `radial-gradient(ellipse 50% 48% at 50% 48%, ${mood.rimTint} 0%, transparent 74%)`,
+                    }}
                   />
                 )}
 
@@ -1183,11 +1314,12 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
 
                 <img
                   ref={activeImgRef}
-                  src={displayedSrc || targetDisplaySrc || resolved.activeFrame.src}
+                  src={activeDisplaySrc}
                   alt={`${resolved.outfitName} — ${activePose2D?.title ?? resolved.activeFrame.label}`}
                   draggable={false}
                   decoding="async"
-                  className="relative max-w-full max-h-full w-full h-full object-contain object-bottom transition-opacity duration-200 ease-out"
+                  onLoad={(e) => syncModelMetricsFromImg(e.currentTarget)}
+                  className="relative block w-full h-full object-contain object-bottom transition-opacity duration-200 ease-out"
                   style={{
                     opacity: 1,
                     filter: combinedImgFilter,

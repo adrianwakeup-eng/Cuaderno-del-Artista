@@ -107,7 +107,7 @@ export const DECOR_TEMPLATES: DecorTemplateDefinition[] = [
     label: 'Alfombra de crochet',
     categoryLabel: 'Estudio',
     defaultWidthPct: 36,
-    aspectRatio: 2.32,
+    aspectRatio: 2.85,
     defaultAnimation: 'none',
     defaultAnimated: false,
   },
@@ -592,12 +592,24 @@ export const VestidorDecorVisual: React.FC<{
         );
       case 'crochet-rug':
         return (
-          <img
-            src="/vestidor/artisan/crochet-rug.png"
-            alt={item.label}
-            draggable={false}
-            className="w-full h-full object-contain drop-shadow-[0_8px_12px_rgba(68,34,14,0.28)]"
-          />
+          <div className="relative w-full h-full">
+            <div
+              aria-hidden="true"
+              className="absolute -inset-x-[3%] top-[14%] -bottom-[10%] rounded-full"
+              style={{
+                background:
+                  'radial-gradient(ellipse 50% 48% at 50% 54%, rgba(62,30,12,0.38) 0%, rgba(62,30,12,0.16) 58%, transparent 88%)',
+              }}
+            />
+            <img
+              src="/vestidor/artisan/crochet-rug.webp"
+              alt={item.label}
+              width={1100}
+              height={490}
+              draggable={false}
+              className="relative block w-full h-full object-fill select-none"
+            />
+          </div>
         );
       case 'crochet-teddy':
         return (

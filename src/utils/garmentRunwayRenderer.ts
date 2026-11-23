@@ -2,7 +2,79 @@ import type { RunwayColorGrade } from '../types/crochet';
 
 const imageLoadCache = new Map<string, Promise<HTMLImageElement>>();
 const gradedDataUrlCache = new Map<string, string>();
+const bottomPadFractionCache = new Map<string, number>();
 const MAX_GRADED_CACHE = 96;
+
+/**
+ * Estimates a safe default transparent bottom-margin fraction from the image URL
+ * before pixel scanning completes (e.g. 4.16% on 1280×2160 official/collection renders,
+ * 3.31% on 720×1080 / 1440×2160 pose & outfit renders).
+ */
+export function estimateBottomPadFractionFromSrc(src: string | undefined | null): number {
+  if (!src) return 0.0416;
+  if (src.includes('/poses/') || src.includes('/conjuntos/')) return 0.033;
+  if (src.includes('/coleccion/') || src.includes('/modelo-oficial/')) return 0.0416;
+  return 0.02;
+}
+
+/**
+ * Measures the exact fraction of empty transparent padding beneath the model's shoe soles
+ * (0..0.25) so the soles always land dead-center on the circular crochet rug with zero floating.
+ * Results are cached per image URL and computed in < 1ms on a downsampled offscreen canvas.
+ */
+export function measureImageBottomPadFraction(img: HTMLImageElement | null | undefined): number {
+  if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) {
+    return estimateBottomPadFractionFromSrc(img?.src);
+  }
+  const cacheKey = img.currentSrc || img.src;
+  const cached = cacheKey ? bottomPadFractionCache.get(cacheKey) : undefined;
+  if (cached !== undefined) return cached;
+
+  try {
+    const sampleW = 140;
+    const sampleH = Math.max(80, Math.round((img.naturalHeight / img.naturalWidth) * sampleW));
+    const canvas = document.createElement('canvas');
+    canvas.width = sampleW;
+    canvas.height = sampleH;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return estimateBottomPadFractionFromSrc(cacheKey);
+    ctx.clearRect(0, 0, sampleW, sampleH);
+    ctx.drawImage(img, 0, 0, sampleW, sampleH);
+    const data = ctx.getImageData(0, 0, sampleW, sampleH).data;
+
+    let maxOpaqueY = -1;
+    // Scan from bottom up for the first row with opaque sole pixels (alpha > 42)
+    outer: for (let y = sampleH - 1; y >= Math.floor(sampleH * 0.65); y--) {
+      const rowOffset = y * sampleW * 4;
+      let opaqueCount = 0;
+      for (let x = 0; x < sampleW; x++) {
+        if (data[rowOffset + x * 4 + 3] > 42) {
+          opaqueCount++;
+          if (opaqueCount >= 2) {
+            maxOpaqueY = y;
+            break outer;
+          }
+        }
+      }
+    }
+
+    const measured =
+      maxOpaqueY >= 0
+        ? Math.max(0, Math.min(0.22, (sampleH - 1 - maxOpaqueY) / sampleH))
+        : estimateBottomPadFractionFromSrc(cacheKey);
+
+    if (cacheKey) {
+      if (bottomPadFractionCache.size >= 160) {
+        const first = bottomPadFractionCache.keys().next().value;
+        if (first) bottomPadFractionCache.delete(first);
+      }
+      bottomPadFractionCache.set(cacheKey, measured);
+    }
+    return measured;
+  } catch {
+    return estimateBottomPadFractionFromSrc(cacheKey);
+  }
+}
 
 export function loadCachedImage(src: string): Promise<HTMLImageElement> {
   const existing = imageLoadCache.get(src);
@@ -255,35 +327,66 @@ export async function composeTransparentModelWithRug(options: {
     // 100% transparent background
     ctx.clearRect(0, 0, W, H);
 
-    const rugY = H - 260;
+    // Measure exact transparent padding beneath the shoe soles so feet land dead-center on rug
+    const bottomPadFrac = measureImageBottomPadFraction(modelImg);
+    const RUG_PERSPECTIVE_ASPECT = 2.85;
+    const rugW = 1180;
+    const rugH = Math.round(rugW / RUG_PERSPECTIVE_ASPECT);
+    const rugBottomY = H - 36;
+    const rugTopY = rugBottomY - rugH;
+    const soleY = rugBottomY - Math.round(rugH * 0.48);
 
-    // 1. Circular hand-crocheted rug at feet
+    // 1. Circular hand-crocheted rug flat beneath the model's feet
     if (includeRug && rugImg && rugImg.naturalWidth > 0) {
+      // Soft grounded floor shadow beneath the woven rug
       ctx.save();
-      const rugW = 1200;
-      const rugH = (rugImg.naturalHeight / rugImg.naturalWidth) * rugW;
-      ctx.shadowColor = 'rgba(54, 24, 10, 0.24)';
-      ctx.shadowBlur = 24;
-      ctx.shadowOffsetY = 12;
-      ctx.drawImage(rugImg, (W - rugW) / 2, rugY - rugH * 0.5, rugW, rugH);
+      const rugFloorShadow = ctx.createRadialGradient(
+        W / 2,
+        rugBottomY - rugH * 0.42,
+        rugW * 0.18,
+        W / 2,
+        rugBottomY - rugH * 0.42,
+        rugW * 0.54
+      );
+      rugFloorShadow.addColorStop(0, 'rgba(54, 24, 10, 0.34)');
+      rugFloorShadow.addColorStop(0.72, 'rgba(54, 24, 10, 0.14)');
+      rugFloorShadow.addColorStop(1, 'rgba(54, 24, 10, 0)');
+      ctx.fillStyle = rugFloorShadow;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, rugBottomY - rugH * 0.42, rugW * 0.53, rugH * 0.52, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
 
-      // Grounded foot contact shadow on rug
       ctx.save();
-      const footShadow = ctx.createRadialGradient(W / 2, rugY + 8, 28, W / 2, rugY + 8, 282);
-      footShadow.addColorStop(0, 'rgba(54, 24, 10, 0.44)');
-      footShadow.addColorStop(0.58, 'rgba(54, 24, 10, 0.16)');
-      footShadow.addColorStop(1, 'rgba(54, 24, 10, 0)');
-      ctx.fillStyle = footShadow;
+      ctx.drawImage(rugImg, (W - rugW) / 2, rugTopY, rugW, rugH);
+      ctx.restore();
+
+      // Grounded foot contact shadows directly under the shoe soles on the rug center medallion
+      ctx.save();
+      const ambientShadow = ctx.createRadialGradient(W / 2, soleY + 4, 24, W / 2, soleY + 4, 290);
+      ambientShadow.addColorStop(0, 'rgba(48, 20, 8, 0.42)');
+      ambientShadow.addColorStop(0.55, 'rgba(48, 20, 8, 0.18)');
+      ambientShadow.addColorStop(1, 'rgba(48, 20, 8, 0)');
+      ctx.fillStyle = ambientShadow;
       ctx.beginPath();
-      ctx.ellipse(W / 2, rugY + 8, 282, 42, 0, 0, Math.PI * 2);
+      ctx.ellipse(W / 2, soleY + 4, 290, 40, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const crispSoleShadow = ctx.createRadialGradient(W / 2, soleY + 2, 12, W / 2, soleY + 2, 210);
+      crispSoleShadow.addColorStop(0, 'rgba(38, 14, 4, 0.46)');
+      crispSoleShadow.addColorStop(0.62, 'rgba(38, 14, 4, 0.16)');
+      crispSoleShadow.addColorStop(1, 'rgba(38, 14, 4, 0)');
+      ctx.fillStyle = crispSoleShadow;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, soleY + 2, 210, 20, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    // 2. Crisp 2K Ultra-HD 2D model standing flush on the rug
-    const maxDrawH = rugY + 42 - 110;
-    const maxDrawW = W - 200;
+    // 2. Crisp 2K Ultra-HD 2D model with shoe soles anchored squarely onto the rug center
+    const topMargin = 64;
+    const maxDrawH = Math.round((soleY - topMargin) / Math.max(0.5, 1 - bottomPadFrac));
+    const maxDrawW = W - 160;
     const aspect = modelImg.naturalWidth / Math.max(1, modelImg.naturalHeight);
     let targetH = maxDrawH;
     let targetW = targetH * aspect;
@@ -292,7 +395,7 @@ export async function composeTransparentModelWithRug(options: {
       targetH = targetW / aspect;
     }
     const drawX = (W - targetW) / 2;
-    const drawY = rugY + 42 - targetH;
+    const drawY = soleY - targetH * (1 - bottomPadFrac);
 
     ctx.save();
     if (flipX) {
