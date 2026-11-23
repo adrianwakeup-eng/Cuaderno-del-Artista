@@ -1,8 +1,6 @@
 import {
   DEFAULT_WORKSPACE,
-  INITIAL_ARMARIO_MANNEQUINS,
   INITIAL_DESK_NOTES,
-  INITIAL_LEFT_MANNEQUINS,
   INITIAL_WARDROBE_SPREAD,
   ositoGrid,
 } from '../data/seedData';
@@ -29,11 +27,11 @@ export interface StoredFairyModel3D {
   updatedAt: number;
 }
 
-const DEFAULT_SPREAD1_LEFT_IDS = new Set([
-  'el-welcome-title',
-  'el-welcome-note',
-  'el-sticker-1',
-  'el-sticker-2',
+const REMOVED_DEFAULT_MANNEQUIN_IDS = new Set([
+  'el-armario-mannequin-front',
+  'el-armario-mannequin-back',
+  'el-mannequin-front',
+  'el-mannequin-back',
 ]);
 
 function normalizeLoadedWorkspace(raw: Partial<NotebookWorkspaceData>): NotebookWorkspaceData {
@@ -41,25 +39,7 @@ function normalizeLoadedWorkspace(raw: Partial<NotebookWorkspaceData>): Notebook
   if (!Array.isArray(merged.deskNotes) || merged.deskNotes.length === 0) {
     merged.deskNotes = INITIAL_DESK_NOTES;
   }
-  if (!raw.mannequinsSeededV1 && Array.isArray(merged.spreads) && merged.spreads.length > 0) {
-    merged.spreads = merged.spreads.map((sp, idx) => {
-      if (sp.id !== 'spread-1' && idx !== 0) return sp;
-      const hasMannequin = sp.elements.some((el) => el.type === 'mannequin');
-      if (hasMannequin) return sp;
-      const leftElements = sp.elements.filter((el) => el.side === 'left');
-      const rightElements = sp.elements.filter((el) => el.side === 'right');
-      const isOnlyStarterOrEmpty =
-        leftElements.length === 0 ||
-        leftElements.every((el) => DEFAULT_SPREAD1_LEFT_IDS.has(el.id));
-      return {
-        ...sp,
-        elements: isOnlyStarterOrEmpty
-          ? [...INITIAL_LEFT_MANNEQUINS, ...rightElements]
-          : [...INITIAL_LEFT_MANNEQUINS, ...leftElements, ...rightElements],
-      };
-    });
-    merged.mannequinsSeededV1 = true;
-  }
+  merged.mannequinsSeededV1 = true;
   if (!raw.wardrobeSeededV1 && Array.isArray(merged.spreads)) {
     const alreadyHasWardrobe = merged.spreads.some((sp) =>
       sp.elements.some((el) => el.type === 'wardrobe')
@@ -69,94 +49,21 @@ function normalizeLoadedWorkspace(raw: Partial<NotebookWorkspaceData>): Notebook
     }
     merged.wardrobeSeededV1 = true;
   }
-  if (Array.isArray(merged.spreads)) {
-    const needsFullBody360Migration = !raw.mannequinsFullBody360V1;
-
+  if (!raw.removedDefaultMannequinsV1 && Array.isArray(merged.spreads)) {
     merged.spreads = merged.spreads.map((sp) => {
       const isWardrobeSpread =
         sp.id === 'spread-armario' || sp.elements.some((el) => el.type === 'wardrobe');
-
-      let nextElements = sp.elements.map((el) => {
-        if (el.type !== 'mannequin') return el;
-
-        // Upgrade legacy mannequins to full-body 360° male + female pair on first load
-        if (needsFullBody360Migration) {
-          if (el.id === 'el-armario-mannequin-front' || el.id === 'el-mannequin-front') {
-            return {
-              ...el,
-              mannequinGender: 'male' as const,
-              mannequinYawDeg: 0,
-              content: 'front',
-              x: 5,
-              y: 9,
-              width: 192,
-              title: 'Maniquí Hombre 360°',
-              permanent: el.id === 'el-armario-mannequin-front' ? true : el.permanent,
-            };
-          }
-          if (el.id === 'el-armario-mannequin-back' || el.id === 'el-mannequin-back') {
-            return {
-              ...el,
-              mannequinGender: 'female' as const,
-              mannequinYawDeg: 0,
-              content: 'front',
-              x: 50,
-              y: 9,
-              width: 192,
-              title: 'Maniquí Mujer 360°',
-              permanent: el.id === 'el-armario-mannequin-back' ? true : el.permanent,
-            };
-          }
-        }
-
-        // Backfill missing gender / yaw fields for any existing mannequin element
-        const inferredGender =
-          el.mannequinGender ??
-          (el.id.includes('back') || el.title?.toLowerCase().includes('mujer') ? 'female' : 'male');
-        const inferredYaw =
-          typeof el.mannequinYawDeg === 'number'
-            ? el.mannequinYawDeg
-            : el.content === 'back'
-              ? 180
-              : 0;
-
-        const isPermWardrobeMannequin =
-          el.id === 'el-armario-mannequin-front' || el.id === 'el-armario-mannequin-back';
-        return {
-          ...el,
-          mannequinGender: inferredGender,
-          mannequinYawDeg: inferredYaw,
-          ...(isPermWardrobeMannequin ? { permanent: true } : {}),
-        };
-      });
-
-      if (isWardrobeSpread) {
-        for (const reqMannequin of INITIAL_ARMARIO_MANNEQUINS) {
-          const exists = nextElements.some(
-            (el) =>
-              el.id === reqMannequin.id ||
-              (el.type === 'mannequin' &&
-                el.side === 'right' &&
-                el.mannequinGender === reqMannequin.mannequinGender)
-          );
-          if (!exists) {
-            nextElements = [...nextElements, { ...reqMannequin, permanent: true }];
-          } else {
-            nextElements = nextElements.map((el) =>
-              el.id === reqMannequin.id
-                ? { ...el, permanent: true }
-                : el
-            );
-          }
-        }
-      }
-
-      return { ...sp, elements: nextElements };
+      return {
+        ...sp,
+        elements: sp.elements.filter((el) => {
+          if (REMOVED_DEFAULT_MANNEQUIN_IDS.has(el.id)) return false;
+          if (isWardrobeSpread && el.type === 'mannequin') return false;
+          return true;
+        }),
+      };
     });
-
-    if (needsFullBody360Migration) {
-      merged.mannequinsFullBody360V1 = true;
-    }
+    merged.removedDefaultMannequinsV1 = true;
+    merged.mannequinsFullBody360V1 = true;
   }
   merged.patterns = merged.patterns.map((p) => {
     if (p.id === 'pat-osito-algodon') {

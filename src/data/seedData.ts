@@ -119,36 +119,7 @@ export type StickerCategory =
 export type { CrochetStickerDef } from './crochetStickersCatalog';
 export { CROCHET_STICKERS, STICKER_RECIPE_MAP } from './crochetStickersCatalog';
 
-export const INITIAL_LEFT_MANNEQUINS: PageElement[] = [
-  {
-    id: 'el-mannequin-front',
-    side: 'left',
-    type: 'mannequin',
-    x: 5,
-    y: 9,
-    width: 192,
-    content: 'front',
-    mannequinGender: 'male',
-    mannequinYawDeg: 0,
-    color: 'natural',
-    opacity: 1,
-    title: 'Maniquí Hombre 360°',
-  },
-  {
-    id: 'el-mannequin-back',
-    side: 'left',
-    type: 'mannequin',
-    x: 50,
-    y: 9,
-    width: 192,
-    content: 'front',
-    mannequinGender: 'female',
-    mannequinYawDeg: 0,
-    color: 'natural',
-    opacity: 1,
-    title: 'Maniquí Mujer 360°',
-  },
-];
+export const INITIAL_LEFT_MANNEQUINS: PageElement[] = [];
 
 export const INITIAL_LEFT_WARDROBE: PageElement = {
   id: 'el-wardrobe-main',
@@ -162,38 +133,7 @@ export const INITIAL_LEFT_WARDROBE: PageElement = {
   title: 'Armario Barroco de Crochet',
 };
 
-export const INITIAL_ARMARIO_MANNEQUINS: PageElement[] = [
-  {
-    id: 'el-armario-mannequin-front',
-    side: 'right',
-    type: 'mannequin',
-    x: 5,
-    y: 9,
-    width: 192,
-    content: 'front',
-    mannequinGender: 'male',
-    mannequinYawDeg: 0,
-    color: 'natural',
-    opacity: 1,
-    title: 'Maniquí Hombre 360°',
-    permanent: true,
-  },
-  {
-    id: 'el-armario-mannequin-back',
-    side: 'right',
-    type: 'mannequin',
-    x: 50,
-    y: 9,
-    width: 192,
-    content: 'front',
-    mannequinGender: 'female',
-    mannequinYawDeg: 0,
-    color: 'natural',
-    opacity: 1,
-    title: 'Maniquí Mujer 360°',
-    permanent: true,
-  },
-];
+export const INITIAL_ARMARIO_MANNEQUINS: PageElement[] = [];
 
 export const INITIAL_WARDROBE_SPREAD: NotebookSpread = {
   id: 'spread-armario',
@@ -202,7 +142,6 @@ export const INITIAL_WARDROBE_SPREAD: NotebookSpread = {
   updatedAt: '2026-11-19T08:00:00.000Z',
   elements: [
     INITIAL_LEFT_WARDROBE,
-    ...INITIAL_ARMARIO_MANNEQUINS,
   ],
 };
 

@@ -13,8 +13,7 @@ import { MannequinSvg } from './MannequinSvg';
 import { WARDROBE_SPRITE_SRC } from './CrochetWardrobe3D';
 
 const VIRTUAL_PAGE_W = 500;
-const VIRTUAL_SPINE_W = 8;
-const VIRTUAL_SPREAD_W = VIRTUAL_PAGE_W * 2 + VIRTUAL_SPINE_W; // 1008
+const VIRTUAL_SPREAD_W = VIRTUAL_PAGE_W * 2; // 1000
 const VIRTUAL_SPREAD_H = 600;
 
 const MINI_FONT_CLASS: Record<FontChoice, string> = {
@@ -75,19 +74,6 @@ const ScaledMiniBookFrame: React.FC<ScaledMiniBookFrameProps> = ({ children }) =
           className="relative flex overflow-hidden"
         >
           {children}
-
-          {/* Subtle inner-gutter shadows + 5 miniature brass binder rings */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 w-[54px] flex flex-col justify-evenly items-center z-30"
-          >
-            {[0, 1, 2, 3, 4].map((ringIdx) => (
-              <div
-                key={ringIdx}
-                className="w-[40px] h-[9px] rounded-full bg-gradient-to-b from-[#f4d79b] via-[#c79348] to-[#5e3a16] border border-[#3a200b]/80 shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
-              />
-            ))}
-          </div>
         </div>
       </div>
     </div>
@@ -345,17 +331,7 @@ export const EditableSpreadMiniature = memo<{ spread: NotebookSpread }>(({ sprea
         {leftEls.map((el) => (
           <MiniElementView key={el.id} el={el} />
         ))}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#3a1f0c]/25 to-transparent"
-        />
       </div>
-
-      {/* Central Spine */}
-      <div
-        style={{ width: VIRTUAL_SPINE_W, height: VIRTUAL_SPREAD_H }}
-        className="bg-gradient-to-r from-[#7c5328] via-[#261106] to-[#7c5328] shrink-0"
-      />
 
       {/* Right Miniature Page */}
       <div
@@ -373,10 +349,6 @@ export const EditableSpreadMiniature = memo<{ spread: NotebookSpread }>(({ sprea
         {rightEls.map((el) => (
           <MiniElementView key={el.id} el={el} />
         ))}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#3a1f0c]/25 to-transparent"
-        />
       </div>
     </ScaledMiniBookFrame>
   );
@@ -424,14 +396,6 @@ const CatalogMiniSide: React.FC<{
         </div>
       ))}
     </div>
-    <div
-      aria-hidden="true"
-      className={`pointer-events-none absolute inset-y-0 ${
-        side === 'left'
-          ? 'right-0 bg-gradient-to-l'
-          : 'left-0 bg-gradient-to-r'
-      } w-8 from-[#3a1f0c]/25 to-transparent`}
-    />
   </div>
 );
 
@@ -441,10 +405,6 @@ export const CatalogSpreadMiniature = memo<{
 }>(({ leftItems, rightItems }) => (
   <ScaledMiniBookFrame>
     <CatalogMiniSide side="left" items={leftItems} />
-    <div
-      style={{ width: VIRTUAL_SPINE_W, height: VIRTUAL_SPREAD_H }}
-      className="bg-gradient-to-r from-[#7c5328] via-[#261106] to-[#7c5328] shrink-0"
-    />
     <CatalogMiniSide side="right" items={rightItems} />
   </ScaledMiniBookFrame>
 ));
@@ -497,14 +457,6 @@ const MandalaMiniSide: React.FC<{
         );
       })}
     </div>
-    <div
-      aria-hidden="true"
-      className={`pointer-events-none absolute inset-y-0 ${
-        side === 'left'
-          ? 'right-0 bg-gradient-to-l'
-          : 'left-0 bg-gradient-to-r'
-      } w-8 from-[#3a1f0c]/25 to-transparent`}
-    />
   </div>
 );
 
@@ -515,10 +467,6 @@ export const MandalaSpreadMiniature = memo<{
 }>(({ leftItems, rightItems, mattedMap }) => (
   <ScaledMiniBookFrame>
     <MandalaMiniSide side="left" items={leftItems} mattedMap={mattedMap} />
-    <div
-      style={{ width: VIRTUAL_SPINE_W, height: VIRTUAL_SPREAD_H }}
-      className="bg-gradient-to-r from-[#7c5328] via-[#261106] to-[#7c5328] shrink-0"
-    />
     <MandalaMiniSide side="right" items={rightItems} mattedMap={mattedMap} />
   </ScaledMiniBookFrame>
 ));

@@ -58,10 +58,7 @@ import type {
   ShapeKind,
 } from '../types/crochet';
 import { CROCHET_ALPHABET } from '../data/crochetAlphabet';
-import {
-  BrassBinderRings,
-  CrochetStickerSvg,
-} from './CrochetDecorations';
+import { CrochetStickerSvg } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
 import { CROCHET_MANDALAS } from '../data/crochetMandalas';
@@ -3281,7 +3278,6 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       onPreviewPattern={setPreviewMandala}
                       onExtractFigure={(item) => void handleExtractMandalaFigure(item)}
                     />
-                    <div className="w-[5px] bg-gradient-to-r from-[#8b6236]/60 via-[#2a1408]/90 to-[#8b6236]/60 shrink-0" />
                     <MandalaCatalogPage
                       side="right"
                       spreadNumber={safeMandalaIndex + 1}
@@ -3310,7 +3306,6 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       onSelectPattern={setSelectedCatalogPattern}
                       onCopyPattern={onCopyPattern}
                     />
-                    <div className="w-[5px] bg-gradient-to-r from-[#8b6236]/60 via-[#2a1408]/90 to-[#8b6236]/60 shrink-0" />
                     <PatternCatalogPage
                       side="right"
                       spreadNumber={safeIndex + 1}
@@ -3367,8 +3362,6 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       onPlaceElement={(x, y) => handlePlaceElement('left', x, y)}
                     />
 
-                    <div className="w-[5px] bg-gradient-to-r from-[#8b6236]/60 via-[#2a1408]/90 to-[#8b6236]/60 shrink-0" />
-
                     <SingleNotebookPage
                       side="right"
                       spreadId={activeUserSpread.id}
@@ -3413,9 +3406,6 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     />
                   </>
                 ) : null}
-
-                {/* Central Brass Binder Rings */}
-                <BrassBinderRings />
 
                 {/* Tactile Page-Turn Edge Hotspots */}
                 {canPrev && (
@@ -4602,12 +4592,7 @@ function isElementFullyErased(strokes: ElementEraseStroke[]): boolean {
 }
 
 function isPermanentElement(el: PageElement): boolean {
-  return Boolean(
-    el.permanent ||
-      el.type === 'wardrobe' ||
-      el.id === 'el-armario-mannequin-front' ||
-      el.id === 'el-armario-mannequin-back'
-  );
+  return Boolean(el.permanent || el.type === 'wardrobe');
 }
 
 /* ---------- Memoized Page Element Item (Fast Drag, Resize & Free Rotate) ---------- */

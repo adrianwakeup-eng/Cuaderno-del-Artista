@@ -412,6 +412,7 @@ export interface NotebookWorkspaceData {
   deskNotes?: DeskNoteItem[];
   mannequinsSeededV1?: boolean;
   mannequinsFullBody360V1?: boolean;
+  removedDefaultMannequinsV1?: boolean;
   wardrobeSeededV1?: boolean;
   wardrobeItems?: DressingRoomGarment[];
   extractedMandalas?: Record<string, ExtractedMandalaRecord>;
