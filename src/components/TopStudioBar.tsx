@@ -23,6 +23,7 @@ import {
   Square,
   Type,
   Undo2,
+  Volume2,
   X,
 } from 'lucide-react';
 import type { ActiveCanvasTool, BrushSettings, ShapeKind, StudioSection } from '../types/crochet';
@@ -324,6 +325,17 @@ export const TopStudioBar: React.FC<TopStudioBarProps> = ({
               setOpenPopup(null);
               onGoToSection('cuaderno');
               onSelectTool('text');
+            }}
+          />
+
+          <ToolbarIconBtn
+            icon={<Volume2 className="w-4 h-4" />}
+            label="Leer"
+            active={activeSection === 'cuaderno' && activeTool === 'read'}
+            onClick={() => {
+              setOpenPopup(null);
+              onGoToSection('cuaderno');
+              onSelectTool(activeTool === 'read' ? 'select' : 'read');
             }}
           />
 

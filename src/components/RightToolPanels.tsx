@@ -1085,7 +1085,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
 
       {/* 3. HERRAMIENTAS DE CREACIÓN (GRID ANIMADA) */}
       <div className="carved-bar-3d rounded-xl p-1.5 shrink-0">
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-3 gap-1">
           <StudioToolTile
             icon={<MousePointer className="w-3.5 h-3.5" />}
             label="Mover"
@@ -1110,6 +1110,18 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
             }}
           />
           <StudioToolTile
+            icon={<Volume2 className="w-3.5 h-3.5" />}
+            label="Leer"
+            active={activeSection === 'cuaderno' && activeTool === 'read'}
+            onClick={() => {
+              audioEngine.playToggleChime(activeTool !== 'read');
+              onGoToSection('cuaderno');
+              onSelectTool(activeTool === 'read' ? 'select' : 'read');
+              setOpenDrawer(null);
+              onCloseMobileDrawer?.();
+            }}
+          />
+          <StudioToolTile
             icon={<PenTool className="w-3.5 h-3.5" />}
             label="Dibujo"
             active={activeSection === 'cuaderno' && activeTool === 'draw'}
@@ -1117,16 +1129,6 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
               audioEngine.playYarnPluck(1);
               onGoToSection('cuaderno');
               onSelectTool('draw');
-              setOpenDrawer(null);
-            }}
-          />
-          <StudioToolTile
-            icon={<CrochetGifIcon className="w-3.5 h-3.5" />}
-            label="GIFs"
-            active={activeSection === 'gifs'}
-            onClick={() => {
-              audioEngine.playRetroPop(2);
-              onGoToSection('gifs');
               setOpenDrawer(null);
             }}
           />
@@ -1160,6 +1162,16 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
             onClick={() => {
               audioEngine.playYarnPluck(5);
               onGoToSection('stickers');
+              setOpenDrawer(null);
+            }}
+          />
+          <StudioToolTile
+            icon={<CrochetGifIcon className="w-3.5 h-3.5" />}
+            label="GIFs"
+            active={activeSection === 'gifs'}
+            onClick={() => {
+              audioEngine.playRetroPop(2);
+              onGoToSection('gifs');
               setOpenDrawer(null);
             }}
           />
@@ -2069,7 +2081,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
           {(paletteFocus === 'todo' || paletteFocus === 'capas') && (() => {
             const derivedLayer: StackableLayerId =
               selectedLayer ||
-              (activeTool === 'text'
+              (activeTool === 'text' || activeTool === 'read'
                 ? 'notes'
                 : activeTool === 'draw' || activeTool === 'eraser'
                   ? 'drawing'

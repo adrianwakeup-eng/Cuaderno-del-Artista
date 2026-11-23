@@ -60,6 +60,7 @@ export type ActiveCanvasTool =
   | 'eraser'
   | 'eyedropper'
   | 'text'
+  | 'read'
   | 'shape'
   | 'image'
   | 'sticker';

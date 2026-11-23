@@ -41,6 +41,9 @@ import {
   Lock,
   Unlock,
   GripVertical,
+  Volume2,
+  Play,
+  Pause,
 } from 'lucide-react';
 import type {
   ActiveCanvasTool,
@@ -63,6 +66,8 @@ import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
 import { CROCHET_MANDALAS } from '../data/crochetMandalas';
 import { MANDALA_GALLERY_PHOTOS } from '../data/mandalaGalleryPhotos';
+import { textReaderEngine, type TextReaderState } from '../utils/textReaderEngine';
+import { TextReaderBar } from './TextReaderBar';
 import { MannequinSvg } from './MannequinSvg';
 import {
   getYawAngleLabel,
@@ -1514,6 +1519,73 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   const selectedElement =
     activeUserSpread?.elements.find((e) => e.id === selectedElementId) || null;
 
+  /* ---------- Neutral Masculine Text Reader State & Actions ---------- */
+  const [readerState, setReaderState] = useState<TextReaderState>(() =>
+    textReaderEngine.getState()
+  );
+
+  useEffect(() => {
+    const unsub = textReaderEngine.subscribe(setReaderState);
+    return () => {
+      unsub();
+      textReaderEngine.stop();
+    };
+  }, []);
+
+  const handleReadTextElement = useCallback(
+    (el: PageElement) => {
+      const clean = (el.content || '').trim();
+      if (!clean) {
+        onNotify?.('Este cuadro de texto está vacío');
+        return;
+      }
+      if (!textReaderEngine.getState().supported) {
+        onNotify?.('Tu navegador no admite lectura por voz');
+        return;
+      }
+      textReaderEngine.playElement(el.id, clean);
+    },
+    [onNotify]
+  );
+
+  const spreadTextElements = useMemo(() => {
+    if (!activeUserSpread) return [];
+    return activeUserSpread.elements
+      .filter((e) => e.type === 'text' && e.content.trim().length > 0)
+      .sort((a, b) => {
+        if (a.side !== b.side) return a.side === 'left' ? -1 : 1;
+        return a.y - b.y;
+      });
+  }, [activeUserSpread]);
+
+  const handleReadAllSpreadText = useCallback(() => {
+    if (!spreadTextElements.length) {
+      onNotify?.('No hay cuadros de texto con contenido en esta hoja');
+      return;
+    }
+    const combined = spreadTextElements.map((e) => e.content.trim()).join('. ');
+    textReaderEngine.playElement(`spread-${activeUserSpread?.id || 'all'}`, combined);
+  }, [spreadTextElements, activeUserSpread, onNotify]);
+
+  // When the user clicks the "Leer" button in the toolbar, immediately read the selected
+  // text box (or the only text box on the page), or highlight all text boxes for 1-click reading.
+  const prevToolForReadRef = useRef<ActiveCanvasTool>(activeTool);
+  useEffect(() => {
+    const prev = prevToolForReadRef.current;
+    prevToolForReadRef.current = activeTool;
+    if (activeTool === 'read' && prev !== 'read') {
+      if (selectedElement && selectedElement.type === 'text' && selectedElement.content.trim()) {
+        handleReadTextElement(selectedElement);
+      } else if (spreadTextElements.length === 1) {
+        handleReadTextElement(spreadTextElements[0]);
+      } else if (spreadTextElements.length > 1) {
+        onNotify?.('Modo Leer activo · Toca cualquier cuadro de texto para escucharlo');
+      } else {
+        onNotify?.('Añade un cuadro de texto en la hoja para escucharlo');
+      }
+    }
+  }, [activeTool, selectedElement, spreadTextElements, handleReadTextElement, onNotify]);
+
   const activeTitle = isMandalaMode
     ? activeMandalaSpread?.title || 'Apartado de Mandalas'
     : isCatalogSpread
@@ -1737,7 +1809,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       {/* Contextual Animated Floating Editor Toolbar (never pops up on copy; shows for active selection, Texto mode, Eyedropper, or Draw clear) */}
       <AnimatePresence>
         {(selectedElement ||
-          (!isCatalogView && activeTool === 'text') ||
+          (!isCatalogView && (activeTool === 'text' || activeTool === 'read')) ||
           (!isCatalogView &&
             activeUserSpread &&
             (activeUserSpread.leftDrawingDataUrl || activeUserSpread.rightDrawingDataUrl) &&
@@ -1771,6 +1843,36 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                 >
                   <X className="w-3 h-3" />
                   <span>Cancelar</span>
+                </button>
+              </div>
+            )}
+
+            {/* Modo Leer Quick Bar */}
+            {!isCatalogView && activeTool === 'read' && !selectedElement && (
+              <div className="flex flex-wrap items-center justify-center gap-1.5 px-1.5">
+                <Volume2 className="w-3.5 h-3.5 text-[#f0c77c]" />
+                <span className="text-xs text-[#ffdfa3] font-medium">
+                  Modo Leer · Toca cualquier cuadro de texto para escucharlo
+                </span>
+                {spreadTextElements.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleReadAllSpreadText}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] hover:brightness-110 text-xs font-semibold text-white cursor-pointer shadow"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>
+                      {spreadTextElements.length > 1 ? 'Leer toda la hoja' : 'Leer texto'}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onSelectTool('select')}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#3b2010] hover:bg-[#573119] border border-[#c99552]/40 text-xs text-[#ffe8be] cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                  <span>Salir</span>
                 </button>
               </div>
             )}
@@ -2148,6 +2250,34 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     title="Resaltado / Tarjeta de texto"
                   >
                     <Highlighter className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleReadTextElement(selectedElement)}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                      readerState.active &&
+                      readerState.elementId === selectedElement.id &&
+                      readerState.status === 'playing'
+                        ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] border-[#ffe3a3] text-white shadow'
+                        : 'bg-[#361d0e] border-[#c99552]/45 text-[#ffebc2] hover:bg-[#522f18]'
+                    }`}
+                    title="Leer este cuadro de texto con voz masculina neutral"
+                  >
+                    {readerState.active &&
+                    readerState.elementId === selectedElement.id &&
+                    readerState.status === 'playing' ? (
+                      <Pause className="w-3.5 h-3.5 fill-current" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5 text-[#f3c674]" />
+                    )}
+                    <span>
+                      {readerState.active &&
+                      readerState.elementId === selectedElement.id &&
+                      readerState.status === 'playing'
+                        ? 'Pausar'
+                        : 'Leer'}
+                    </span>
                   </button>
                 </>
               )}
@@ -3364,6 +3494,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
                       onRestoreElementFigure={handleRestoreElementFigure}
                       onEnterDressingRoom={onEnterDressingRoom}
+                      readerElementId={readerState.active ? readerState.elementId : null}
+                      readerIsPlaying={readerState.active && readerState.status === 'playing'}
+                      onReadElement={handleReadTextElement}
                       onPlaceElement={(x, y) => handlePlaceElement('left', x, y)}
                     />
 
@@ -3407,6 +3540,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
                       onRestoreElementFigure={handleRestoreElementFigure}
                       onEnterDressingRoom={onEnterDressingRoom}
+                      readerElementId={readerState.active ? readerState.elementId : null}
+                      readerIsPlaying={readerState.active && readerState.status === 'playing'}
+                      onReadElement={handleReadTextElement}
                       onPlaceElement={(x, y) => handlePlaceElement('right', x, y)}
                     />
                   </>
@@ -3463,6 +3599,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
           </div>
         </div>
       )}
+
+      {/* Floating Masculine Neutral Voice Reader Bar (appears automatically on playback) */}
+      <TextReaderBar readerState={readerState} />
 
       {/* Focus-Mode Minimal Floating Pill (only visible when right studio panels are hidden in Focus Mode) */}
       <AnimatePresence>
@@ -4592,6 +4731,9 @@ const PageElementItem = memo<{
   isSelected: boolean;
   isEditing: boolean;
   isDrawLocked: boolean;
+  isReadMode?: boolean;
+  isReadingThis?: boolean;
+  isReadingPlaying?: boolean;
   isMatting?: boolean;
   mattingProgress?: number;
   liveOverride?: { x: number; y: number; width: number; rotation?: number };
@@ -4606,6 +4748,7 @@ const PageElementItem = memo<{
   onExtractFigure?: (el: PageElement) => void;
   onRestoreFigure?: (el: PageElement) => void;
   onEnterDressingRoom?: () => void;
+  onReadElement?: (el: PageElement) => void;
   onEditTextDone: () => void;
 }>(
   ({
@@ -4613,6 +4756,9 @@ const PageElementItem = memo<{
     isSelected,
     isEditing,
     isDrawLocked,
+    isReadMode = false,
+    isReadingThis = false,
+    isReadingPlaying = false,
     isMatting = false,
     mattingProgress = 0,
     liveOverride,
@@ -4627,6 +4773,7 @@ const PageElementItem = memo<{
     onExtractFigure,
     onRestoreFigure,
     onEnterDressingRoom,
+    onReadElement,
     onEditTextDone,
   }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -4732,20 +4879,33 @@ const PageElementItem = memo<{
           opacity: el.opacity ?? 1,
           transform: transformParts.length ? transformParts.join(' ') : undefined,
         }}
-        onPointerDown={(e) => onStartDrag(el, e)}
+        onPointerDown={(e) => {
+          if (isReadMode && el.type === 'text' && !isEditing && onReadElement) {
+            e.stopPropagation();
+            onReadElement(el);
+            return;
+          }
+          onStartDrag(el, e);
+        }}
         onDoubleClick={(e) => onDoubleClick(el, e)}
         className={`group absolute ${
           isDrawLocked
             ? 'pointer-events-none'
-            : isLocked
-              ? 'pointer-events-auto cursor-default'
-              : 'pointer-events-auto cursor-move'
+            : isReadMode && el.type === 'text' && !isEditing
+              ? 'pointer-events-auto cursor-pointer'
+              : isLocked
+                ? 'pointer-events-auto cursor-default'
+                : 'pointer-events-auto cursor-move'
         } ${
-          isSelected && !isDrawLocked
-            ? isLocked
-              ? 'ring-2 ring-[#d99f44] ring-offset-2 ring-offset-[#fbf2de]/70 rounded-lg'
-              : 'ring-2 ring-[#b95b37] ring-offset-2 ring-offset-[#fbf2de]/70 rounded-lg'
-            : ''
+          isReadingThis && el.type === 'text'
+            ? 'ring-2 ring-[#e8b454] ring-offset-2 ring-offset-[#fbf2de]/80 rounded-lg shadow-[0_0_16px_rgba(232,180,84,0.38)]'
+            : isSelected && !isDrawLocked
+              ? isLocked
+                ? 'ring-2 ring-[#d99f44] ring-offset-2 ring-offset-[#fbf2de]/70 rounded-lg'
+                : 'ring-2 ring-[#b95b37] ring-offset-2 ring-offset-[#fbf2de]/70 rounded-lg'
+              : isReadMode && el.type === 'text' && !isEditing
+                ? 'ring-1 ring-dashed ring-[#c88f3d]/75 rounded-lg'
+                : ''
         }`}
       >
         {/* Top-Left Direct Lock / Unlock Button on EVERY object */}
@@ -4890,6 +5050,43 @@ const PageElementItem = memo<{
               )}
             </p>
           ))}
+
+        {/* Direct per-textbox "Leer" button (visible in Leer mode, when selected/reading, or on hover) */}
+        {el.type === 'text' && !isEditing && !isDrawLocked && onReadElement && el.content.trim().length > 0 && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className={`absolute -bottom-7 left-0 z-30 transition-opacity duration-150 ${
+              isReadMode || isReadingThis || isSelected
+                ? 'opacity-100'
+                : 'opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReadElement(el);
+              }}
+              title={
+                isReadingPlaying
+                  ? 'Pausar lectura'
+                  : 'Leer este cuadro de texto con voz masculina neutral'
+              }
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10.5px] font-medium shadow-md cursor-pointer transition-all hover:scale-105 ${
+                isReadingPlaying
+                  ? 'bg-gradient-to-b from-[#d89d4e] to-[#9b6022] border-[#ffe4a8] text-[#1f0e04]'
+                  : 'bg-[#2a1509]/95 hover:bg-[#492713] border-[#e7b86a]/70 text-[#ffebc2]'
+              }`}
+            >
+              {isReadingPlaying ? (
+                <Pause className="w-2.5 h-2.5 fill-current" />
+              ) : (
+                <Volume2 className="w-3 h-3 text-[#f4c672]" />
+              )}
+              <span>{isReadingPlaying ? 'Pausar' : 'Leer'}</span>
+            </button>
+          </div>
+        )}
 
         {el.type === 'sticker' && (
           <CrochetStickerSvg id={el.content} className="w-full h-auto drop-shadow" />
@@ -5131,6 +5328,9 @@ interface SinglePageProps {
   onExtractElementFigure?: (el: PageElement) => void;
   onRestoreElementFigure?: (el: PageElement) => void;
   onEnterDressingRoom?: () => void;
+  readerElementId?: string | null;
+  readerIsPlaying?: boolean;
+  onReadElement?: (el: PageElement) => void;
   onPlaceElement: (xPct: number, yPct: number) => void;
 }
 
@@ -5161,6 +5361,9 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     onExtractElementFigure,
     onRestoreElementFigure,
     onEnterDressingRoom,
+    readerElementId = null,
+    readerIsPlaying = false,
+    onReadElement,
     onPlaceElement,
   }) => {
     const pageRef = useRef<HTMLDivElement>(null);
@@ -6036,6 +6239,9 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
               isSelected={el.id === selectedElementId}
               isEditing={el.id === editingTextId}
               isDrawLocked={isDrawLocked}
+              isReadMode={activeTool === 'read'}
+              isReadingThis={readerElementId === el.id}
+              isReadingPlaying={readerElementId === el.id && readerIsPlaying}
               liveOverride={liveTransform?.id === el.id ? liveTransform : undefined}
               liveEraseStrokes={liveEraseMap[el.id]}
               onStartDrag={handleStartDragElement}
@@ -6045,6 +6251,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
               onUpdateElement={onUpdateElement}
               onDeleteElement={onDeleteElement}
               onToggleLockElement={onToggleLockElement}
+              onReadElement={onReadElement}
               onEditTextDone={handleEditTextDone}
             />
           ))}
