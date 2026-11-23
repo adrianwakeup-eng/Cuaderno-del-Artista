@@ -40,6 +40,7 @@ import {
   Palette,
   Lock,
   Unlock,
+  GripVertical,
 } from 'lucide-react';
 import type {
   ActiveCanvasTool,
@@ -89,6 +90,7 @@ interface NotebookSpreadProps {
   onChangeMandalaSpreadIndex?: (index: number) => void;
   onAddSpread: () => void;
   onDeleteSpread?: (spreadId: string) => void;
+  onReorderSpreads?: (fromIndex: number, toIndex: number) => void;
   hiddenCatalogSpreadIds?: string[];
   hiddenMandalaSpreadIds?: string[];
   onDeleteCatalogSpread?: (catalogSpreadId: string, visibleIdx: number) => void;
@@ -192,6 +194,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   onChangeMandalaSpreadIndex,
   onAddSpread,
   onDeleteSpread,
+  onReorderSpreads,
   hiddenCatalogSpreadIds,
   hiddenMandalaSpreadIds,
   onDeleteCatalogSpread,
@@ -351,6 +354,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   const [previewMandala, setPreviewMandala] = useState<CopiedPatternData | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [showOverview, setShowOverview] = useState(false);
+  const [dragSpreadIdx, setDragSpreadIdx] = useState<number | null>(null);
+  const [dropTargetSpreadIdx, setDropTargetSpreadIdx] = useState<number | null>(null);
 
   // Photo, Word, Paint & Rotation popups / modal state
   const [editorSubPanel, setEditorSubPanel] = useState<
@@ -2755,22 +2760,83 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
             )}
 
             <div>
-              <h4 className="font-editorial text-sm font-semibold text-[#f0c77c] mb-3">
-                Hojas del Cuaderno · {spreads.length} pliegos editables
-              </h4>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                <h4 className="font-editorial text-sm font-semibold text-[#f0c77c]">
+                  Hojas del Cuaderno · {spreads.length} pliegos editables
+                </h4>
+                {onReorderSpreads && spreads.length > 1 && (
+                  <span className="text-[11px] text-[#e7cc9f]/80">
+                    Arrastra una hoja o usa las flechas ← / → para cambiar el orden
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {spreads.map((sp, idx) => {
                   const globalIdx = catalogCount + idx;
                   const canDeleteThis = Boolean(onDeleteSpread) && spreads.length > 1;
+                  const canReorder = Boolean(onReorderSpreads) && spreads.length > 1;
+                  const isBeingDragged = dragSpreadIdx === idx;
+                  const isDropTarget =
+                    dropTargetSpreadIdx === idx &&
+                    dragSpreadIdx !== null &&
+                    dragSpreadIdx !== idx;
                   return (
                     <div
                       key={sp.id}
-                      className={`group rounded-xl border p-3 transition-colors ${
-                        !isMandalaMode && globalIdx === safeIndex
-                          ? 'border-[#f0c577] bg-[#4a2a15]/90'
-                          : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
+                      draggable={canReorder}
+                      onDragStart={(e) => {
+                        if (!canReorder) return;
+                        setDragSpreadIdx(idx);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', String(idx));
+                      }}
+                      onDragOver={(e) => {
+                        if (!canReorder || dragSpreadIdx === null || dragSpreadIdx === idx) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setDropTargetSpreadIdx(idx);
+                      }}
+                      onDragLeave={() => {
+                        if (dropTargetSpreadIdx === idx) {
+                          setDropTargetSpreadIdx(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (!canReorder) return;
+                        e.preventDefault();
+                        const from =
+                          dragSpreadIdx !== null
+                            ? dragSpreadIdx
+                            : Number(e.dataTransfer.getData('text/plain'));
+                        if (!Number.isNaN(from) && from !== idx) {
+                          onReorderSpreads?.(from, idx);
+                        }
+                        setDragSpreadIdx(null);
+                        setDropTargetSpreadIdx(null);
+                      }}
+                      onDragEnd={() => {
+                        setDragSpreadIdx(null);
+                        setDropTargetSpreadIdx(null);
+                      }}
+                      className={`group relative rounded-xl border p-3 transition-all ${
+                        isBeingDragged
+                          ? 'opacity-45 scale-[0.98] border-[#f0c577] bg-[#3a2010]'
+                          : isDropTarget
+                            ? 'ring-2 ring-[#ffe08a] border-[#ffe08a] bg-[#5a341a] scale-[1.02] shadow-[0_0_20px_rgba(255,214,102,0.35)]'
+                            : !isMandalaMode && globalIdx === safeIndex
+                              ? 'border-[#f0c577] bg-[#4a2a15]/90'
+                              : 'border-[#b98241]/35 bg-[#2a170c] hover:border-[#dfaf62]'
                       }`}
                     >
+                      {canReorder && (
+                        <div
+                          title="Arrastra para mover esta hoja de lugar"
+                          className="absolute top-2 left-2 z-10 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#1d0f07]/85 border border-[#c9954c]/55 text-[10px] font-mono-tab text-[#f3d398] cursor-grab active:cursor-grabbing shadow-sm"
+                        >
+                          <GripVertical className="w-3 h-3" />
+                          <span>#{idx + 1}</span>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -2799,21 +2865,47 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                             Pliego {globalIdx + 1} · {sp.elements.length} elementos
                           </div>
                         </button>
-                        <button
-                          type="button"
-                          disabled={!canDeleteThis}
-                          onClick={() => onDeleteSpread?.(sp.id)}
-                          aria-label={`Eliminar ${sp.title}`}
-                          title={
-                            canDeleteThis
-                              ? 'Eliminar estas dos páginas'
-                              : 'Debe quedar al menos una hoja editable'
-                          }
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#3b1512] hover:bg-[#6e211b] border border-[#e07a68]/55 text-[11px] font-medium text-[#ffd5cc] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Eliminar</span>
-                        </button>
+                        <div className="shrink-0 flex items-center gap-1">
+                          {canReorder && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => onReorderSpreads?.(idx, idx - 1)}
+                                aria-label={`Mover ${sp.title} una posición antes`}
+                                title="Mover antes"
+                                className="p-1.5 rounded-lg bg-[#3c2212] hover:bg-[#5c361c] border border-[#c9954c]/45 text-[#ffebc2] disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === spreads.length - 1}
+                                onClick={() => onReorderSpreads?.(idx, idx + 1)}
+                                aria-label={`Mover ${sp.title} una posición después`}
+                                title="Mover después"
+                                className="p-1.5 rounded-lg bg-[#3c2212] hover:bg-[#5c361c] border border-[#c9954c]/45 text-[#ffebc2] disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                              >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            disabled={!canDeleteThis}
+                            onClick={() => onDeleteSpread?.(sp.id)}
+                            aria-label={`Eliminar ${sp.title}`}
+                            title={
+                              canDeleteThis
+                                ? 'Eliminar estas dos páginas'
+                                : 'Debe quedar al menos una hoja editable'
+                            }
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#3b1512] hover:bg-[#6e211b] border border-[#e07a68]/55 text-[11px] font-medium text-[#ffd5cc] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Eliminar</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

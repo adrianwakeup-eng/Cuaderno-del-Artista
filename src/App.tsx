@@ -321,6 +321,66 @@ export default function App() {
     showToast('Nueva hoja añadida');
   };
 
+  const handleReorderSpreads = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= workspace.spreads.length ||
+        toIndex >= workspace.spreads.length
+      ) {
+        return;
+      }
+      audioEngine.playPageFlip();
+      setUndoStack((prev) => [
+        ...prev.slice(-11),
+        {
+          spreads: workspace.spreads,
+          hiddenCatalogSpreadIds: workspace.hiddenCatalogSpreadIds,
+          hiddenMandalaSpreadIds: workspace.hiddenMandalaSpreadIds,
+        },
+      ]);
+      setRedoStack([]);
+
+      const activeEditableIdx =
+        notebookMode === 'book' && currentSpreadIndex >= catalogSpreadCount
+          ? currentSpreadIndex - catalogSpreadCount
+          : -1;
+      const activeSpreadId =
+        activeEditableIdx >= 0 ? workspace.spreads[activeEditableIdx]?.id ?? null : null;
+
+      const nextSpreads = [...workspace.spreads];
+      const [moved] = nextSpreads.splice(fromIndex, 1);
+      nextSpreads.splice(toIndex, 0, moved);
+
+      setWorkspace((prev) => ({
+        ...prev,
+        spreads: nextSpreads,
+      }));
+
+      if (activeSpreadId) {
+        const nextActiveIdx = nextSpreads.findIndex((sp) => sp.id === activeSpreadId);
+        if (nextActiveIdx >= 0) {
+          setCurrentSpreadIndex(catalogSpreadCount + nextActiveIdx);
+        }
+      }
+
+      showToast(
+        `«${moved.title}» movida a la posición ${toIndex + 1} (Ctrl+Z para deshacer)`
+      );
+    },
+    [
+      workspace.spreads,
+      workspace.hiddenCatalogSpreadIds,
+      workspace.hiddenMandalaSpreadIds,
+      notebookMode,
+      currentSpreadIndex,
+      catalogSpreadCount,
+      showToast,
+    ]
+  );
+
   const handleDeleteSpread = useCallback(
     (spreadId?: string) => {
       const target = spreadId
@@ -904,6 +964,7 @@ export default function App() {
                 onChangeMandalaSpreadIndex={setMandalaSpreadIndex}
                 onAddSpread={handleAddSpread}
                 onDeleteSpread={handleDeleteSpread}
+                onReorderSpreads={handleReorderSpreads}
                 hiddenCatalogSpreadIds={workspace.hiddenCatalogSpreadIds}
                 hiddenMandalaSpreadIds={workspace.hiddenMandalaSpreadIds}
                 onDeleteCatalogSpread={handleDeleteCatalogSpread}
