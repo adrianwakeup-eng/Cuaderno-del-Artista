@@ -12,31 +12,34 @@ jobs:
   build-portable:
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - label: Windows Portable (.exe 64-bit y 32-bit + Instalador)
+          - label: Windows Portable (.exe + .zip + Instalador)
             os: windows-latest
             platform: win
             artifact_name: Cuaderno-del-Artista-Windows-Portable
             file_glob: |
               release/*.exe
               release/*.zip
-          - label: macOS Portable (.dmg y .zip Apple Silicon + Intel)
+          - label: macOS Portable (.zip Apple Silicon + Intel)
             os: macos-latest
             platform: mac
             artifact_name: Cuaderno-del-Artista-macOS-Portable
             file_glob: |
-              release/*.dmg
               release/*.zip
-          - label: Linux Portable (.AppImage y .tar.gz)
+          - label: Linux Portable (.AppImage)
             os: ubuntu-latest
             platform: linux
             artifact_name: Cuaderno-del-Artista-Linux-Portable
             file_glob: |
               release/*.AppImage
-              release/*.tar.gz
+
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+      ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
     steps:
       - name: Descargar código del repositorio
@@ -54,13 +57,17 @@ jobs:
         run: npm run lint
 
       - name: Instalar Electron y electron-builder
-        run: npm install --save-dev --legacy-peer-deps --no-audit --no-fund electron electron-builder
+        run: npm install --save-dev --legacy-peer-deps --no-audit --no-fund electron@^35.0.0 electron-builder@^25.1.8
 
       - name: Compilar aplicación web Ultra-HD
         run: npm run build
 
       - name: Empaquetar versión portable para ${{ matrix.platform }}
         run: npx electron-builder --${{ matrix.platform }} --config electron-builder.json --publish never
+
+      - name: Verificar archivos generados
+        shell: bash
+        run: ls -lh release/
 
       - name: Subir instaladores y portables como Artifact
         uses: actions/upload-artifact@v4
@@ -87,12 +94,11 @@ jobs:
           name: Cuaderno del Artista — Versiones Portables (Windows, macOS y Linux)
           body: |
             ### Descarga directa multiplataforma (100% autónoma y portable)
-            - **Windows (64 bits y 32 bits · Windows 10/11 y equipos anteriores):**
-              - `Cuaderno-del-Artista-Windows-Portable-*-x64.exe` (Recomendado, abrir sin instalar — guarda tus datos en `Cuaderno-Datos/`).
-              - `Cuaderno-del-Artista-Windows-Portable-*-ia32.exe` (Compatible con Windows de 32 bits).
-              - `Cuaderno-del-Artista-Windows-Instalador-*-x64.exe` (Instalador clásico con icono en Escritorio y Menú Inicio).
-              - `Cuaderno-del-Artista-Windows-Portable-*-x64.zip` (Carpeta portable descomprimible).
-            - **macOS (Apple Silicon M1/M2/M3/M4 e Intel):** `.dmg` y `.zip` portable.
-            - **Linux (x64 y ARM64):** `.AppImage` portable universal y `.tar.gz`.
+            - **Windows (Windows 10 / 11 64 bits y ARM64):**
+              - `Cuaderno-del-Artista-Windows-Portable-*.exe` — Ejecutable portable sin instalar (guarda tus datos en `Cuaderno-Datos/`).
+              - `Cuaderno-del-Artista-Windows-Instalador-*.exe` — Instalador clásico en español con acceso directo en Escritorio y Menú Inicio.
+              - `Cuaderno-del-Artista-Windows-Portable-*.zip` — Carpeta portable descomprimible.
+            - **macOS (Apple Silicon M1/M2/M3/M4 e Intel):** `.zip` portable con la app lista para abrir.
+            - **Linux (x64):** `.AppImage` portable universal.
           files: all-releases/*
           make_latest: true

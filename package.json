@@ -13,7 +13,7 @@
     "lint": "tsc --noEmit",
     "electron:start": "electron electron/main.cjs",
     "build:win": "vite build && npx electron-builder --win --config electron-builder.json --publish never",
-    "build:win:portable": "vite build && npx electron-builder --win portable zip --x64 --ia32 --config electron-builder.json --publish never",
+    "build:win:portable": "vite build && npx electron-builder --win portable zip --x64 --config electron-builder.json --publish never",
     "build:mac": "vite build && npx electron-builder --mac --config electron-builder.json --publish never",
     "build:linux": "vite build && npx electron-builder --linux --config electron-builder.json --publish never"
   },

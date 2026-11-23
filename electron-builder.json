@@ -18,18 +18,17 @@
   },
   "win": {
     "icon": "electron/icon.ico",
-    "signAndEditExecutable": false,
     "target": [
       {
         "target": "portable",
-        "arch": ["x64", "ia32"]
-      },
-      {
-        "target": "zip",
         "arch": ["x64"]
       },
       {
         "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "zip",
         "arch": ["x64"]
       }
     ]
@@ -42,25 +41,22 @@
     "shortcutName": "Cuaderno del Artista",
     "installerLanguages": ["es_ES"],
     "language": "1034",
-    "artifactName": "Cuaderno-del-Artista-Windows-Instalador-${version}-${arch}.exe"
+    "artifactName": "Cuaderno-del-Artista-Windows-Instalador-${version}.exe"
   },
   "portable": {
-    "artifactName": "Cuaderno-del-Artista-Windows-Portable-${version}-${arch}.exe"
+    "artifactName": "Cuaderno-del-Artista-Windows-Portable-${version}.exe"
   },
   "mac": {
     "icon": "electron/icon.png",
     "category": "public.app-category.graphics-design",
+    "identity": null,
     "target": [
-      {
-        "target": "dmg",
-        "arch": ["arm64", "x64"]
-      },
       {
         "target": "zip",
         "arch": ["arm64", "x64"]
       }
     ],
-    "artifactName": "Cuaderno-del-Artista-macOS-${version}-${arch}.${ext}"
+    "artifactName": "Cuaderno-del-Artista-macOS-Portable-${version}-${arch}.${ext}"
   },
   "linux": {
     "icon": "electron/icon.png",
@@ -68,10 +64,6 @@
     "target": [
       {
         "target": "AppImage",
-        "arch": ["x64", "arm64"]
-      },
-      {
-        "target": "tar.gz",
         "arch": ["x64"]
       }
     ],

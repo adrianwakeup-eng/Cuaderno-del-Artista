@@ -23,7 +23,7 @@ if %ERRORLEVEL% NEQ 0 goto :error
 
 echo.
 echo [2/4] Instalando motor de escritorio Electron para Windows...
-call npm install --no-save --legacy-peer-deps --no-audit --no-fund electron electron-builder
+call npm install --no-save --legacy-peer-deps --no-audit --no-fund electron@^35.0.0 electron-builder@^25.1.8
 if %ERRORLEVEL% NEQ 0 goto :error
 
 echo.
@@ -40,10 +40,9 @@ echo.
 echo ====================================================================
 echo   COMPILACION COMPLETADA CON EXITO
 echo   Tus ejecutables de Windows estan en la carpeta: release\
-echo   - Cuaderno-del-Artista-Windows-Portable-*-x64.exe  (Portable 64 bits)
-echo   - Cuaderno-del-Artista-Windows-Portable-*-ia32.exe (Portable 32 bits)
-echo   - Cuaderno-del-Artista-Windows-Portable-*-x64.zip  (Carpeta portable)
-echo   - Cuaderno-del-Artista-Windows-Instalador-*-x64.exe (Instalador)
+echo   - Cuaderno-del-Artista-Windows-Portable-*.exe   (Portable sin instalar)
+echo   - Cuaderno-del-Artista-Windows-Portable-*.zip   (Carpeta portable)
+echo   - Cuaderno-del-Artista-Windows-Instalador-*.exe (Instalador clasico)
 echo ====================================================================
 echo.
 if exist "release" explorer "release"
