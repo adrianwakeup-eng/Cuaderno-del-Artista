@@ -416,7 +416,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     if (copyingTransparent) return;
     setCopyingTransparent(true);
     try {
-      const res = await viewer3DRef.current?.exportTransparentModelWithRug();
+      const res = await viewer3DRef.current?.exportTransparentModelWithRug({ resolution: '4k' });
       if (!res) {
         onNotify('No se pudo generar el recorte transparente del modelo');
         return;
@@ -426,13 +426,13 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
       if (copied) {
         setJustCopiedTransparent(true);
         window.setTimeout(() => setJustCopiedTransparent(false), 2200);
-        onNotify('¡Copiado! Figura + alfombra en PNG con fondo transparente listo para pegar');
+        onNotify('¡Copiado en Ultra-HD! Figura + alfombra en PNG transparente listo para pegar');
       } else {
         const a = document.createElement('a');
         a.href = res.dataUrl;
-        a.download = 'Modelo-Alfombra-Transparente.png';
+        a.download = 'Modelo-Alfombra-UltraHD-Transparente.png';
         a.click();
-        onNotify('PNG transparente (figura + alfombra) descargado');
+        onNotify('PNG Ultra-HD transparente descargado');
       }
     } finally {
       setCopyingTransparent(false);
@@ -454,9 +454,9 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     if (copyingTransparent) return;
     setCopyingTransparent(true);
     try {
-      const res = await viewer3DRef.current?.exportTransparentModelWithRug();
+      const res = await viewer3DRef.current?.exportTransparentModelWithRug({ resolution: '8k' });
       if (!res) {
-        onNotify('No se pudo exportar el PNG transparente');
+        onNotify('No se pudo exportar el PNG 8K transparente');
         return;
       }
       const a = document.createElement('a');
@@ -464,10 +464,13 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
       const slug = (selectedTop?.name || selectedBottom?.name || 'Modelo-Oficial')
         .replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ-]+/g, '-')
         .slice(0, 42);
-      a.download = `${slug}-Alfombra-Transparente.png`;
+      a.download = `${slug}-8K-Transparente.png`;
       a.click();
+      window.setTimeout(() => {
+        if (res.dataUrl.startsWith('blob:')) URL.revokeObjectURL(res.dataUrl);
+      }, 4000);
       playSfx('save');
-      onNotify('PNG transparente (solo figura + alfombra) descargado');
+      onNotify('PNG 8K Ultra-HD (solo figura + alfombra sin pixelar) descargado');
     } finally {
       setCopyingTransparent(false);
     }
@@ -1274,9 +1277,9 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                 )}
                 <span>
                   {justCopiedTransparent
-                    ? '¡Copiado PNG 2K!'
+                    ? '¡Copiado Ultra-HD!'
                     : copyingTransparent
-                      ? 'Preparando PNG...'
+                      ? 'Renderizando 8K...'
                       : 'Copiar figura + alfombra (sin fondo)'}
                 </span>
               </button>
@@ -1285,11 +1288,11 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                 type="button"
                 disabled={copyingTransparent}
                 onClick={() => void handleDownloadTransparentModelWithRug()}
-                title="Descargar PNG 2K con fondo transparente (solo el modelo y la alfombra)"
+                title="Descargar PNG 8K Ultra-HD super-renderizado con fondo transparente (solo el modelo y la alfombra)"
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#fff6e6]/95 hover:bg-white border-2 border-[#cfa16a] text-[#4f260e] text-xs font-bold shadow-sm cursor-pointer transition-colors disabled:opacity-60"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Descargar PNG</span>
+                <span>Descargar 8K</span>
               </button>
 
               {(selectedTop || selectedBottom) && (

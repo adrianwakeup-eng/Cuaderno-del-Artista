@@ -186,6 +186,8 @@ export interface RightStudioDockProps {
   onImportBackup: (file: File) => void;
   onSaveNow: () => void;
   onExportBackup: () => void;
+  onExportImage8K?: () => void;
+  onExportVectorSvg?: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onOpenImageUpload: () => void;
@@ -824,6 +826,8 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   onImportBackup,
   onSaveNow,
   onExportBackup,
+  onExportImage8K,
+  onExportVectorSvg,
   onUndo,
   onRedo,
   onOpenImageUpload,
@@ -852,7 +856,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
           ? 'pinceles'
           : 'difuminados'
   );
-  const [openDrawer, setOpenDrawer] = useState<'abrir' | 'figuras' | 'imagen' | 'rotar' | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<'abrir' | 'exportar' | 'figuras' | 'imagen' | 'rotar' | null>(null);
   const [paletteFocus, setPaletteFocus] = useState<'todo' | 'color' | 'difuminados' | 'capas'>('todo');
   const [textureFamilyFilter, setTextureFamilyFilter] = useState<
     'destacados' | 'favoritos' | TextureFamilyId
@@ -1197,13 +1201,72 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
           <StudioActionTile
             icon={<Download className="w-3 h-3" />}
             label="Export."
-            onClick={() => {
-              setOpenDrawer(null);
-              audioEngine.playSaveChime();
-              onExportBackup();
-            }}
+            active={openDrawer === 'exportar'}
+            onClick={() => toggleDrawer('exportar')}
           />
         </div>
+
+        {/* Inline Animated Drawer: Exportar 8K PNG / Vector SVG / Respaldo .json */}
+        <AnimatePresence initial={false}>
+          {openDrawer === 'exportar' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="mt-1.5 pt-1.5 border-t border-[#b98241]/30 space-y-1">
+                {onExportImage8K && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playSaveChime();
+                      onExportImage8K();
+                      setOpenDrawer(null);
+                    }}
+                    title="Guardar la hoja actual super-renderizada en 8K PNG (7680×5008 px) sin pixelación"
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-gradient-to-b from-[#d89b38] to-[#9b5f12] hover:brightness-110 border border-[#ffe18c]/55 text-[11px] font-semibold text-[#fff9e8] cursor-pointer shadow"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#fff2b8]" />
+                    <span>Guardar Imagen 8K PNG</span>
+                  </button>
+                )}
+                <div className="grid grid-cols-2 gap-1">
+                  {onExportVectorSvg && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioEngine.playSaveChime();
+                        onExportVectorSvg();
+                        setOpenDrawer(null);
+                      }}
+                      title="Exportar hoja en formato vectorial SVG de nitidez infinita"
+                      className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#234334] hover:bg-[#2d5844] border border-[#8ce0b8]/45 text-[10.5px] font-medium text-[#e6fff2] cursor-pointer"
+                    >
+                      <Download className="w-3 h-3 text-[#9cf0c8]" />
+                      <span>Vector SVG</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playSaveChime();
+                      onExportBackup();
+                      setOpenDrawer(null);
+                    }}
+                    className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#2b160a] hover:bg-[#4e2a14] border border-[#c99552]/40 text-[10.5px] text-[#f5dfba] cursor-pointer ${
+                      onExportVectorSvg ? '' : 'col-span-2'
+                    }`}
+                  >
+                    <Download className="w-3 h-3 text-[#f0c77c]" />
+                    <span>Respaldo .json</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Inline Animated Drawer: Abrir respaldo / Drive */}
         <AnimatePresence initial={false}>

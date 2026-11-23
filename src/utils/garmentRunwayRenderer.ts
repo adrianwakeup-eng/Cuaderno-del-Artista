@@ -1,4 +1,5 @@
 import type { RunwayColorGrade } from '../types/crochet';
+import { fitSafeCanvasSize, superRenderImageToCanvas } from './ultraHdImageEngine';
 
 const imageLoadCache = new Map<string, Promise<HTMLImageElement>>();
 const gradedDataUrlCache = new Map<string, string>();
@@ -291,23 +292,26 @@ export interface TransparentModelWithRugResult {
 }
 
 /**
- * Exports a 100% transparent RGBA PNG containing ONLY:
- * 1) The circular crochet rug at the model's feet
- * 2) A soft natural foot contact shadow on the rug
- * 3) The crisp 2D cut-out model figure standing flush on the rug
- * Zero studio walls, zero curtains, zero UI — ready to copy/paste anywhere with transparent background.
+ * Exports a 100% transparent RGBA PNG at 8K Ultra-HD (5390×7680, or 4K for fast clipboard)
+ * containing ONLY:
+ * 1) The circular crochet rug super-rendered flat beneath the model's feet
+ * 2) Soft natural foot contact shadows on the rug center medallion
+ * 3) The crisp super-resolved 2D cut-out model figure standing flush on the rug
+ * Zero studio walls, zero curtains, zero UI — zero pixelation.
  */
 export async function composeTransparentModelWithRug(options: {
   modelSrc: string;
   rugSrc?: string;
   flipX?: boolean;
   includeRug?: boolean;
+  resolution?: '4k' | '8k';
 }): Promise<TransparentModelWithRugResult | null> {
   const {
     modelSrc,
     rugSrc = '/vestidor/artisan/crochet-rug.png',
     flipX = false,
     includeRug = true,
+    resolution = '8k',
   } = options;
 
   try {
@@ -316,13 +320,21 @@ export async function composeTransparentModelWithRug(options: {
       includeRug ? loadCachedImage(rugSrc).catch(() => null) : Promise.resolve(null),
     ]);
 
-    const W = 1600;
-    const H = 2280;
+    const targetLong = resolution === '8k' ? 7680 : 3648;
+    const baseAspect = 1600 / 2280;
+    const safe = fitSafeCanvasSize(Math.round(targetLong * baseAspect), targetLong);
+    const W = safe.width;
+    const H = safe.height;
+    const unit = H / 2280;
+
     const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     // 100% transparent background
     ctx.clearRect(0, 0, W, H);
@@ -330,13 +342,13 @@ export async function composeTransparentModelWithRug(options: {
     // Measure exact transparent padding beneath the shoe soles so feet land dead-center on rug
     const bottomPadFrac = measureImageBottomPadFraction(modelImg);
     const RUG_PERSPECTIVE_ASPECT = 2.85;
-    const rugW = 1180;
+    const rugW = Math.round(1180 * unit);
     const rugH = Math.round(rugW / RUG_PERSPECTIVE_ASPECT);
-    const rugBottomY = H - 36;
+    const rugBottomY = H - Math.round(36 * unit);
     const rugTopY = rugBottomY - rugH;
     const soleY = rugBottomY - Math.round(rugH * 0.48);
 
-    // 1. Circular hand-crocheted rug flat beneath the model's feet
+    // 1. Circular hand-crocheted rug super-rendered flat beneath the model's feet
     if (includeRug && rugImg && rugImg.naturalWidth > 0) {
       // Soft grounded floor shadow beneath the woven rug
       ctx.save();
@@ -357,36 +369,55 @@ export async function composeTransparentModelWithRug(options: {
       ctx.fill();
       ctx.restore();
 
+      const superRug = superRenderImageToCanvas(rugImg, rugW, rugH, {
+        sharpness: 0.78,
+        clarity: 0.06,
+        vibrance: 0.04,
+      });
       ctx.save();
-      ctx.drawImage(rugImg, (W - rugW) / 2, rugTopY, rugW, rugH);
+      ctx.drawImage(superRug, (W - rugW) / 2, rugTopY, rugW, rugH);
       ctx.restore();
 
       // Grounded foot contact shadows directly under the shoe soles on the rug center medallion
       ctx.save();
-      const ambientShadow = ctx.createRadialGradient(W / 2, soleY + 4, 24, W / 2, soleY + 4, 290);
+      const ambientShadow = ctx.createRadialGradient(
+        W / 2,
+        soleY + 4 * unit,
+        24 * unit,
+        W / 2,
+        soleY + 4 * unit,
+        290 * unit
+      );
       ambientShadow.addColorStop(0, 'rgba(48, 20, 8, 0.42)');
       ambientShadow.addColorStop(0.55, 'rgba(48, 20, 8, 0.18)');
       ambientShadow.addColorStop(1, 'rgba(48, 20, 8, 0)');
       ctx.fillStyle = ambientShadow;
       ctx.beginPath();
-      ctx.ellipse(W / 2, soleY + 4, 290, 40, 0, 0, Math.PI * 2);
+      ctx.ellipse(W / 2, soleY + 4 * unit, 290 * unit, 40 * unit, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      const crispSoleShadow = ctx.createRadialGradient(W / 2, soleY + 2, 12, W / 2, soleY + 2, 210);
+      const crispSoleShadow = ctx.createRadialGradient(
+        W / 2,
+        soleY + 2 * unit,
+        12 * unit,
+        W / 2,
+        soleY + 2 * unit,
+        210 * unit
+      );
       crispSoleShadow.addColorStop(0, 'rgba(38, 14, 4, 0.46)');
       crispSoleShadow.addColorStop(0.62, 'rgba(38, 14, 4, 0.16)');
       crispSoleShadow.addColorStop(1, 'rgba(38, 14, 4, 0)');
       ctx.fillStyle = crispSoleShadow;
       ctx.beginPath();
-      ctx.ellipse(W / 2, soleY + 2, 210, 20, 0, 0, Math.PI * 2);
+      ctx.ellipse(W / 2, soleY + 2 * unit, 210 * unit, 20 * unit, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    // 2. Crisp 2K Ultra-HD 2D model with shoe soles anchored squarely onto the rug center
-    const topMargin = 64;
+    // 2. Super-rendered 8K 2D model with shoe soles anchored squarely onto the rug center
+    const topMargin = Math.round(64 * unit);
     const maxDrawH = Math.round((soleY - topMargin) / Math.max(0.5, 1 - bottomPadFrac));
-    const maxDrawW = W - 160;
+    const maxDrawW = W - Math.round(160 * unit);
     const aspect = modelImg.naturalWidth / Math.max(1, modelImg.naturalHeight);
     let targetH = maxDrawH;
     let targetW = targetH * aspect;
@@ -397,21 +428,28 @@ export async function composeTransparentModelWithRug(options: {
     const drawX = (W - targetW) / 2;
     const drawY = soleY - targetH * (1 - bottomPadFrac);
 
+    const superModel = superRenderImageToCanvas(
+      modelImg,
+      Math.round(targetW),
+      Math.round(targetH),
+      { sharpness: 0.84, clarity: 0.06, vibrance: 0.04 }
+    );
+
     ctx.save();
     if (flipX) {
       ctx.translate(W, 0);
       ctx.scale(-1, 1);
-      ctx.drawImage(modelImg, W - drawX - targetW, drawY, targetW, targetH);
+      ctx.drawImage(superModel, W - drawX - targetW, drawY, targetW, targetH);
     } else {
-      ctx.drawImage(modelImg, drawX, drawY, targetW, targetH);
+      ctx.drawImage(superModel, drawX, drawY, targetW, targetH);
     }
     ctx.restore();
 
-    const dataUrl = canvas.toDataURL('image/png');
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), 'image/png')
     );
     if (!blob) return null;
+    const dataUrl = resolution === '8k' ? URL.createObjectURL(blob) : canvas.toDataURL('image/png');
     return { blob, dataUrl };
   } catch {
     return null;

@@ -44,6 +44,7 @@ import {
   Volume2,
   Play,
   Pause,
+  Download,
 } from 'lucide-react';
 import type {
   ActiveCanvasTool,
@@ -80,6 +81,11 @@ import { ImageCropModal } from './ImageCropModal';
 import { MandalaColorStudioModal } from './MandalaColorStudioModal';
 import { audioEngine } from '../utils/audioEngine';
 import { extractFigureMatting } from '../utils/aiImageMatting';
+import {
+  downloadImageAsVectorSvg,
+  enhanceUploadedImageToUltraHD,
+  exportImageAt8K,
+} from '../utils/ultraHdImageEngine';
 import {
   createStrokeState,
   drawHyperrealStrokeSegment,
@@ -1439,6 +1445,75 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     [updateElement, onNotify]
   );
 
+  const [uhdBusyElementId, setUhdBusyElementId] = useState<string | null>(null);
+
+  const handleEnhanceElementUltraHD = useCallback(
+    async (el: PageElement) => {
+      if (el.type !== 'image' || !el.content || uhdBusyElementId) return;
+      setUhdBusyElementId(el.id);
+      audioEngine.playStitchClick();
+      try {
+        const res = await enhanceUploadedImageToUltraHD(el.content, {
+          minLongEdge: 3200,
+          maxLongEdge: 3840,
+          preserveAlpha: true,
+          sharpness: 0.92,
+          clarity: 0.1,
+          vibrance: 0.08,
+        });
+        updateElement(el.id, {
+          originalContent: el.originalContent || el.content,
+          content: res.dataUrl,
+        });
+        audioEngine.playSaveChime();
+        onNotify?.(
+          `Imagen mejorada en Ultra-HD (${res.outputWidth}×${res.outputHeight} px, mayor detalle y nitidez)`
+        );
+      } catch {
+        onNotify?.('No se pudo mejorar esta imagen');
+      } finally {
+        setUhdBusyElementId(null);
+      }
+    },
+    [uhdBusyElementId, updateElement, onNotify]
+  );
+
+  const handleSaveElement8K = useCallback(
+    async (el: PageElement) => {
+      if (el.type !== 'image' || !el.content || uhdBusyElementId) return;
+      setUhdBusyElementId(el.id);
+      audioEngine.playStitchClick();
+      try {
+        const out = await exportImageAt8K(el.content, el.title || 'Imagen-Cuaderno');
+        audioEngine.playSaveChime();
+        onNotify?.(`Imagen guardada en 8K Ultra-HD (${out.width}×${out.height} px, sin pixelar)`);
+      } catch {
+        onNotify?.('No se pudo guardar la imagen en 8K');
+      } finally {
+        setUhdBusyElementId(null);
+      }
+    },
+    [uhdBusyElementId, onNotify]
+  );
+
+  const handleExportElementVectorSvg = useCallback(
+    async (el: PageElement) => {
+      if (el.type !== 'image' || !el.content || uhdBusyElementId) return;
+      setUhdBusyElementId(el.id);
+      audioEngine.playStitchClick();
+      try {
+        await downloadImageAsVectorSvg(el.content, el.title || 'Imagen-Cuaderno');
+        audioEngine.playSaveChime();
+        onNotify?.('Imagen exportada en formato Vectorial SVG Ultra-HD');
+      } catch {
+        onNotify?.('No se pudo vectorizar la imagen');
+      } finally {
+        setUhdBusyElementId(null);
+      }
+    },
+    [uhdBusyElementId, onNotify]
+  );
+
   const handleExtractMandalaFigure = useCallback(
     async (item: CopiedPatternData) => {
       const sourceUrl = item.imagePath;
@@ -2043,6 +2118,42 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     <span className="hidden md:inline">
                       Marco: {selectedElement.frameStyle || 'polaroid'}
                     </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(uhdBusyElementId)}
+                    onClick={() => void handleEnhanceElementUltraHD(selectedElement)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-b from-[#d99b38] to-[#9c6112] hover:brightness-110 border border-[#ffe08a]/55 text-xs font-semibold text-[#fff9e8] cursor-pointer shadow disabled:opacity-60"
+                    title="Transformar a mayor resolución, nitidez y detalle Ultra-HD"
+                  >
+                    {uhdBusyElementId === selectedElement.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    <span>Mejorar HD</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(uhdBusyElementId)}
+                    onClick={() => void handleSaveElement8K(selectedElement)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2c4f3d] hover:bg-[#38654e] border border-[#8ce0b8]/45 text-xs font-semibold text-[#eafff2] cursor-pointer shadow disabled:opacity-60"
+                    title="Guardar esta imagen super-renderizada en 8K PNG (7680 px) sin pixelar"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>8K PNG</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(uhdBusyElementId)}
+                    onClick={() => void handleExportElementVectorSvg(selectedElement)}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/45 text-xs text-[#f8dfb2] hover:bg-[#522f18] cursor-pointer disabled:opacity-60"
+                    title="Exportar imagen vectorizada en formato SVG sin pixelación"
+                  >
+                    <span>SVG</span>
                   </button>
                 </>
               )}

@@ -17,6 +17,7 @@ import {
   renderSkinSafeRunwayImage,
   type TransparentModelWithRugResult,
 } from '../utils/garmentRunwayRenderer';
+import { fitSafeCanvasSize, superRenderImageToCanvas } from '../utils/ultraHdImageEngine';
 import {
   STUDIO_LIGHT_PRESETS,
   type BodyMeasurements,
@@ -41,7 +42,9 @@ import { StageMacrameCurtains, StageVintageSewingMachine } from './VestidorDecor
 
 export interface PhotographicAvatarViewerHandle {
   captureSnapshot: (options?: { clean?: boolean }) => string | null;
-  exportTransparentModelWithRug: () => Promise<TransparentModelWithRugResult | null>;
+  exportTransparentModelWithRug: (options?: {
+    resolution?: '4k' | '8k';
+  }) => Promise<TransparentModelWithRugResult | null>;
   getCurrentFrameInfo: () => { src: string; label: string; angleDeg: number };
   setTargetYaw: (rad: number) => void;
   setTargetAngleDeg: (deg: number) => void;
@@ -557,35 +560,45 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       return () => window.cancelAnimationFrame(rafId);
     }, [isAnimatingPose, reducedMotion]);
 
-    // Synchronous high-res PNG snapshot reproducing the sunlit blush-cream studio, wood floor & circular crochet rug
+    // Super-rendered 8K PNG snapshot reproducing the sunlit blush-cream studio, wood floor & circular crochet rug
     const captureSnapshot = useCallback(
       (options?: { clean?: boolean }): string | null => {
         const img = activeImgRef.current;
         if (!img || !img.complete || img.naturalWidth === 0) return null;
 
-        const W = 960;
-        const H = 1360;
+        const safe = fitSafeCanvasSize(5420, 7680);
+        const W = safe.width;
+        const H = safe.height;
+        const unit = H / 1360;
         const canvas = document.createElement('canvas');
         canvas.width = W;
         canvas.height = H;
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
 
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
         const mood = STUDIO_MOOD_MAP[lightPreset] ?? STUDIO_MOOD_MAP.vestidor_lujo;
 
-        // 1. Photorealistic studio room backdrop
+        // 1. Photorealistic studio room backdrop super-rendered cleanly
         const bgImg = backdropImgRef.current;
         if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
           const bgAspect = bgImg.naturalWidth / bgImg.naturalHeight;
           const drawH = H;
-          const drawW = drawH * bgAspect;
+          const drawW = Math.round(drawH * bgAspect);
           const offsetX = (W - drawW) / 2;
-          ctx.drawImage(bgImg, offsetX, 0, drawW, drawH);
+          const superBg = superRenderImageToCanvas(bgImg, drawW, drawH, {
+            sharpness: 0.55,
+            clarity: 0.04,
+            vibrance: 0.03,
+          });
+          ctx.drawImage(superBg, offsetX, 0, drawW, drawH);
         } else {
           const wallGrad = ctx.createRadialGradient(
             W * 0.5,
             H * 0.34,
-            40,
+            40 * unit,
             W * 0.5,
             H * 0.45,
             W * 0.85
@@ -597,11 +610,11 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           ctx.fillRect(0, 0, W, H);
         }
 
-        // 2. Photorealistic 3D circular hand-crocheted rug flat beneath the model's feet
+        // 2. Photorealistic 3D circular hand-crocheted rug super-rendered flat beneath the model's feet
         const bottomPadFrac = measureImageBottomPadFraction(img);
-        const rugW = 700;
+        const rugW = Math.round(700 * unit);
         const rugH = Math.round(rugW / 2.85);
-        const rugBottomY = H - 64;
+        const rugBottomY = H - Math.round(64 * unit);
         const rugTopY = rugBottomY - rugH;
         const soleY = rugBottomY - Math.round(rugH * 0.48);
 
@@ -624,23 +637,35 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           ctx.ellipse(W / 2, rugBottomY - rugH * 0.42, rugW * 0.53, rugH * 0.52, 0, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.drawImage(rugImg, (W - rugW) / 2, rugTopY, rugW, rugH);
+          const superRug = superRenderImageToCanvas(rugImg, rugW, rugH, {
+            sharpness: 0.78,
+            clarity: 0.06,
+            vibrance: 0.04,
+          });
+          ctx.drawImage(superRug, (W - rugW) / 2, rugTopY, rugW, rugH);
         }
 
         // Grounded foot contact shadows directly under the shoe soles on the rug center medallion
-        const footShadow = ctx.createRadialGradient(W / 2, soleY + 3, 16, W / 2, soleY + 3, 178);
+        const footShadow = ctx.createRadialGradient(
+          W / 2,
+          soleY + 3 * unit,
+          16 * unit,
+          W / 2,
+          soleY + 3 * unit,
+          178 * unit
+        );
         footShadow.addColorStop(0, 'rgba(54, 24, 10, 0.44)');
         footShadow.addColorStop(0.58, 'rgba(54, 24, 10, 0.18)');
         footShadow.addColorStop(1, 'rgba(54, 24, 10, 0)');
         ctx.fillStyle = footShadow;
         ctx.beginPath();
-        ctx.ellipse(W / 2, soleY + 3, 178, 25, 0, 0, Math.PI * 2);
+        ctx.ellipse(W / 2, soleY + 3 * unit, 178 * unit, 25 * unit, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
 
-        // 3. Crisp full-resolution photographic model with shoe soles anchored squarely on the rug center
-        const maxDrawH = Math.round((soleY - 64) / Math.max(0.5, 1 - bottomPadFrac));
-        const maxDrawW = W - 120;
+        // 3. Super-rendered 8K photographic model with shoe soles anchored squarely on the rug center
+        const maxDrawH = Math.round((soleY - 64 * unit) / Math.max(0.5, 1 - bottomPadFrac));
+        const maxDrawW = W - Math.round(120 * unit);
         const aspect = img.naturalWidth / Math.max(1, img.naturalHeight);
         let targetH = maxDrawH;
         let targetW = targetH * aspect;
@@ -651,40 +676,50 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         const drawX = (W - targetW) / 2;
         const drawY = soleY - targetH * (1 - bottomPadFrac);
 
+        const superModel = superRenderImageToCanvas(img, Math.round(targetW), Math.round(targetH), {
+          sharpness: 0.84,
+          clarity: 0.06,
+          vibrance: 0.04,
+        });
+
         ctx.save();
         ctx.filter = knitRelief ? mood.imageFilter : mood.imageFilterFlat;
-        ctx.drawImage(img, drawX, drawY, targetW, targetH);
+        ctx.drawImage(superModel, drawX, drawY, targetW, targetH);
         ctx.restore();
 
-        // 4. Optional subtle caption omitted in Clean Photo (Sin interfaz) mode
+        // 4. Optional subtle native 8K vector caption omitted in Clean Photo (Sin interfaz) mode
         if (!options?.clean) {
           ctx.save();
-          ctx.font = '600 20px Georgia, serif';
+          ctx.font = `600 ${Math.round(20 * unit)}px Georgia, serif`;
           ctx.fillStyle = 'rgba(84, 42, 18, 0.82)';
           ctx.textAlign = 'center';
           ctx.fillText(
             `El Vestidor Dorado · ${resolved.outfitName} · ${resolved.activeFrame.label}`,
             W / 2,
-            H - 32
+            H - Math.round(32 * unit)
           );
           ctx.restore();
         }
 
-        return canvas.toDataURL('image/png', 0.96);
+        return canvas.toDataURL('image/png');
       },
       [lightPreset, knitRelief, resolved.outfitName, resolved.activeFrame.label]
     );
 
-    const exportTransparentModelWithRug = useCallback(async () => {
-      const modelSrc = displayedSrc || targetDisplaySrc || resolved.activeFrame.src;
-      if (!modelSrc) return null;
-      return composeTransparentModelWithRug({
-        modelSrc,
-        rugSrc: '/vestidor/artisan/crochet-rug.png',
-        flipX: Boolean(static2DMode && activePose2D?.flipX),
-        includeRug: true,
-      });
-    }, [displayedSrc, targetDisplaySrc, resolved.activeFrame.src, static2DMode, activePose2D?.flipX]);
+    const exportTransparentModelWithRug = useCallback(
+      async (options?: { resolution?: '4k' | '8k' }) => {
+        const modelSrc = displayedSrc || targetDisplaySrc || resolved.activeFrame.src;
+        if (!modelSrc) return null;
+        return composeTransparentModelWithRug({
+          modelSrc,
+          rugSrc: '/vestidor/artisan/crochet-rug.png',
+          flipX: Boolean(static2DMode && activePose2D?.flipX),
+          includeRug: true,
+          resolution: options?.resolution ?? '8k',
+        });
+      },
+      [displayedSrc, targetDisplaySrc, resolved.activeFrame.src, static2DMode, activePose2D?.flipX]
+    );
 
     useImperativeHandle(
       ref,

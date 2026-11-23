@@ -10,6 +10,7 @@ import type {
   NotebookWorkspaceData,
   VestidorDecorElement,
 } from '../types/crochet';
+import { enhanceUploadedImageToUltraHD } from './ultraHdImageEngine';
 
 const DB_NAME = 'cuaderno_artista_crochet_db';
 const DB_VERSION = 1;
@@ -472,58 +473,17 @@ export function exportWorkspaceJson(data: NotebookWorkspaceData): void {
   URL.revokeObjectURL(url);
 }
 
-export function compressImageFile(
+export async function compressImageFile(
   file: File,
-  maxDimension = 900,
+  maxDimension = 2400,
   preserveAlpha = false
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        let { width, height } = img;
-        if (width > maxDimension || height > maxDimension) {
-          const ratio = Math.min(maxDimension / width, maxDimension / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error('No se pudo inicializar el lienzo de imagen.'));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        const wantsTransparency =
-          preserveAlpha || file.type === 'image/png' || file.type === 'image/webp';
-        if (wantsTransparency) {
-          const webpAlpha = canvas.toDataURL('image/webp', 0.88);
-          const result = webpAlpha.startsWith('data:image/webp')
-            ? webpAlpha
-            : canvas.toDataURL('image/png');
-          URL.revokeObjectURL(objectUrl);
-          resolve(result);
-          return;
-        }
-        const webp = canvas.toDataURL('image/webp', 0.82);
-        const result = webp.startsWith('data:image/webp')
-          ? webp
-          : canvas.toDataURL('image/jpeg', 0.82);
-        URL.revokeObjectURL(objectUrl);
-        resolve(result);
-      } catch (err) {
-        URL.revokeObjectURL(objectUrl);
-        reject(err);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('No se pudo leer la imagen.'));
-    };
-    img.src = objectUrl;
+  // Automatically transforms EVERY added image to higher visual quality, sharper detail
+  // and Ultra-HD resolution (upscaling low-res imports cleanly and preserving up to 4K master).
+  const enhanced = await enhanceUploadedImageToUltraHD(file, {
+    minLongEdge: Math.max(2400, maxDimension),
+    maxLongEdge: Math.max(3840, maxDimension),
+    preserveAlpha,
   });
+  return enhanced.dataUrl;
 }

@@ -44,12 +44,16 @@ import type {
 } from './types/crochet';
 import { audioEngine } from './utils/audioEngine';
 import {
-  compressImageFile,
   exportWorkspaceJson,
   loadWorkspace,
   saveExtractedMandalas,
   saveWorkspace,
 } from './utils/storage';
+import {
+  enhanceUploadedImageToUltraHD,
+  exportNotebookSpreadAt8K,
+  exportNotebookSpreadAsVectorSvg,
+} from './utils/ultraHdImageEngine';
 import { getDriveAccessToken, initDriveAuth } from './utils/googleDrive';
 
 export default function App() {
@@ -676,19 +680,56 @@ export default function App() {
   };
 
   const handleNotebookImageFile = async (file: File) => {
-    const dataUrl = await compressImageFile(file, 900);
+    showToast('Mejorando imagen a Ultra-HD con mayor detalle...');
+    const enhanced = await enhanceUploadedImageToUltraHD(file, {
+      minLongEdge: 2400,
+      maxLongEdge: 3840,
+      preserveAlpha: file.type === 'image/png' || file.type === 'image/webp',
+    });
     insertElementOnCurrentSpread({
       side: 'right',
       type: 'image',
       x: 16,
       y: 22,
-      width: 210,
-      content: dataUrl,
+      width: 240,
+      content: enhanced.dataUrl,
       title: file.name.replace(/\.[^/.]+$/, ''),
-      rotation: -1,
+      rotation: 0,
       frameStyle: 'polaroid',
     });
-    showToast('Imagen añadida al cuaderno');
+    showToast(
+      `Imagen transformada a Ultra-HD (${enhanced.outputWidth}×${enhanced.outputHeight} px) y añadida`
+    );
+  };
+
+  const handleExportCurrentSpread8K = async () => {
+    const target = getActiveEditableSpread();
+    if (!target) {
+      showToast('Abre una hoja editable para exportar en 8K');
+      return;
+    }
+    showToast('Super-renderizando hoja en 8K Ultra-HD (sin pixelar)...');
+    try {
+      const res = await exportNotebookSpreadAt8K(target);
+      showToast(`Hoja guardada en 8K Ultra-HD (${res.width}×${res.height} px)`);
+    } catch {
+      showToast('No se pudo exportar la hoja en 8K');
+    }
+  };
+
+  const handleExportCurrentSpreadVectorSvg = async () => {
+    const target = getActiveEditableSpread();
+    if (!target) {
+      showToast('Abre una hoja editable para exportar en Vector SVG');
+      return;
+    }
+    showToast('Generando hoja vectorizada SVG...');
+    try {
+      await exportNotebookSpreadAsVectorSvg(target);
+      showToast('Hoja exportada en formato Vectorial SVG');
+    } catch {
+      showToast('No se pudo generar el archivo SVG');
+    }
   };
 
   const handleCopyPattern = useCallback(
@@ -1305,6 +1346,8 @@ export default function App() {
                     exportWorkspaceJson(workspace);
                     showToast('Respaldo exportado');
                   }}
+                  onExportImage8K={() => void handleExportCurrentSpread8K()}
+                  onExportVectorSvg={() => void handleExportCurrentSpreadVectorSvg()}
                   onUndo={handleUndo}
                   onRedo={handleRedo}
                   onOpenImageUpload={() => imageUploadRef.current?.click()}
@@ -1464,6 +1507,8 @@ export default function App() {
                           exportWorkspaceJson(workspace);
                           showToast('Respaldo exportado');
                         }}
+                        onExportImage8K={() => void handleExportCurrentSpread8K()}
+                        onExportVectorSvg={() => void handleExportCurrentSpreadVectorSvg()}
                         onUndo={handleUndo}
                         onRedo={handleRedo}
                         onOpenImageUpload={() => imageUploadRef.current?.click()}

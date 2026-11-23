@@ -23,6 +23,8 @@ const COMPARE_ANGLES: Array<{
   },
 ];
 
+import { fitSafeCanvasSize, superRenderImageToCanvas, triggerBlobDownload } from '../utils/ultraHdImageEngine';
+
 interface OutfitComparisonModalProps {
   isOpen: boolean;
   catalogDesigns: DressingRoomGarment[];
@@ -124,13 +126,18 @@ export const OutfitComparisonModal: React.FC<OutfitComparisonModalProps> = ({
         loadImg(rightResolved.src),
       ]);
 
-      const W = 1280;
-      const H = 960;
+      const safe = fitSafeCanvasSize(7680, 5760);
+      const W = safe.width;
+      const H = safe.height;
+      const unit = W / 1280;
       const canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
       const bg = ctx.createLinearGradient(0, 0, 0, H);
       bg.addColorStop(0, '#f3d8cc');
@@ -139,35 +146,47 @@ export const OutfitComparisonModal: React.FC<OutfitComparisonModalProps> = ({
       ctx.fillRect(0, 0, W, H);
 
       const drawHalf = (img: HTMLImageElement, xStart: number, label: string) => {
-        const boxW = W / 2 - 48;
-        const boxH = H - 140;
+        const boxW = W / 2 - 48 * unit;
+        const boxH = H - 140 * unit;
         const scale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
-        const dw = img.naturalWidth * scale;
-        const dh = img.naturalHeight * scale;
+        const dw = Math.round(img.naturalWidth * scale);
+        const dh = Math.round(img.naturalHeight * scale);
         const dx = xStart + (W / 2 - dw) / 2;
-        const dy = 70 + (boxH - dh);
-        ctx.drawImage(img, dx, dy, dw, dh);
+        const dy = 70 * unit + (boxH - dh);
+        const superImg = superRenderImageToCanvas(img, dw, dh, {
+          sharpness: 0.82,
+          clarity: 0.06,
+          vibrance: 0.04,
+        });
+        ctx.drawImage(superImg, dx, dy, dw, dh);
         ctx.fillStyle = '#4c2610';
-        ctx.font = 'bold 20px Georgia, serif';
+        ctx.font = `bold ${Math.round(20 * unit)}px Georgia, serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(label, xStart + W / 4, H - 30);
+        ctx.fillText(label, xStart + W / 4, H - 30 * unit);
       };
 
       drawHalf(imgA, 0, `A · ${leftResolved.label}`);
       drawHalf(imgB, W / 2, `B · ${rightResolved.label}`);
 
       ctx.strokeStyle = 'rgba(128, 74, 34, 0.35)';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * unit;
       ctx.beginPath();
-      ctx.moveTo(W / 2, 48);
-      ctx.lineTo(W / 2, H - 64);
+      ctx.moveTo(W / 2, 48 * unit);
+      ctx.lineTo(W / 2, H - 64 * unit);
       ctx.stroke();
 
-      const a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png', 0.95);
-      a.download = 'El-Vestidor-Dorado-Comparacion.png';
-      a.click();
-      onNotify('Comparación exportada en PNG');
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png')
+      );
+      if (blob) {
+        triggerBlobDownload(blob, `El-Vestidor-Dorado-Comparacion-8K-${W}x${H}.png`);
+      } else {
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = `El-Vestidor-Dorado-Comparacion-8K-${W}x${H}.png`;
+        a.click();
+      }
+      onNotify(`Comparación exportada en 8K (${W}×${H} px)`);
     } catch {
       onNotify('No se pudo exportar la comparación en PNG');
     }
