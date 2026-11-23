@@ -3,7 +3,7 @@
 // wing-vortex curl turbulence, a delicate golden stardust wake ribbon, and
 // harp-pluck celestial star bursts at a rock-solid 60fps.
 
-export type DustParticleKind = 'micro' | 'orb' | 'star' | 'ring';
+export type DustParticleKind = 'micro' | 'orb' | 'star' | 'ring' | 'bokeh';
 
 interface DustParticle {
   x: number;
@@ -20,7 +20,7 @@ interface DustParticle {
   twinkleSpeed: number;
   curlSeed: number;
   kind: DustParticleKind;
-  tintIndex: number; // 0 = champagne white-gold, 1 = warm honey gold, 2 = deep amber gold
+  tintIndex: number; // 0 = champagne white-gold, 1 = warm honey gold, 2 = deep amber gold, 3 = iridescent emerald-gold
 }
 
 interface TrailPoint {
@@ -110,14 +110,16 @@ function getSpriteBank(): SpriteBank {
   if (!cachedSprites) {
     cachedSprites = {
       orbs: [
-        createOrbSprite('#FFFDF0', '#FFEFA8', 'rgba(255, 214, 94, 0.42)'),
-        createOrbSprite('#FFF8D4', '#FFD966', 'rgba(246, 184, 48, 0.38)'),
-        createOrbSprite('#FFEFA6', '#F4B637', 'rgba(222, 146, 24, 0.34)'),
+        createOrbSprite('#FFFDF0', '#FFEFA8', 'rgba(255, 214, 94, 0.44)'),
+        createOrbSprite('#FFF8D4', '#FFD966', 'rgba(246, 184, 48, 0.40)'),
+        createOrbSprite('#FFEFA6', '#F4B637', 'rgba(222, 146, 24, 0.35)'),
+        createOrbSprite('#F4FFEC', '#B8F7BA', 'rgba(124, 245, 162, 0.32)'),
       ],
       stars: [
         createStarSprite('#FFFFFF', '#FFF1B5'),
         createStarSprite('#FFFBE0', '#FFD86B'),
         createStarSprite('#FFF2BD', '#F7BC3D'),
+        createStarSprite('#F8FFF6', '#B9FFD0'),
       ],
     };
   }
@@ -127,7 +129,7 @@ function getSpriteBank(): SpriteBank {
 export class GoldenFairyDustEngine {
   private particles: DustParticle[] = [];
   private trail: TrailPoint[] = [];
-  private maxParticles = 380;
+  private maxParticles = 460;
   private trailAccum = 0;
 
   public clear() {
@@ -157,36 +159,55 @@ export class GoldenFairyDustEngine {
 
       const roll = Math.random();
       const kind: DustParticleKind =
-        roll < 0.56 ? 'micro' : roll < 0.86 ? 'orb' : 'star';
+        roll < 0.50
+          ? 'micro'
+          : roll < 0.78
+            ? 'orb'
+            : roll < 0.90
+              ? 'bokeh'
+              : 'star';
 
       const size =
         kind === 'micro'
-          ? 2.2 + Math.random() * 2.8
+          ? 2.0 + Math.random() * 2.8
           : kind === 'orb'
-            ? 5.5 + Math.random() * 7.5
-            : 8.5 + Math.random() * 11;
+            ? 5.2 + Math.random() * 7.2
+            : kind === 'bokeh'
+              ? 11 + Math.random() * 12
+              : 8.5 + Math.random() * 11;
+
+      // 84% warm 24k gold tints + 16% iridescent sunlit emerald-gold wing pollen
+      const tintRoll = Math.random();
+      const tintIndex = tintRoll < 0.30 ? 0 : tintRoll < 0.62 ? 1 : tintRoll < 0.84 ? 2 : 3;
 
       this.particles.push({
         x: x + offsetX,
         y: y + offsetY,
-        vx: -fairyVx * (0.1 + Math.random() * 0.08) + side * (8 + Math.random() * 18),
-        vy: -fairyVy * 0.05 + 6 + Math.random() * 22,
+        vx: -fairyVx * (0.12 + Math.random() * 0.08) + side * (10 + Math.random() * 20),
+        vy: -fairyVy * 0.06 + 5 + Math.random() * 20,
         size,
         rotation: Math.random() * Math.PI * 2,
         vRot: (Math.random() - 0.5) * 2.6,
-        alpha: 0.72 + Math.random() * 0.28,
+        alpha: kind === 'bokeh' ? 0.24 + Math.random() * 0.22 : 0.74 + Math.random() * 0.26,
         life: 0,
         maxLife:
           kind === 'micro'
-            ? 0.9 + Math.random() * 1.1
-            : kind === 'orb'
-              ? 1.15 + Math.random() * 1.35
-              : 0.95 + Math.random() * 1.0,
+            ? 0.95 + Math.random() * 1.15
+            : kind === 'bokeh'
+              ? 1.55 + Math.random() * 1.4
+              : kind === 'orb'
+                ? 1.2 + Math.random() * 1.35
+                : 0.95 + Math.random() * 1.05,
         twinklePhase: Math.random() * Math.PI * 2,
-        twinkleSpeed: kind === 'micro' ? 11 + Math.random() * 12 : 5 + Math.random() * 8,
+        twinkleSpeed:
+          kind === 'micro'
+            ? 11 + Math.random() * 12
+            : kind === 'bokeh'
+              ? 2.5 + Math.random() * 3.2
+              : 5 + Math.random() * 8,
         curlSeed: Math.random() * 100,
         kind,
-        tintIndex: Math.floor(Math.random() * 3),
+        tintIndex,
       });
     }
   }
@@ -308,30 +329,45 @@ export class GoldenFairyDustEngine {
       }
     }
 
-    if (this.trail.length >= 2) {
+    if (this.trail.length >= 3) {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      for (let i = 1; i < this.trail.length; i++) {
-        const prev = this.trail[i - 1];
-        const curr = this.trail[i];
-        const ageRatio = 1 - curr.life / curr.maxLife;
+      for (let i = 1; i < this.trail.length - 1; i++) {
+        const p0 = this.trail[i - 1];
+        const p1 = this.trail[i];
+        const p2 = this.trail[i + 1];
+        const ageRatio = 1 - p1.life / p1.maxLife;
         if (ageRatio <= 0.02) continue;
 
-        const w = curr.width * ageRatio;
-        // Soft wide outer amber mist
-        ctx.strokeStyle = `rgba(246, 190, 58, ${(ageRatio * 0.12).toFixed(3)})`;
-        ctx.lineWidth = w * 1.9;
+        const m1x = (p0.x + p1.x) * 0.5;
+        const m1y = (p0.y + p1.y) * 0.5;
+        const m2x = (p1.x + p2.x) * 0.5;
+        const m2y = (p1.y + p2.y) * 0.5;
+
+        const w = p1.width * ageRatio;
+        // Soft wide outer amber mist (silky quadratic curve)
+        ctx.strokeStyle = `rgba(246, 190, 58, ${(ageRatio * 0.11).toFixed(3)})`;
+        ctx.lineWidth = w * 1.95;
         ctx.beginPath();
-        ctx.moveTo(prev.x, prev.y);
-        ctx.lineTo(curr.x, curr.y);
+        ctx.moveTo(m1x, m1y);
+        ctx.quadraticCurveTo(p1.x, p1.y, m2x, m2y);
         ctx.stroke();
 
         // Delicate luminous champagne core thread
-        ctx.strokeStyle = `rgba(255, 244, 190, ${(ageRatio * 0.24).toFixed(3)})`;
-        ctx.lineWidth = Math.max(1.2, w * 0.42);
+        ctx.strokeStyle = `rgba(255, 244, 194, ${(ageRatio * 0.24).toFixed(3)})`;
+        ctx.lineWidth = Math.max(1.2, w * 0.4);
         ctx.beginPath();
-        ctx.moveTo(prev.x, prev.y);
-        ctx.lineTo(curr.x, curr.y);
+        ctx.moveTo(m1x, m1y);
+        ctx.quadraticCurveTo(p1.x, p1.y, m2x, m2y);
+        ctx.stroke();
+
+        // Subtle emerald-gold vortex shimmer woven along the wake
+        const swirl = Math.sin(timeSec * 5.2 + i * 0.65) * w * 0.48;
+        ctx.strokeStyle = `rgba(176, 255, 198, ${(ageRatio * 0.09).toFixed(3)})`;
+        ctx.lineWidth = Math.max(0.8, w * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(m1x, m1y + swirl * 0.65);
+        ctx.quadraticCurveTo(p1.x, p1.y + swirl, m2x, m2y + swirl * 0.65);
         ctx.stroke();
       }
     }
