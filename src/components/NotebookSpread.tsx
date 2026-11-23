@@ -1238,15 +1238,21 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       const defaultX = xPct ?? (preset === 'title' ? 10 : 12 + (existingOnSide % 3) * 6);
       const defaultY = yPct ?? (preset === 'title' ? 8 : 14 + (existingOnSide % 5) * 13);
 
+      const isCard = preset === 'card';
+      const defaultInk = isCard
+        ? '#4e2712'
+        : brush.color.toLowerCase() === '#4e2712' || brush.color.toLowerCase() === '#1c130e'
+          ? '#F7EED8'
+          : brush.color;
       const newEl: PageElement = {
         id: `el-${Date.now()}`,
         side,
         type: 'text',
         x: Math.max(5, Math.min(68, defaultX)),
         y: Math.max(6, Math.min(82, defaultY)),
-        width: preset === 'title' ? 290 : preset === 'card' ? 240 : 230,
+        width: preset === 'title' ? 290 : isCard ? 240 : 230,
         content: '',
-        color: brush.color,
+        color: defaultInk,
         fontSize:
           preset === 'title'
             ? 26
@@ -3578,14 +3584,14 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       flipDir === 'next' ? 'right-0' : 'left-0'
                     }`}
                   >
-                    <div className="absolute inset-0 backface-hidden parchment-page parchment-grid border-l border-[#a37846]/50 shadow-[inset_18px_0_32px_rgba(72,42,18,0.22),-10px_0_24px_rgba(0,0,0,0.3)] flex items-center justify-center">
-                      <span className="font-editorial italic text-[#7a522c]/45 text-lg">
+                    <div className="absolute inset-0 backface-hidden cutting-mat-page cutting-mat-grid border-l border-[#a7d6ba]/40 shadow-[inset_18px_0_32px_rgba(8,24,18,0.35),-10px_0_24px_rgba(0,0,0,0.35)] flex items-center justify-center">
+                      <span className="font-editorial italic text-[#dcf2e4]/65 text-lg">
                         Pasando página…
                       </span>
                     </div>
                     <div
                       style={{ transform: 'rotateY(180deg)' }}
-                      className="absolute inset-0 backface-hidden parchment-page parchment-grid border-r border-[#a37846]/50 shadow-[inset_-18px_0_32px_rgba(72,42,18,0.22)]"
+                      className="absolute inset-0 backface-hidden cutting-mat-page cutting-mat-grid border-r border-[#a7d6ba]/40 shadow-[inset_-18px_0_32px_rgba(8,24,18,0.35)]"
                     />
                   </div>
                 )}
@@ -3998,18 +4004,18 @@ const PatternCatalogPage: React.FC<{
   }) => {
     const pageNum = (spreadNumber - 1) * 2 + (side === 'left' ? 1 : 2);
     return (
-      <div className={`relative ${pageSizeClass} parchment-page parchment-grid overflow-hidden flex flex-col px-6 py-4`}>
+      <div className={`relative ${pageSizeClass} cutting-mat-page cutting-mat-grid overflow-hidden flex flex-col px-6 py-4`}>
         {/* Header */}
-        <div className="relative z-10 flex items-baseline justify-between border-b border-[#8e6233]/35 pb-1.5 mb-2.5">
+        <div className="relative z-10 flex items-baseline justify-between border-b border-[#b2dfc4]/35 pb-1.5 mb-2.5">
           <div>
-            <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#4a220d]">
+            <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#f7eed8]">
               {side === 'left' ? 'Índice de Patrones Crochet' : 'Alfabeto y Diagramas'}
             </h2>
-            <p className="text-[11px] text-[#6d4521]">
+            <p className="text-[11px] text-[#cce6d6]">
               Haz clic encima de cualquier patrón o punto para copiarlo automáticamente
             </p>
           </div>
-          <span className="font-mono-tab text-[11px] text-[#7c552d]">Pág. {pageNum}</span>
+          <span className="font-mono-tab text-[11px] text-[#d5ecde]">Pág. {pageNum}</span>
         </div>
 
         {/* Pattern Cards Grid — Transparent & Click-to-Auto-Copy */}
@@ -4036,16 +4042,16 @@ const PatternCatalogPage: React.FC<{
                 }}
                 className={`group relative rounded-2xl border p-2.5 transition-all duration-200 cursor-pointer flex items-center gap-3.5 select-none ${
                   isSelected || isCopied
-                    ? 'bg-[#fff8e8]/28 border-[#7a202a]/75 ring-1 ring-[#d49a4c]/60 shadow-[0_6px_18px_rgba(92,48,18,0.12)]'
-                    : 'bg-transparent border-[#966a35]/35 hover:bg-[#fff9ec]/22 hover:border-[#7a202a]/65 hover:-translate-y-0.5 active:scale-[0.99]'
+                    ? 'bg-[#14372a]/85 border-[#f0c77c] ring-1 ring-[#f0c77c]/60 shadow-[0_6px_18px_rgba(8,24,18,0.35)]'
+                    : 'bg-[#163b2d]/62 border-[#a7d6ba]/35 hover:bg-[#1a4736]/85 hover:border-[#e6bc70]/75 hover:-translate-y-0.5 active:scale-[0.99]'
                 }`}
               >
                 {/* Delicate stitched inner corner accents */}
-                <span className="pointer-events-none absolute top-1.5 right-1.5 w-2 h-2 border-t border-r border-[#b48449]/45 rounded-tr-sm" />
-                <span className="pointer-events-none absolute bottom-1.5 left-1.5 w-2 h-2 border-b border-l border-[#b48449]/45 rounded-bl-sm" />
+                <span className="pointer-events-none absolute top-1.5 right-1.5 w-2 h-2 border-t border-r border-[#b8e0c9]/45 rounded-tr-sm" />
+                <span className="pointer-events-none absolute bottom-1.5 left-1.5 w-2 h-2 border-b border-l border-[#b8e0c9]/45 rounded-bl-sm" />
 
-                {/* Transparent Symbol / Pattern Preview Box */}
-                <div className="w-14 h-14 rounded-xl bg-transparent border border-dashed border-[#a6763c]/50 group-hover:border-[#7a202a]/65 flex items-center justify-center shrink-0 p-1 overflow-hidden transition-colors">
+                {/* Symbol / Pattern Preview Box with soft ivory backing for dark stitch ink */}
+                <div className="w-14 h-14 rounded-xl bg-[#f7efdc]/95 border border-dashed border-[#c7a169]/65 group-hover:border-[#f0c77c] flex items-center justify-center shrink-0 p-1 overflow-hidden transition-colors shadow-sm">
                   {item.diagramGrid ? (
                     <DiagramGridSvg
                       grid={item.diagramGrid}
@@ -4068,26 +4074,26 @@ const PatternCatalogPage: React.FC<{
                           {item.letter}
                         </span>
                       )}
-                      <h3 className="font-editorial text-base font-bold text-[#3f1c09] truncate">
+                      <h3 className="font-editorial text-base font-bold text-[#fff4dc] truncate">
                         {item.name}
                       </h3>
-                      <span className="font-mono-tab text-[10px] px-1.5 py-0.5 rounded bg-[#a87842]/15 border border-[#a87842]/35 text-[#5b3318]">
+                      <span className="font-mono-tab text-[10px] px-1.5 py-0.5 rounded bg-[#275c48]/80 border border-[#a7d6ba]/40 text-[#e4f5ea]">
                         {item.abbreviation}
                       </span>
                     </div>
 
                     {isCopied ? (
-                      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#2e5a44]/15 border border-[#2e5a44]/35 text-[10px] font-medium text-[#214d37]">
+                      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#2f6e55] border border-[#b4e4c7]/60 text-[10px] font-medium text-[#effbf3]">
                         <Check className="w-3 h-3" />
                         <span>Copiado</span>
                       </span>
                     ) : (
-                      <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] italic text-[#7a4b25]">
+                      <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] italic text-[#f2cf8c]">
                         Clic para copiar
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-[#5e391e]/90 line-clamp-2 mt-0.5 leading-snug">
+                  <p className="text-[11px] text-[#d4eadc]/90 line-clamp-2 mt-0.5 leading-snug">
                     {item.description}
                   </p>
                 </div>
@@ -4096,7 +4102,7 @@ const PatternCatalogPage: React.FC<{
           })}
 
           {items.length === 0 && (
-            <div className="flex-1 flex items-center justify-center text-xs italic text-[#7a542f]">
+            <div className="flex-1 flex items-center justify-center text-xs italic text-[#cce6d6]">
               Final del catálogo de patrones
             </div>
           )}
@@ -4141,22 +4147,22 @@ const MandalaCatalogPage: React.FC<{
     const pageNum = (spreadNumber - 1) * 2 + (side === 'left' ? 1 : 2);
     const hasPhotos = items.some((it) => Boolean(it.imagePath));
     return (
-      <div className={`relative ${pageSizeClass} parchment-page parchment-grid overflow-hidden flex flex-col px-5 py-3.5`}>
+      <div className={`relative ${pageSizeClass} cutting-mat-page cutting-mat-grid overflow-hidden flex flex-col px-5 py-3.5`}>
         {/* Header */}
-        <div className="relative z-10 flex items-baseline justify-between border-b border-[#8e6233]/35 pb-1.5 mb-2">
+        <div className="relative z-10 flex items-baseline justify-between border-b border-[#b2dfc4]/35 pb-1.5 mb-2">
           <div>
-            <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#4a220d]">
+            <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#f7eed8]">
               {side === 'left'
                 ? 'Apartado de Mandalas'
                 : hasPhotos
                   ? 'Galería de Diagramas'
                   : 'Encaje y Rosetones'}
             </h2>
-            <p className="text-[10.5px] text-[#6d4521]">
+            <p className="text-[10.5px] text-[#cce6d6]">
               Clic en cualquier foto para copiar · Lupa para ampliar diagrama
             </p>
           </div>
-          <span className="font-mono-tab text-[11px] text-[#7c552d]">Pág. {pageNum}</span>
+          <span className="font-mono-tab text-[11px] text-[#d5ecde]">Pág. {pageNum}</span>
         </div>
 
         {/* Multi-Mandala Grid — Arranged Photos & Vector Mandalas with Click-to-Auto-Copy */}
@@ -4189,8 +4195,8 @@ const MandalaCatalogPage: React.FC<{
                 }}
                 className={`group relative rounded-xl border p-1.5 transition-all duration-200 cursor-pointer flex flex-col items-center justify-between text-center select-none min-h-0 overflow-hidden ${
                   isSelected || isCopied
-                    ? 'bg-[#fff8e8]/25 border-[#7a202a]/80 ring-2 ring-[#d49a4c]/75 shadow-[0_6px_16px_rgba(92,48,18,0.14)]'
-                    : 'bg-transparent border-[#966a35]/30 hover:bg-[#fff9ec]/18 hover:border-[#7a202a]/65 hover:-translate-y-0.5 active:scale-[0.98]'
+                    ? 'bg-[#14372a]/85 border-[#f0c77c] ring-2 ring-[#f0c77c]/75 shadow-[0_6px_16px_rgba(8,24,18,0.35)]'
+                    : 'bg-[#163b2d]/62 border-[#a7d6ba]/35 hover:bg-[#1a4736]/85 hover:border-[#e6bc70]/75 hover:-translate-y-0.5 active:scale-[0.98]'
                 }`}
               >
                 {/* Zoom / Preview button in top-left */}
@@ -4258,7 +4264,7 @@ const MandalaCatalogPage: React.FC<{
                 )}
 
                 {isPhoto ? (
-                  <div className="flex-1 w-full min-h-0 rounded-lg bg-transparent overflow-hidden flex items-center justify-center p-0.5">
+                  <div className="flex-1 w-full min-h-0 rounded-lg bg-[#f7efdc]/94 overflow-hidden flex items-center justify-center p-0.5">
                     <img
                       src={displayImage}
                       alt={item.name}
@@ -4271,7 +4277,7 @@ const MandalaCatalogPage: React.FC<{
                     />
                   </div>
                 ) : (
-                  <div className="flex-1 w-full flex items-center justify-center min-h-0 py-0.5">
+                  <div className="flex-1 w-full rounded-lg bg-[#f7efdc]/92 flex items-center justify-center min-h-0 py-0.5">
                     <CrochetMandalaSvg
                       mandalaId={item.mandalaId || item.id}
                       className="w-[74px] h-[74px] sm:w-[88px] sm:h-[88px] drop-shadow-[0_1px_2px_rgba(62,30,12,0.16)] transition-transform duration-200 group-hover:scale-105"
@@ -4280,10 +4286,10 @@ const MandalaCatalogPage: React.FC<{
                 )}
 
                 <div className="w-full min-w-0 pt-1 flex items-center justify-between gap-1 px-0.5">
-                  <h3 className="font-editorial text-[11px] font-bold text-[#3f1c09] truncate leading-tight">
+                  <h3 className="font-editorial text-[11px] font-bold text-[#fff4dc] truncate leading-tight">
                     {item.name}
                   </h3>
-                  <span className="shrink-0 font-mono-tab text-[8.5px] px-1 py-0.2 rounded bg-[#a87842]/15 text-[#6d4521] leading-tight">
+                  <span className="shrink-0 font-mono-tab text-[8.5px] px-1 py-0.2 rounded bg-[#275c48]/80 text-[#dcf2e4] leading-tight">
                     {item.abbreviation}
                   </span>
                 </div>
@@ -5016,22 +5022,30 @@ const PageElementItem = memo<{
               onBlur={onEditTextDone}
               rows={2}
               style={{
-                color: el.color || '#4e2712',
+                color:
+                  !hasTextBg &&
+                  (!el.color || el.color.toLowerCase() === '#4e2712')
+                    ? '#F7EED8'
+                    : el.color || '#F7EED8',
                 fontSize: el.fontSize || 17,
                 fontWeight: el.fontWeight || 'normal',
                 fontStyle: el.fontStyle || 'normal',
                 textDecoration: el.textDecoration || 'none',
                 textAlign: el.textAlign || 'left',
-                backgroundColor: hasTextBg ? el.backgroundColor : 'rgba(255,250,240,0.92)',
+                backgroundColor: hasTextBg ? el.backgroundColor : 'rgba(18, 49, 38, 0.92)',
               }}
-              className={`w-full min-h-[2.2em] resize-none overflow-hidden border-2 border-dashed border-[#b98241] rounded-lg px-2 py-1.5 leading-snug focus:outline-none placeholder:text-[#8c6740]/60 placeholder:italic shadow-sm ${
+              className={`w-full min-h-[2.2em] resize-none overflow-hidden border-2 border-dashed border-[#e5ba6c] rounded-lg px-2 py-1.5 leading-snug focus:outline-none placeholder:text-[#c7e3d2]/60 placeholder:italic shadow-sm ${
                 FONT_CLASS_MAP[el.fontFamily || 'lora']
               }`}
             />
           ) : (
             <p
               style={{
-                color: el.color || '#4e2712',
+                color:
+                  !hasTextBg &&
+                  (!el.color || el.color.toLowerCase() === '#4e2712')
+                    ? '#F7EED8'
+                    : el.color || '#F7EED8',
                 fontSize: el.fontSize || 17,
                 fontWeight: el.fontWeight || 'normal',
                 fontStyle: el.fontStyle || 'normal',
@@ -6037,9 +6051,9 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     const paperBgClass = !layerVisibility.background
       ? ''
       : paperStyle === 'grid'
-        ? 'parchment-grid'
+        ? 'cutting-mat-grid'
         : paperStyle === 'dots'
-          ? 'parchment-dots'
+          ? 'cutting-mat-dots'
           : '';
 
     const visibleElements = elements.filter((el) => {
@@ -6088,7 +6102,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
             eraserCursorRef.current.style.display = 'none';
           }
         }}
-        className={`relative ${pageSizeClass} parchment-page ${paperBgClass} overflow-visible ${
+        className={`relative ${pageSizeClass} cutting-mat-page ${paperBgClass} overflow-visible ${
           liveTransform ? 'z-30' : ''
         } ${
           activeTool === 'draw' || activeTool === 'eyedropper'
@@ -6106,28 +6120,28 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           <div
             className={`pointer-events-none absolute top-0 ${
               side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-            } w-7 h-6 border-b border-[#a37846]/45 bg-[#f4e2bc]/45 flex items-center justify-center`}
+            } w-7 h-6 border-b border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center`}
           >
-            <span className="text-[7.5px] font-mono-tab font-semibold text-[#5e3a18]">cm</span>
+            <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
           </div>
           <div
             className={`pointer-events-none absolute bottom-0 ${
               side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-            } w-7 h-6 border-t border-[#a37846]/45 bg-[#f4e2bc]/45 flex items-center justify-center`}
+            } w-7 h-6 border-t border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center`}
           >
-            <span className="text-[7.5px] font-mono-tab font-semibold text-[#5e3a18]">cm</span>
+            <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
           </div>
 
           {/* Top Horizontal 20cm Ruler */}
           <div
             className={`pointer-events-none absolute top-0 ${
               side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
-            } h-6 border-b border-[#a37846]/45 bg-[#f4e2bc]/35 flex items-end justify-between px-2`}
+            } h-6 border-b border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-end justify-between px-2`}
           >
             {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
               <div key={cm} className="flex flex-col items-center justify-end gap-0.5 leading-none">
-                <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
-                <span className="w-px h-1.5 bg-[#6e4a26]/70" />
+                <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
               </div>
             ))}
           </div>
@@ -6136,32 +6150,32 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           <div
             className={`pointer-events-none absolute bottom-0 ${
               side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
-            } h-6 border-t border-[#a37846]/45 bg-[#f4e2bc]/35 flex items-start justify-between px-2`}
+            } h-6 border-t border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-start justify-between px-2`}
           >
             {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
               <div key={cm} className="flex flex-col items-center justify-start gap-0.5 leading-none">
-                <span className="w-px h-1.5 bg-[#6e4a26]/70" />
-                <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
+                <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
+                <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
               </div>
             ))}
           </div>
 
           {/* Outer Vertical 25cm Ruler */}
           {side === 'left' ? (
-            <div className="pointer-events-none absolute top-6 bottom-6 left-0 w-7 border-r border-[#a37846]/45 flex flex-col justify-between py-2 pl-1 text-left bg-[#f4e2bc]/35">
+            <div className="pointer-events-none absolute top-6 bottom-6 left-0 w-7 border-r border-[#a7d6ba]/40 flex flex-col justify-between py-2 pl-1 text-left bg-[#15382b]/65">
               {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
                 <div key={cm} className="flex items-center justify-start gap-1 leading-none">
-                  <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
-                  <span className="w-1.5 h-px bg-[#6e4a26]/70" />
+                  <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                  <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
                 </div>
               ))}
             </div>
           ) : (
-            <div className="pointer-events-none absolute top-6 bottom-6 right-0 w-7 border-l border-[#a37846]/45 flex flex-col justify-between py-2 pr-1 text-right bg-[#f4e2bc]/35">
+            <div className="pointer-events-none absolute top-6 bottom-6 right-0 w-7 border-l border-[#a7d6ba]/40 flex flex-col justify-between py-2 pr-1 text-right bg-[#15382b]/65">
               {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
                 <div key={cm} className="flex items-center justify-end gap-1 leading-none">
-                  <span className="w-1.5 h-px bg-[#6e4a26]/70" />
-                  <span className="text-[7.5px] font-mono-tab text-[#5e3a18]/90">{cm}</span>
+                  <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
+                  <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
                 </div>
               ))}
             </div>
@@ -6281,12 +6295,12 @@ function parseRgbToHex(cssColor: string | null | undefined): string | null {
   const r = Number(m[1]);
   const g = Number(m[2]);
   const b = Number(m[3]);
-  // Blend translucent fills/strokes against warm parchment (#FBF2DE)
+  // Blend translucent fills/strokes against forest cutting-mat sheet (#1F4E3D)
   if (alpha < 0.99) {
     return toHexColor(
-      r * alpha + 251 * (1 - alpha),
-      g * alpha + 242 * (1 - alpha),
-      b * alpha + 222 * (1 - alpha)
+      r * alpha + 31 * (1 - alpha),
+      g * alpha + 78 * (1 - alpha),
+      b * alpha + 61 * (1 - alpha)
     );
   }
   return toHexColor(r, g, b);

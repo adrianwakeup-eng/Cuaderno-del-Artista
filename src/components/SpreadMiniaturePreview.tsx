@@ -24,8 +24,8 @@ const MINI_FONT_CLASS: Record<FontChoice, string> = {
 };
 
 const PAPER_CLASS: Record<PaperStyle, string> = {
-  grid: 'parchment-grid',
-  dots: 'parchment-dots',
+  grid: 'cutting-mat-grid',
+  dots: 'cutting-mat-dots',
   plain: '',
 };
 
@@ -86,12 +86,12 @@ const MiniPageRulerEdge: React.FC<{ side: 'left' | 'right' }> = ({ side }) => (
       aria-hidden="true"
       className={`absolute top-4 bottom-4 ${
         side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-      } w-[18px] border-[#9b7346]/35 bg-[#f4e2bc]/30 flex flex-col justify-between py-2 opacity-70 pointer-events-none`}
+      } w-[18px] border-[#a7d6ba]/35 bg-[#15382b]/65 flex flex-col justify-between py-2 opacity-80 pointer-events-none`}
     >
       {Array.from({ length: 12 }).map((_, i) => (
         <div
           key={i}
-          className={`h-px bg-[#7a542d]/60 ${
+          className={`h-px bg-[#bfe5ce]/65 ${
             side === 'left' ? 'ml-0 mr-auto' : 'ml-auto mr-0'
           } ${i % 2 === 0 ? 'w-[10px]' : 'w-[6px]'}`}
         />
@@ -101,20 +101,20 @@ const MiniPageRulerEdge: React.FC<{ side: 'left' | 'right' }> = ({ side }) => (
       aria-hidden="true"
       className={`absolute top-0 ${
         side === 'left' ? 'left-[18px] right-0' : 'left-0 right-[18px]'
-      } h-4 border-b border-[#9b7346]/35 bg-[#f4e2bc]/30 flex items-end justify-between px-2 opacity-70 pointer-events-none`}
+      } h-4 border-b border-[#a7d6ba]/35 bg-[#15382b]/65 flex items-end justify-between px-2 opacity-80 pointer-events-none`}
     >
       {Array.from({ length: 10 }).map((_, i) => (
-        <div key={i} className={`w-px bg-[#7a542d]/60 ${i % 2 === 0 ? 'h-[8px]' : 'h-[5px]'}`} />
+        <div key={i} className={`w-px bg-[#bfe5ce]/65 ${i % 2 === 0 ? 'h-[8px]' : 'h-[5px]'}`} />
       ))}
     </div>
     <div
       aria-hidden="true"
       className={`absolute bottom-0 ${
         side === 'left' ? 'left-[18px] right-0' : 'left-0 right-[18px]'
-      } h-4 border-t border-[#9b7346]/35 bg-[#f4e2bc]/30 flex items-start justify-between px-2 opacity-70 pointer-events-none`}
+      } h-4 border-t border-[#a7d6ba]/35 bg-[#15382b]/65 flex items-start justify-between px-2 opacity-80 pointer-events-none`}
     >
       {Array.from({ length: 10 }).map((_, i) => (
-        <div key={i} className={`w-px bg-[#7a542d]/60 ${i % 2 === 0 ? 'h-[8px]' : 'h-[5px]'}`} />
+        <div key={i} className={`w-px bg-[#bfe5ce]/65 ${i % 2 === 0 ? 'h-[8px]' : 'h-[5px]'}`} />
       ))}
     </div>
   </>
@@ -204,7 +204,11 @@ const MiniElementView: React.FC<{ el: PageElement }> = ({ el }) => {
       {el.type === 'text' && (
         <div
           style={{
-            color: el.color || '#3e1e0c',
+            color:
+              (!el.backgroundColor || el.backgroundColor === 'transparent') &&
+              (!el.color || el.color.toLowerCase() === '#4e2712')
+                ? '#F7EED8'
+                : el.color || '#F7EED8',
             fontSize: `${el.fontSize || 20}px`,
             fontWeight: el.fontWeight || 'normal',
             fontStyle: el.fontStyle || 'normal',
@@ -309,7 +313,7 @@ const MiniElementView: React.FC<{ el: PageElement }> = ({ el }) => {
 };
 
 export const EditableSpreadMiniature = memo<{ spread: NotebookSpread }>(({ spread }) => {
-  const paperClass = PAPER_CLASS[spread.paperStyle] || 'parchment-grid';
+  const paperClass = PAPER_CLASS[spread.paperStyle] || 'cutting-mat-grid';
   const leftEls = spread.elements.filter((e) => e.side === 'left');
   const rightEls = spread.elements.filter((e) => e.side === 'right');
 
@@ -318,7 +322,7 @@ export const EditableSpreadMiniature = memo<{ spread: NotebookSpread }>(({ sprea
       {/* Left Miniature Page */}
       <div
         style={{ width: VIRTUAL_PAGE_W, height: VIRTUAL_SPREAD_H }}
-        className={`relative parchment-page ${paperClass} overflow-hidden shrink-0`}
+        className={`relative cutting-mat-page ${paperClass} overflow-hidden shrink-0`}
       >
         <MiniPageRulerEdge side="left" />
         {spread.leftDrawingDataUrl && (
@@ -336,7 +340,7 @@ export const EditableSpreadMiniature = memo<{ spread: NotebookSpread }>(({ sprea
       {/* Right Miniature Page */}
       <div
         style={{ width: VIRTUAL_PAGE_W, height: VIRTUAL_SPREAD_H }}
-        className={`relative parchment-page ${paperClass} overflow-hidden shrink-0`}
+        className={`relative cutting-mat-page ${paperClass} overflow-hidden shrink-0`}
       >
         <MiniPageRulerEdge side="right" />
         {spread.rightDrawingDataUrl && (
@@ -362,13 +366,13 @@ const CatalogMiniSide: React.FC<{
 }> = ({ side, items }) => (
   <div
     style={{ width: VIRTUAL_PAGE_W, height: VIRTUAL_SPREAD_H }}
-    className="relative parchment-page parchment-grid overflow-hidden shrink-0 flex flex-col px-7 py-5"
+    className="relative cutting-mat-page cutting-mat-grid overflow-hidden shrink-0 flex flex-col px-7 py-5"
   >
-    <div className="border-b border-[#9d6f3c]/45 pb-2 mb-3 flex items-center justify-between">
-      <span className="font-editorial italic text-[17px] font-semibold text-[#5a2f15]">
+    <div className="border-b border-[#b2dfc4]/35 pb-2 mb-3 flex items-center justify-between">
+      <span className="font-editorial italic text-[17px] font-semibold text-[#f7eed8]">
         {side === 'left' ? 'Índice de Patrones Crochet' : 'Alfabeto y Diagramas'}
       </span>
-      <span className="text-[11px] font-mono-tab text-[#7d522c]">{items.length} patrones</span>
+      <span className="text-[11px] font-mono-tab text-[#d4eadc]">{items.length} patrones</span>
     </div>
     <div className="grid grid-cols-2 gap-3 flex-1">
       {items.map((item) => (
@@ -418,13 +422,13 @@ const MandalaMiniSide: React.FC<{
 }> = ({ side, items, mattedMap }) => (
   <div
     style={{ width: VIRTUAL_PAGE_W, height: VIRTUAL_SPREAD_H }}
-    className="relative parchment-page parchment-grid overflow-hidden shrink-0 flex flex-col px-6 py-4"
+    className="relative cutting-mat-page cutting-mat-grid overflow-hidden shrink-0 flex flex-col px-6 py-4"
   >
-    <div className="border-b border-[#9d6f3c]/45 pb-1.5 mb-2.5 flex items-center justify-between">
-      <span className="font-editorial italic text-[16px] font-semibold text-[#5a2f15]">
+    <div className="border-b border-[#b2dfc4]/35 pb-1.5 mb-2.5 flex items-center justify-between">
+      <span className="font-editorial italic text-[16px] font-semibold text-[#f7eed8]">
         {side === 'left' ? 'Galería de Mandalas' : 'Colección Crochet'}
       </span>
-      <span className="text-[11px] font-mono-tab text-[#7d522c]">{items.length} diseños</span>
+      <span className="text-[11px] font-mono-tab text-[#d4eadc]">{items.length} diseños</span>
     </div>
     <div className="grid grid-cols-2 grid-rows-3 gap-2.5 flex-1">
       {items.map((item) => {

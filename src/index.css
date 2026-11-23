@@ -170,6 +170,32 @@
   background-size: 18px 18px;
 }
 
+/* Classic Forest-Green Cutting Mat Notebook Sheets (#1F4E3D with light grid) */
+.cutting-mat-page {
+  background-color: #1f4e3d;
+  background-image:
+    radial-gradient(
+      circle at 50% 44%,
+      rgba(56, 128, 99, 0.34) 0%,
+      rgba(31, 78, 61, 0.88) 68%,
+      rgba(20, 54, 42, 0.98) 100%
+    );
+}
+
+.cutting-mat-grid {
+  background-image:
+    linear-gradient(to right, rgba(226, 246, 234, 0.24) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(226, 246, 234, 0.24) 1px, transparent 1px),
+    linear-gradient(to right, rgba(214, 240, 224, 0.13) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(214, 240, 224, 0.13) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+}
+
+.cutting-mat-dots {
+  background-image: radial-gradient(rgba(220, 244, 229, 0.36) 1.15px, transparent 1.15px);
+  background-size: 18px 18px;
+}
+
 /* Golden range slider matching 3D brass mockup */
 .brass-slider {
   -webkit-appearance: none;
