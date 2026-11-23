@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export type MannequinGender = 'male' | 'female';
 
@@ -1535,11 +1536,127 @@ interface RendererSingleton {
   maleModel: THREE.Group;
   femaleModel: THREE.Group;
   woodMats: THREE.MeshPhysicalMaterial[];
+  sculptedWoodMat: THREE.MeshPhysicalMaterial;
+  glbLoaded: { male: boolean; female: boolean };
 }
 
 let singleton: RendererSingleton | null = null;
 const dataUrlCache = new Map<string, string>();
 const MAX_CACHE_ENTRIES = 160;
+const readyListeners = new Set<() => void>();
+let glbLoadStarted = false;
+
+/** Subscribe to be notified once the high-resolution sculpted humanoid GLB models finish loading */
+export function onMannequinModelsLoaded(cb: () => void): () => void {
+  readyListeners.add(cb);
+  return () => {
+    readyListeners.delete(cb);
+  };
+}
+
+function notifyModelsLoaded(): void {
+  dataUrlCache.clear();
+  for (const cb of readyListeners) {
+    try {
+      cb();
+    } catch {
+      // ignore listener errors
+    }
+  }
+}
+
+function attachSculptedGlbScene(
+  s: RendererSingleton,
+  gender: MannequinGender,
+  gltfScene: THREE.Group
+): void {
+  const container = new THREE.Group();
+  gltfScene.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      obj.material = s.sculptedWoodMat;
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
+  container.add(gltfScene);
+  container.add(createShadowDisc());
+  if (gender === 'female') {
+    container.scale.set(0.985, 0.985, 0.985);
+  }
+  container.visible = false;
+
+  if (gender === 'male') {
+    s.scene.remove(s.maleModel);
+    s.maleModel = container;
+    s.glbLoaded.male = true;
+  } else {
+    s.scene.remove(s.femaleModel);
+    s.femaleModel = container;
+    s.glbLoaded.female = true;
+  }
+  s.scene.add(container);
+  notifyModelsLoaded();
+}
+
+/** Optional helper to load pre-fetched ArrayBuffers (used by offline QA harness) */
+export async function loadMannequinGlbBuffers(
+  maleBuffer: ArrayBuffer,
+  femaleBuffer: ArrayBuffer
+): Promise<void> {
+  const s = getSingleton();
+  if (!s) return;
+  const loader = new GLTFLoader();
+  await Promise.all([
+    new Promise<void>((resolve, reject) => {
+      loader.parse(
+        maleBuffer,
+        '',
+        (gltf) => {
+          attachSculptedGlbScene(s, 'male', gltf.scene);
+          resolve();
+        },
+        reject
+      );
+    }),
+    new Promise<void>((resolve, reject) => {
+      loader.parse(
+        femaleBuffer,
+        '',
+        (gltf) => {
+          attachSculptedGlbScene(s, 'female', gltf.scene);
+          resolve();
+        },
+        reject
+      );
+    }),
+  ]);
+}
+
+function startLoadingSculptedGlbs(s: RendererSingleton): void {
+  if (glbLoadStarted) return;
+  glbLoadStarted = true;
+  if (typeof window === 'undefined' || window.location?.protocol === 'file:') return;
+
+  const base = (import.meta as unknown as { env?: { BASE_URL?: string } })?.env?.BASE_URL || '/';
+  const loader = new GLTFLoader();
+  const pairs: Array<{ gender: MannequinGender; url: string }> = [
+    { gender: 'male', url: `${base}models/mannequin-male.glb` },
+    { gender: 'female', url: `${base}models/mannequin-female.glb` },
+  ];
+
+  for (const item of pairs) {
+    loader.load(
+      item.url,
+      (gltf) => {
+        attachSculptedGlbScene(s, item.gender, gltf.scene);
+      },
+      undefined,
+      () => {
+        // Keep procedural fallback if GLB fetch fails
+      }
+    );
+  }
+}
 
 function getSingleton(): RendererSingleton | null {
   if (singleton) return singleton;
@@ -1628,6 +1745,21 @@ function getSingleton(): RendererSingleton | null {
     const maleTorsoMat = makeWoodMat(maleTorsoMaps, 0.016);
     const femaleTorsoMat = makeWoodMat(femaleTorsoMaps, 0.016);
 
+    // Sculpted humanoid GLB wood material (uses baked 5-tap volumetric SDF AO + physical carved wood-panel grooves!)
+    const sculptedWoodMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#ffffff'),
+      map: baseMaps.map,
+      bumpMap: baseMaps.bumpMap,
+      bumpScale: 0.0065,
+      roughnessMap: baseMaps.roughnessMap,
+      roughness: 0.44,
+      metalness: 0.0,
+      clearcoat: 0.28,
+      clearcoatRoughness: 0.30,
+      envMapIntensity: 0.16,
+      vertexColors: true,
+    });
+
     // Dark recessed carved wood kerf material
     const kerfMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color('#280e03'),
@@ -1677,8 +1809,18 @@ function getSingleton(): RendererSingleton | null {
       camera,
       maleModel,
       femaleModel,
-      woodMats: [baseWoodMat, maleHeadMat, femaleHeadMat, maleTorsoMat, femaleTorsoMat],
+      woodMats: [
+        baseWoodMat,
+        maleHeadMat,
+        femaleHeadMat,
+        maleTorsoMat,
+        femaleTorsoMat,
+        sculptedWoodMat,
+      ],
+      sculptedWoodMat,
+      glbLoaded: { male: false, female: false },
     };
+    startLoadingSculptedGlbs(singleton);
     return singleton;
   } catch {
     return null;

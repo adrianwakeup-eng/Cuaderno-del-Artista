@@ -4,6 +4,7 @@ import mannequinBackImg from '../assets/images/mannequin_back.png';
 import {
   getYawAngleLabel,
   normalizeYawDeg,
+  onMannequinModelsLoaded,
   renderMannequinToCanvas,
   renderMannequinToDataUrl,
   type MannequinGender,
@@ -29,6 +30,11 @@ export const MannequinSvg: React.FC<MannequinSvgProps> = ({
   const effectiveYaw = normalizeYawDeg(yawDeg ?? (view === 'back' ? 180 : 0));
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
+  const [modelRev, setModelRev] = useState(0);
+
+  useEffect(() => {
+    return onMannequinModelsLoaded(() => setModelRev((r) => r + 1));
+  }, []);
 
   const miniatureDataUrl = useMemo(() => {
     if (!miniature) return null;
@@ -39,7 +45,7 @@ export const MannequinSvg: React.FC<MannequinSvgProps> = ({
       width: 168,
       height: 384,
     });
-  }, [miniature, gender, effectiveYaw, color]);
+  }, [miniature, gender, effectiveYaw, color, modelRev]);
 
   useEffect(() => {
     if (miniature) return;
@@ -55,7 +61,7 @@ export const MannequinSvg: React.FC<MannequinSvgProps> = ({
     if (!ok) {
       setWebglFailed(true);
     }
-  }, [miniature, gender, effectiveYaw, color]);
+  }, [miniature, gender, effectiveYaw, color, modelRev]);
 
   const ariaLabel = `Maniquí ${gender === 'female' ? 'Mujer' : 'Hombre'} 360° (${getYawAngleLabel(effectiveYaw)} · ${effectiveYaw}°)`;
 
