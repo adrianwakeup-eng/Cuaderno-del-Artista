@@ -14,9 +14,30 @@ export type PaperStyle = 'grid' | 'dots' | 'plain';
 
 export type FontChoice = 'lora' | 'cormorant' | 'caveat' | 'cinzel';
 
-export type BrushCategory = 'pinceles' | 'tizas';
+export type BrushCategory = 'pinceles' | 'difuminados' | 'tizas';
 
 export type BrushPresetId =
+  // Difuminados suaves y precisos (Blenders, Smudgers & Harmonizers)
+  | 'difuminado-seda'
+  | 'difuminado-suavizar'
+  | 'difuminado-armonizar'
+  | 'difuminado-esfumino'
+  | 'difuminado-aerografo'
+  | 'difuminado-niebla'
+  // Pinceles de texturas hiperrealistas
+  | 'pelo-animal'
+  | 'cabello-seda'
+  | 'arena-fina'
+  | 'piel-poros'
+  | 'plumas-finas'
+  | 'hierba-follaje'
+  | 'roca-piedra'
+  | 'tela-tejido'
+  | 'agua-destellos'
+  | 'oleo-cerdas'
+  | 'grafito-hiper'
+  | 'brillo-estelar'
+  // Legacy IDs kept for backwards compatibility
   | 'tiza-suave'
   | 'tiza-pastel'
   | 'tiza-gruesa'

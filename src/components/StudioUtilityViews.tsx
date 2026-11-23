@@ -284,7 +284,7 @@ export const FontsView: React.FC<{
   );
 };
 
-/* ---------- 3. Pinceles y Tizas Quick Studio ---------- */
+/* ---------- 3. Difuminados y Pinceles Hiperrealistas Quick Studio ---------- */
 export const BrushesQuickView: React.FC<{
   brush: BrushSettings;
   onChangeBrush: (patch: Partial<BrushSettings>) => void;
@@ -293,20 +293,20 @@ export const BrushesQuickView: React.FC<{
   <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
     <div className="max-w-3xl mx-auto rounded-2xl leather-panel p-6 text-[#f6e4c4]">
       <h2 className="font-display text-xl text-[#ffebc2] mb-1">
-        Estudio de Pinceles, Tizas y Trazos
+        Estudio de Difuminados y Pinceles Hiperrealistas
       </h2>
       <p className="text-xs text-[#d6b688] mb-5">
-        Ajusta la textura para dibujar esquemas de puntos o bocetos sobre el papel cuadriculado
+        Difumina y armoniza trazos con precisión, o pinta con brochas de texturas hiperrealistas (pelo, arena, piel, plumas, roca, tela y más)
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {[
-          { id: 'tiza-suave', cat: 'tizas', name: 'Brocha Facial Suave', desc: 'Tiza ultraligera estilo brocha de maquillaje, color muy sutil' },
-          { id: 'tiza-pastel', cat: 'tizas', name: 'Rubor Pastel', desc: 'Aplicación aérea y aterciopelada por capas suaves' },
-          { id: 'tiza-gruesa', cat: 'tizas', name: 'Brocha Kabuki', desc: 'Difuminado amplio y sedoso para fondos suaves' },
-          { id: 'acrilico-fino', cat: 'pinceles', name: 'Acrílico Fino', desc: 'Pincelada acrílica precisa, delicada y ligeramente afilada' },
-          { id: 'pluma-fina', cat: 'pinceles', name: 'Acrílico Ultrafino 000', desc: 'Trazo capilar de altísima precisión para detalles finos' },
-          { id: 'acrilico-satinado', cat: 'pinceles', name: 'Acrílico Satinado', desc: 'Pincelada fina con acabado sedoso y sutil' },
+          { id: 'difuminado-seda', cat: 'difuminados', name: 'Difuminado Seda', desc: 'Arrastra y funde los pigmentos con suavidad para unir colores sin cortes', size: 26, opacity: 68, softness: 88 },
+          { id: 'difuminado-suavizar', cat: 'difuminados', name: 'Suavizador Preciso', desc: 'Difumina bordes y hace los colores más homogéneos y suaves', size: 28, opacity: 65, softness: 92 },
+          { id: 'difuminado-armonizar', cat: 'difuminados', name: 'Armonizador de Color', desc: 'Unifica tonos desiguales equilibrando el lienzo con tu color activo', size: 30, opacity: 58, softness: 90 },
+          { id: 'pelo-animal', cat: 'pinceles', name: 'Pelo de Animal', desc: 'Hebras cónicas direccionales con subpelo oscuro y brillo natural', size: 18, opacity: 88, softness: 30 },
+          { id: 'arena-fina', cat: 'pinceles', name: 'Arena Fina', desc: 'Microgranos minerales con destellos de cuarzo y sombras granuladas', size: 22, opacity: 84, softness: 45 },
+          { id: 'piel-poros', cat: 'pinceles', name: 'Piel y Poros', desc: 'Microtextura dérmica orgánica pensada para retratos hiperrealistas', size: 20, opacity: 55, softness: 65 },
         ].map((item) => {
           const active = brush.preset === item.id;
           return (
@@ -317,9 +317,9 @@ export const BrushesQuickView: React.FC<{
                 onChangeBrush({
                   category: item.cat as BrushSettings['category'],
                   preset: item.id as BrushSettings['preset'],
-                  ...(item.cat === 'pinceles'
-                    ? { size: 8, opacity: 82, softness: 18 }
-                    : { size: 28, opacity: 60, softness: 90 }),
+                  size: item.size,
+                  opacity: item.opacity,
+                  softness: item.softness,
                 });
                 onActivateDrawMode();
               }}
@@ -503,7 +503,7 @@ export const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
           <strong className="text-[#ffebc2]">Pasar páginas de forma táctil:</strong> Arrastra desde el borde izquierdo o derecho de las hojas abiertas (o usa las flechas inferiores) para doblar y voltear las páginas en 3D.
         </li>
         <li>
-          <strong className="text-[#ffebc2]">Dibujar y anotar:</strong> Elige <em>Pinceles</em> o <em>Tizas</em> en el panel derecho para dibujar sobre la cuadrícula, o usa <em>Texto</em> y <em>Stickers</em> para decorar con flores de crochet.
+          <strong className="text-[#ffebc2]">Dibujar y anotar:</strong> Elige <em>Difuminados</em> o <em>Pincel</em> (con texturas hiperrealistas) en el panel derecho para dibujar sobre la cuadrícula, o usa <em>Texto</em> y <em>Stickers</em> para decorar con flores de crochet.
         </li>
         <li>
           <strong className="text-[#ffebc2]">Organizar Patrones y Materiales:</strong> Usa las pestañas de la barra lateral izquierda para llevar tu contador de vueltas, diagrama de puntos, reserva de ovillos y álbum de fotos terminadas.

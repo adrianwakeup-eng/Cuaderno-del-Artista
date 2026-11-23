@@ -68,7 +68,7 @@ export const RightStudioRail: React.FC<RightStudioRailProps> = ({
 
         <RailButton
           active={activeSection === 'pinceles'}
-          title="Estudio de Pinceles y Tizas"
+          title="Estudio de Difuminados y Pinceles Hiperrealistas"
           onClick={() => {
             audioEngine.playYarnPluck(2);
             onGoToSection('pinceles');

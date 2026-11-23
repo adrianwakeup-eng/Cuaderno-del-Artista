@@ -68,12 +68,12 @@ export default function App() {
   const [selectedShapeKind, setSelectedShapeKind] = useState<ShapeKind>('crochet-ring');
 
   const [brush, setBrush] = useState<BrushSettings>({
-    category: 'tizas',
-    preset: 'tiza-suave',
+    category: 'difuminados',
+    preset: 'difuminado-seda',
     color: '#4E2712',
-    size: 28,
-    opacity: 60,
-    softness: 90,
+    size: 26,
+    opacity: 68,
+    softness: 88,
   });
 
   // Undo / Redo stacks for notebook spreads and removed catalog/mandala pages

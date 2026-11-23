@@ -57,6 +57,11 @@ import type {
   StudioSection,
 } from '../types/crochet';
 import { audioEngine } from '../utils/audioEngine';
+import {
+  ALL_BRUSH_META_MAP,
+  DIFUMINADO_PRESETS,
+  HYPERREAL_PINCEL_PRESETS,
+} from '../utils/hyperrealBrushEngine';
 import { YarnBall3D } from './CrochetDecorations';
 import { MandalaNavIcon } from './CrochetMandalaSvg';
 
@@ -196,32 +201,6 @@ const BASIC_COLORS = [
   '#4AE040', '#2ED18E', '#3ABAF0', '#2B6EE8', '#4A36D1', '#C4C9D4',
   '#8C44F5', '#D63CE8', '#EB38A0', '#E85E79', '#253978', '#3B4254',
   '#F4DFB6', '#F2C0D0', '#CBE8B4', '#BFE3F7', '#D6C8F2', '#1C130E',
-];
-
-const TIZA_PRESETS: Array<{
-  id: BrushPresetId;
-  label: string;
-  tint: string;
-}> = [
-  { id: 'tiza-suave', label: 'Brocha facial suave', tint: '#EBC299' },
-  { id: 'tiza-pastel', label: 'Rubor pastel', tint: '#E88DA1' },
-  { id: 'difuminador', label: 'Velo difuminador', tint: '#D8C2E6' },
-  { id: 'tiza-gruesa', label: 'Brocha kabuki', tint: '#B7CE8F' },
-  { id: 'tiza-velo', label: 'Polvo seda', tint: '#F5E8CF' },
-  { id: 'carboncillo', label: 'Sombra ahumada', tint: '#A6A4A0' },
-];
-
-const PINCEL_PRESETS: Array<{
-  id: BrushPresetId;
-  label: string;
-  tint: string;
-}> = [
-  { id: 'acrilico-fino', label: 'Acrílico fino', tint: '#4E2712' },
-  { id: 'pluma-fina', label: 'Acrílico ultrafino 000', tint: '#2B160C' },
-  { id: 'acrilico-detalle', label: 'Pincel detalle', tint: '#9D3B44' },
-  { id: 'acrilico-satinado', label: 'Acrílico satinado', tint: '#5B88A8' },
-  { id: 'acuarela', label: 'Veladura acrílica', tint: '#D49B50' },
-  { id: 'hilo-crochet', label: 'Puntada fina', tint: '#D8746A' },
 ];
 
 /* ---------- Color Conversion Helpers ---------- */
@@ -452,64 +431,189 @@ const ColorWheelPicker: React.FC<{
 };
 
 /* ---------- Tactile Textured Chalk/Brush Stroke Swatch ---------- */
-const ChalkBrushSwatch: React.FC<{
+const HyperrealBrushSwatch: React.FC<{
+  presetId: BrushPresetId;
   color: string;
-  isDashed?: boolean;
-  mode?: 'chalk' | 'acrylic';
-}> = ({ color, isDashed, mode = 'chalk' }) => (
-  <svg viewBox="0 0 80 28" className="w-full h-full" fill="none">
-    {isDashed ? (
-      <path
-        d="M8 16 Q26 10, 42 15 T72 13"
-        stroke={color}
-        strokeWidth="2.1"
-        strokeLinecap="round"
-        strokeDasharray="4.5 4.5"
-      />
-    ) : mode === 'acrylic' ? (
-      <>
-        <path
-          d="M8 18 C22 12, 36 19, 54 11 C64 8, 70 10, 74 11.5"
-          stroke={color}
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          strokeOpacity="0.22"
-        />
-        <path
-          d="M9 17.5 C23 11.8, 36 18.2, 54 11 C64 8, 70 9.8, 74 11.5"
-          stroke={color}
-          strokeWidth="1.65"
-          strokeLinecap="round"
-          strokeOpacity="0.96"
-        />
-      </>
-    ) : (
-      <>
-        <path
-          d="M7 18 C20 11, 34 21, 52 12 C62 8, 70 11, 74 14"
-          stroke={color}
-          strokeWidth="13"
-          strokeLinecap="round"
-          strokeOpacity="0.18"
-        />
-        <path
-          d="M9 17 C21 11, 35 19, 53 12 C63 8, 69 10, 73 13"
-          stroke={color}
-          strokeWidth="8.5"
-          strokeLinecap="round"
-          strokeOpacity="0.32"
-        />
-        <path
-          d="M11 16 C22 11, 36 18, 54 11.5 C64 8.5, 69 10.2, 72 12.2"
-          stroke={color}
-          strokeWidth="4.5"
-          strokeLinecap="round"
-          strokeOpacity="0.56"
-        />
-      </>
-    )}
-  </svg>
-);
+}> = ({ presetId, color }) => {
+  const uid = `sw-${presetId}`;
+  return (
+    <svg viewBox="0 0 80 24" className="w-full h-[18px]" fill="none">
+      {presetId === 'pelo-animal' ? (
+        <g strokeLinecap="round">
+          <path d="M10 17 Q26 10 42 13 T70 10" stroke={color} strokeWidth="2.8" strokeOpacity="0.22" />
+          {[
+            'M9 17 Q17 12 24 11', 'M14 19 Q23 13 31 12', 'M20 16 Q29 9 38 11',
+            'M26 18 Q35 12 45 12', 'M33 15 Q42 9 52 11', 'M40 17 Q50 11 60 10',
+            'M48 15 Q58 9 68 9', 'M54 17 Q63 12 72 11',
+          ].map((d, i) => (
+            <path
+              key={i}
+              d={d}
+              stroke={i % 3 === 0 ? '#FFF3DE' : color}
+              strokeWidth={i % 3 === 0 ? '0.9' : '1.3'}
+              strokeOpacity={i % 3 === 0 ? '0.85' : '0.92'}
+            />
+          ))}
+        </g>
+      ) : presetId === 'cabello-seda' ? (
+        <g strokeLinecap="round">
+          {[-4, -2.2, -0.6, 1, 2.6, 4.2].map((dy, i) => (
+            <path
+              key={i}
+              d={`M8 ${15 + dy} C24 ${8 + dy}, 42 ${18 + dy}, 72 ${10 + dy}`}
+              stroke={i === 2 ? '#FFF5E4' : color}
+              strokeWidth={i === 2 ? '1.05' : '1.25'}
+              strokeOpacity={i === 2 ? '0.88' : '0.82'}
+            />
+          ))}
+        </g>
+      ) : presetId === 'arena-fina' ? (
+        <g>
+          <path d="M12 13 Q40 10 68 13" stroke={color} strokeWidth="9" strokeLinecap="round" strokeOpacity="0.16" />
+          {[
+            [14,13,1.2],[19,10,0.9],[23,15,1.3],[27,11,1.0],[31,14,1.4],[35,9,0.9],
+            [39,13,1.2],[43,16,1.1],[47,11,1.3],[51,14,1.0],[55,10,1.2],[59,15,1.3],
+            [63,11,0.9],[67,13,1.1],[21,12,0.8],[37,15,0.9],[49,13,1.1],[61,13,0.9],
+          ].map(([cx, cy, r], i) => (
+            <circle
+              key={i}
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill={i % 4 === 0 ? '#FFF6E0' : i % 3 === 0 ? '#6E4A25' : color}
+              fillOpacity={0.9}
+            />
+          ))}
+        </g>
+      ) : presetId === 'piel-poros' ? (
+        <g>
+          <ellipse cx="40" cy="12" rx="30" ry="7.5" fill={color} fillOpacity="0.28" />
+          {[
+            [18,12],[24,10],[29,14],[35,11],[41,13],[47,10],[53,14],[59,11],[64,13],[32,9],[45,15],[56,12],
+          ].map(([cx, cy], i) => (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r="1.0" fill="#5D331E" fillOpacity="0.55" />
+              <circle cx={cx - 0.8} cy={cy - 0.7} r="0.65" fill="#FFF2E6" fillOpacity="0.65" />
+            </g>
+          ))}
+        </g>
+      ) : presetId === 'plumas-finas' ? (
+        <g strokeLinecap="round">
+          <path d="M10 15 Q40 10 70 11" stroke="#FFF6E6" strokeWidth="1.2" strokeOpacity="0.88" />
+          {[16, 22, 28, 34, 40, 46, 52, 58, 64].map((x, i) => (
+            <g key={i} stroke={color} strokeWidth="1.05" strokeOpacity="0.86">
+              <line x1={x} y1={13 - i * 0.22} x2={x - 5} y2={6} />
+              <line x1={x} y1={13 - i * 0.22} x2={x - 4} y2={20} />
+            </g>
+          ))}
+        </g>
+      ) : presetId === 'hierba-follaje' ? (
+        <g strokeLinecap="round">
+          {[14, 21, 28, 35, 42, 49, 56, 63].map((x, i) => (
+            <path
+              key={i}
+              d={`M${x} 20 Q${x + (i % 2 === 0 ? -3 : 4)} 12 ${x + (i % 2 === 0 ? -5 : 6)} ${5 + (i % 3)}`}
+              stroke={i % 3 === 0 ? '#B7E292' : color}
+              strokeWidth="1.45"
+            />
+          ))}
+        </g>
+      ) : presetId === 'roca-piedra' ? (
+        <g>
+          <polygon points="11,17 18,7 31,9 26,18" fill={color} fillOpacity="0.78" />
+          <polygon points="29,18 35,6 50,8 46,19" fill="#6B625A" fillOpacity="0.72" />
+          <polygon points="48,17 56,7 70,11 64,19" fill={color} fillOpacity="0.86" />
+          <path d="M16 14 L27 11 L39 15 L54 10 L65 14" stroke="#2D241E" strokeWidth="1.1" strokeOpacity="0.7" />
+          <path d="M17 13 L27 10 L39 14" stroke="#F4ECE2" strokeWidth="0.8" strokeOpacity="0.55" />
+        </g>
+      ) : presetId === 'tela-tejido' ? (
+        <g strokeLinecap="round">
+          {[6, 10, 14, 18].map((y) => (
+            <line key={`h-${y}`} x1="12" y1={y} x2="68" y2={y} stroke={color} strokeWidth="1.4" strokeOpacity="0.78" />
+          ))}
+          {[16, 23, 30, 37, 44, 51, 58, 65].map((x) => (
+            <line key={`v-${x}`} x1={x} y1="5" x2={x} y2="19" stroke="#F4DEC0" strokeWidth="1.2" strokeOpacity="0.58" />
+          ))}
+        </g>
+      ) : presetId === 'agua-destellos' ? (
+        <g>
+          <path d="M10 14 Q28 8 44 14 T70 11" stroke={color} strokeWidth="5.5" strokeLinecap="round" strokeOpacity="0.28" />
+          {[
+            [20, 13, 3.6], [36, 11, 4.4], [52, 14, 3.8], [64, 10, 2.8],
+          ].map(([cx, cy, r], i) => (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r={r} fill={color} fillOpacity="0.45" stroke="#E0F7FF" strokeWidth="0.8" />
+              <circle cx={cx - r * 0.32} cy={cy - r * 0.34} r={r * 0.28} fill="#FFFFFF" fillOpacity="0.92" />
+            </g>
+          ))}
+        </g>
+      ) : presetId === 'oleo-cerdas' ? (
+        <g strokeLinecap="round">
+          <path d="M10 14 C24 8, 44 18, 70 10" stroke={color} strokeWidth="8.5" strokeOpacity="0.42" />
+          {[-2.8, -1.2, 0.4, 2.0].map((dy, i) => (
+            <path
+              key={i}
+              d={`M10 ${14 + dy} C24 ${8 + dy}, 44 ${18 + dy}, 70 ${10 + dy}`}
+              stroke={i === 1 ? '#FFE4D0' : color}
+              strokeWidth="1.5"
+              strokeOpacity={i === 1 ? '0.62' : '0.92'}
+            />
+          ))}
+        </g>
+      ) : presetId === 'grafito-hiper' ? (
+        <g strokeLinecap="round">
+          <path d="M10 16 C25 10, 44 17, 70 9" stroke={color} strokeWidth="2.6" strokeOpacity="0.35" strokeDasharray="1.5 1.2" />
+          <path d="M10 16 C25 10, 44 17, 70 9" stroke="#E8DFD2" strokeWidth="1.35" strokeOpacity="0.92" />
+        </g>
+      ) : presetId === 'brillo-estelar' ? (
+        <g>
+          {[
+            [18, 13, 4.2], [35, 9, 5.2], [50, 14, 4.6], [64, 10, 3.6],
+          ].map(([cx, cy, r], i) => (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r={r * 0.7} fill={color} fillOpacity="0.35" />
+              <line x1={cx - r} y1={cy} x2={cx + r} y2={cy} stroke="#FFFFFF" strokeWidth="1.0" />
+              <line x1={cx} y1={cy - r} x2={cx} y2={cy + r} stroke="#FFFFFF" strokeWidth="1.0" />
+              <circle cx={cx} cy={cy} r="1.2" fill="#FFFFFF" />
+            </g>
+          ))}
+        </g>
+      ) : (
+        /* Silky Difuminados Smooth Gradient Swatch */
+        <>
+          <defs>
+            <linearGradient id={uid} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor={color} stopOpacity="0.15" />
+              <stop offset="48%" stopColor={color} stopOpacity="0.92" />
+              <stop offset="100%" stopColor="#FFF7E8" stopOpacity="0.25" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M8 15 C22 8, 36 18, 54 10 C64 6, 70 9, 74 12"
+            stroke={`url(#${uid})`}
+            strokeWidth={presetId === 'difuminado-esfumino' ? '5.5' : '11.5'}
+            strokeLinecap="round"
+            strokeOpacity="0.28"
+          />
+          <path
+            d="M9 15 C22 8.5, 36 17.5, 54 10.5 C64 6.8, 69 9.5, 73 12"
+            stroke={`url(#${uid})`}
+            strokeWidth={presetId === 'difuminado-esfumino' ? '2.8' : '6.2'}
+            strokeLinecap="round"
+            strokeOpacity="0.58"
+          />
+          <path
+            d="M11 14.5 C23 9, 36 17, 54 10.5 C64 7.5, 69 10, 72 11.8"
+            stroke={color}
+            strokeWidth={presetId === 'difuminado-esfumino' ? '1.5' : '2.8'}
+            strokeLinecap="round"
+            strokeOpacity="0.88"
+          />
+        </>
+      )}
+    </svg>
+  );
+};
 
 /* ---------- Complete Animated Right Studio Command Dock ---------- */
 export const RightStudioDock: React.FC<RightStudioDockProps> = ({
@@ -575,17 +679,17 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   onClearPageStrokes,
   onCloseMobileDrawer,
 }) => {
-  const [chalkMode, setChalkMode] = useState<'tizas' | 'pinceles' | 'goma'>(
-    activeTool === 'eraser' ? 'goma' : brush.category === 'pinceles' ? 'pinceles' : 'tizas'
+  const [chalkMode, setChalkMode] = useState<'difuminados' | 'pinceles' | 'goma'>(
+    activeTool === 'eraser' ? 'goma' : brush.category === 'pinceles' ? 'pinceles' : 'difuminados'
   );
   const [openDrawer, setOpenDrawer] = useState<'abrir' | 'figuras' | 'imagen' | 'rotar' | null>(null);
-  const [paletteFocus, setPaletteFocus] = useState<'todo' | 'color' | 'tizas' | 'capas'>('todo');
+  const [paletteFocus, setPaletteFocus] = useState<'todo' | 'color' | 'difuminados' | 'capas'>('todo');
   const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (activeTool === 'eraser') setChalkMode('goma');
     else if (brush.category === 'pinceles') setChalkMode('pinceles');
-    else setChalkMode('tizas');
+    else setChalkMode('difuminados');
   }, [activeTool, brush.category]);
 
   const handleElectronAction = (action: 'minimize' | 'maximize' | 'close') => {
@@ -615,7 +719,9 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
     setOpenDrawer((prev) => (prev === drawer ? null : drawer));
   };
 
-  const swatchList = chalkMode === 'pinceles' ? PINCEL_PRESETS : TIZA_PRESETS;
+  const swatchList =
+    chalkMode === 'pinceles' ? HYPERREAL_PINCEL_PRESETS : DIFUMINADO_PRESETS;
+  const activeBrushMeta = ALL_BRUSH_META_MAP[brush.preset];
   const canPrev = currentSpreadIndex > 0;
   const canNext = currentSpreadIndex < totalBookSpreads - 1;
 
@@ -1406,13 +1512,13 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
         </div>
       )}
 
-      {/* 5. ANIMATED PALETTE SECTION SWITCHER (Todo | Color | Tizas | Capas) */}
+      {/* 5. ANIMATED PALETTE SECTION SWITCHER (Todo | Color | Difuminados | Capas) */}
       <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-[#160a04]/90 border border-[#b98241]/40 text-[10px] shrink-0">
         {(
           [
             { id: 'todo', label: 'Todo' },
             { id: 'color', label: 'Color' },
-            { id: 'tizas', label: 'Tizas' },
+            { id: 'difuminados', label: 'Difum.' },
             { id: 'capas', label: 'Capas' },
           ] as const
         ).map((tab) => {
@@ -1530,17 +1636,21 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
             </DockSectionCard>
           )}
 
-          {(paletteFocus === 'todo' || paletteFocus === 'tizas') && (
+          {(paletteFocus === 'todo' || paletteFocus === 'difuminados') && (
             <DockSectionCard
               key="dock-brushes"
               title={
-                chalkMode === 'goma' ? 'Goma' : chalkMode === 'pinceles' ? 'Pinceles' : 'Tizas'
+                chalkMode === 'goma'
+                  ? 'Goma'
+                  : chalkMode === 'pinceles'
+                    ? 'Pincel'
+                    : 'Difuminados'
               }
               headerRight={
                 <div className="flex items-center gap-0.5 rounded-md bg-[#160a04]/80 border border-[#b98241]/35 p-0.5 text-[10px]">
                   {(
                     [
-                      { id: 'tizas', label: 'Tizas' },
+                      { id: 'difuminados', label: 'Difum.' },
                       { id: 'pinceles', label: 'Pincel' },
                       { id: 'goma', label: 'Goma' },
                     ] as const
@@ -1559,20 +1669,22 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                           audioEngine.playYarnPluck(tab.id === 'pinceles' ? 4 : 1);
                           onGoToSection('cuaderno');
                           if (tab.id === 'pinceles') {
+                            const firstPincel = HYPERREAL_PINCEL_PRESETS[0];
                             onChangeBrush({
                               category: 'pinceles',
-                              preset: 'acrilico-fino',
-                              size: 8,
-                              opacity: 82,
-                              softness: 18,
+                              preset: firstPincel.id,
+                              size: firstPincel.defaultSize,
+                              opacity: firstPincel.defaultOpacity,
+                              softness: firstPincel.defaultSoftness,
                             });
                           } else {
+                            const firstDif = DIFUMINADO_PRESETS[0];
                             onChangeBrush({
-                              category: 'tizas',
-                              preset: 'tiza-suave',
-                              size: 28,
-                              opacity: 60,
-                              softness: 90,
+                              category: 'difuminados',
+                              preset: firstDif.id,
+                              size: firstDif.defaultSize,
+                              opacity: firstDif.defaultOpacity,
+                              softness: firstDif.defaultSoftness,
                             });
                           }
                           onSelectTool('draw');
@@ -1583,6 +1695,13 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                           ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white font-medium'
                           : 'text-[#d9bd94] hover:text-white'
                       }`}
+                      title={
+                        tab.id === 'difuminados'
+                          ? 'Difuminados suaves y precisos'
+                          : tab.id === 'pinceles'
+                            ? 'Pinceles de texturas hiperrealistas'
+                            : 'Borrador'
+                      }
                     >
                       {tab.label}
                     </button>
@@ -1641,39 +1760,58 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-1 mb-1.5">
-                  {swatchList.map((preset, idx) => {
-                    const active = brush.preset === preset.id && activeTool === 'draw';
-                    return (
-                      <motion.button
-                        key={preset.id}
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.93 }}
-                        onClick={() => {
-                          audioEngine.playYarnPluck(idx);
-                          onChangeBrush({
-                            category: chalkMode,
-                            preset: preset.id,
-                          });
-                          onSelectTool('draw');
-                        }}
-                        title={preset.label}
-                        className={`h-6 rounded-md px-1 border transition-colors cursor-pointer flex items-center justify-center ${
-                          active
-                            ? 'bg-[#4f2b14] border-[#ffd88a] ring-1 ring-[#eab860] shadow-[0_0_10px_rgba(234,184,96,0.35)]'
-                            : 'bg-[#160a04]/85 border-[#8b5d31]/40 hover:border-[#cfa158]'
-                        }`}
-                      >
-                        <ChalkBrushSwatch
-                          color={preset.tint}
-                          isDashed={preset.id === 'hilo-crochet'}
-                          mode={chalkMode === 'pinceles' ? 'acrylic' : 'chalk'}
-                        />
-                      </motion.button>
-                    );
-                  })}
-                </div>
+                <>
+                  <div className="grid grid-cols-3 gap-1 mb-1.5">
+                    {swatchList.map((preset, idx) => {
+                      const active = brush.preset === preset.id && activeTool === 'draw';
+                      return (
+                        <motion.button
+                          key={preset.id}
+                          type="button"
+                          whileHover={{ scale: 1.04 }}
+                          whileTap={{ scale: 0.94 }}
+                          onClick={() => {
+                            audioEngine.playYarnPluck(idx % 6);
+                            onChangeBrush({
+                              category: chalkMode,
+                              preset: preset.id,
+                              size: preset.defaultSize,
+                              opacity: preset.defaultOpacity,
+                              softness: preset.defaultSoftness,
+                            });
+                            onSelectTool('draw');
+                          }}
+                          title={`${preset.label} — ${preset.description}`}
+                          className={`rounded-md px-1 py-1 border transition-colors cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                            active
+                              ? 'bg-[#4f2b14] border-[#ffd88a] ring-1 ring-[#eab860] shadow-[0_0_10px_rgba(234,184,96,0.35)]'
+                              : 'bg-[#160a04]/85 border-[#8b5d31]/40 hover:border-[#cfa158]'
+                          }`}
+                        >
+                          <HyperrealBrushSwatch
+                            presetId={preset.id}
+                            color={preset.tint}
+                          />
+                          <span
+                            className={`text-[9px] leading-none truncate w-full text-center ${
+                              active ? 'text-[#fff4da] font-semibold' : 'text-[#d9be97]'
+                            }`}
+                          >
+                            {preset.shortLabel}
+                          </span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                  {activeBrushMeta && (
+                    <div className="mb-1.5 px-2 py-1 rounded-md bg-[#160a04]/75 border border-[#b98241]/25 text-[9.5px] leading-tight text-[#e7cda4]">
+                      <span className="font-semibold text-[#ffdfa3]">
+                        {activeBrushMeta.label}:
+                      </span>{' '}
+                      {activeBrushMeta.description}
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="flex flex-col gap-1 text-[11px]">
@@ -2128,12 +2266,15 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
   onChangeBrush,
   onSelectEraser,
 }) => {
-  const activeList = brush.category === 'tizas' ? TIZA_PRESETS : PINCEL_PRESETS;
+  const isDif = brush.category === 'difuminados' || brush.category === 'tizas';
+  const activeList = isDif ? DIFUMINADO_PRESETS : HYPERREAL_PINCEL_PRESETS;
 
   return (
     <div className="w-68 p-3.5 flex flex-col gap-3 select-none bg-[#221208] rounded-xl text-[#f5e4c4]">
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-sm text-[#f7e1b5] tracking-wide">Pinceles y Tizas</h3>
+        <h3 className="font-display text-sm text-[#f7e1b5] tracking-wide">
+          Difuminados y Pinceles
+        </h3>
         {onSelectEraser && (
           <button
             type="button"
@@ -2148,38 +2289,44 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
 
       <div>
         <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-[#160b05] border border-[#b98241]/35 mb-2.5 text-xs">
-          {(['pinceles', 'tizas'] as BrushCategory[]).map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => {
-                if (cat === 'pinceles') {
-                  onChangeBrush({
-                    category: 'pinceles',
-                    preset: 'acrilico-fino',
-                    size: 8,
-                    opacity: 82,
-                    softness: 18,
-                  });
-                } else {
-                  onChangeBrush({
-                    category: 'tizas',
-                    preset: 'tiza-suave',
-                    size: 28,
-                    opacity: 60,
-                    softness: 90,
-                  });
-                }
-              }}
-              className={`py-1.5 rounded-md capitalize transition-colors cursor-pointer ${
-                brush.category === cat
-                  ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-[#fff8e8] font-medium shadow'
-                  : 'text-[#d9bd94] hover:text-white'
-              }`}
-            >
-              {cat === 'pinceles' ? 'Pinceles' : 'Tizas'}
-            </button>
-          ))}
+          {(['difuminados', 'pinceles'] as BrushCategory[]).map((cat) => {
+            const activeTab =
+              cat === 'difuminados' ? isDif : brush.category === 'pinceles';
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => {
+                  if (cat === 'pinceles') {
+                    const p0 = HYPERREAL_PINCEL_PRESETS[0];
+                    onChangeBrush({
+                      category: 'pinceles',
+                      preset: p0.id,
+                      size: p0.defaultSize,
+                      opacity: p0.defaultOpacity,
+                      softness: p0.defaultSoftness,
+                    });
+                  } else {
+                    const d0 = DIFUMINADO_PRESETS[0];
+                    onChangeBrush({
+                      category: 'difuminados',
+                      preset: d0.id,
+                      size: d0.defaultSize,
+                      opacity: d0.defaultOpacity,
+                      softness: d0.defaultSoftness,
+                    });
+                  }
+                }}
+                className={`py-1.5 rounded-md transition-colors cursor-pointer ${
+                  activeTab
+                    ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-[#fff8e8] font-medium shadow'
+                    : 'text-[#d9bd94] hover:text-white'
+                }`}
+              >
+                {cat === 'pinceles' ? 'Pincel' : 'Difuminados'}
+              </button>
+            );
+          })}
         </div>
 
         <div className="grid grid-cols-3 gap-1.5">
@@ -2189,19 +2336,26 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => onChangeBrush({ preset: preset.id })}
-                title={preset.label}
-                className={`h-9 rounded-lg px-1 transition-colors cursor-pointer border flex items-center justify-center ${
+                onClick={() =>
+                  onChangeBrush({
+                    category: isDif ? 'difuminados' : 'pinceles',
+                    preset: preset.id,
+                    size: preset.defaultSize,
+                    opacity: preset.defaultOpacity,
+                    softness: preset.defaultSoftness,
+                  })
+                }
+                title={`${preset.label} — ${preset.description}`}
+                className={`rounded-lg px-1 py-1.5 transition-colors cursor-pointer border flex flex-col items-center justify-center gap-0.5 ${
                   active
                     ? 'bg-[#6b3e1f] border-[#ebb86c] text-[#fff6e3] shadow-sm'
                     : 'bg-[#160a04] border-[#8b5d31]/35 hover:border-[#b98241]/60'
                 }`}
               >
-                <ChalkBrushSwatch
-                  color={preset.tint}
-                  isDashed={preset.id === 'hilo-crochet'}
-                  mode={brush.category === 'pinceles' ? 'acrylic' : 'chalk'}
-                />
+                <HyperrealBrushSwatch presetId={preset.id} color={preset.tint} />
+                <span className="text-[9px] leading-none truncate w-full text-center text-[#ebd2aa]">
+                  {preset.shortLabel}
+                </span>
               </button>
             );
           })}

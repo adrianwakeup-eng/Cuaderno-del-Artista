@@ -74,6 +74,11 @@ import { ImageCropModal } from './ImageCropModal';
 import { MandalaColorStudioModal } from './MandalaColorStudioModal';
 import { audioEngine } from '../utils/audioEngine';
 import { extractFigureMatting } from '../utils/aiImageMatting';
+import {
+  createStrokeState,
+  drawHyperrealStrokeSegment,
+  type HyperrealStrokeState,
+} from '../utils/hyperrealBrushEngine';
 import type { LayerAction, LayerVisibility, StackableLayerId } from './RightToolPanels';
 import {
   CatalogSpreadMiniature,
@@ -4472,22 +4477,7 @@ const ShapeSvg: React.FC<{
   );
 };
 
-/* ---------- Per-Object Stroke Eraser Mask & Brush Helpers ---------- */
-
-function hexToRgbTuple(hex: string): [number, number, number] {
-  const clean = (hex || '#4e2712').replace('#', '').trim();
-  if (clean.length === 3) {
-    const r = parseInt(clean[0] + clean[0], 16);
-    const g = parseInt(clean[1] + clean[1], 16);
-    const b = parseInt(clean[2] + clean[2], 16);
-    return [Number.isNaN(r) ? 78 : r, Number.isNaN(g) ? 39 : g, Number.isNaN(b) ? 18 : b];
-  }
-  if (clean.length !== 6) return [78, 39, 18];
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
-  return [Number.isNaN(r) ? 78 : r, Number.isNaN(g) ? 39 : g, Number.isNaN(b) ? 18 : b];
-}
+/* ---------- Per-Object Stroke Eraser Mask Helpers ---------- */
 
 function buildEraseMaskDataUri(strokes?: ElementEraseStroke[]): string | undefined {
   if (!strokes || strokes.length === 0) return undefined;
@@ -5180,7 +5170,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     const lastPosRef = useRef<{ x: number; y: number } | null>(null);
     const prevMidRef = useRef<{ x: number; y: number } | null>(null);
     const lastStrokeTimeRef = useRef<number>(0);
-    const smoothWidthRef = useRef<number>(0);
+    const hyperrealStrokeRef = useRef<HyperrealStrokeState | null>(null);
     const lastClientPosRef = useRef<{ x: number; y: number } | null>(null);
     const liveEraseRef = useRef<Record<string, ElementEraseStroke[]>>({});
     const activeEraseIndexRef = useRef<Record<string, number>>({});
@@ -5446,184 +5436,28 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         return;
       }
 
-      // Makeup Powder Brush (Tizas): ultra-soft, airy, buildable cosmetic facial brush sweep
-      const isMakeupChalk =
-        brush.category === 'tizas' ||
-        brush.preset === 'tiza-suave' ||
-        brush.preset === 'tiza-pastel' ||
-        brush.preset === 'tiza-gruesa' ||
-        brush.preset === 'tiza-velo' ||
-        brush.preset === 'difuminador' ||
-        brush.preset === 'carboncillo';
-
-      if (isMakeupChalk) {
-        const pigmentHex = brush.preset === 'carboncillo' ? '#36312d' : brush.color;
-        const [r, g, b] = hexToRgbTuple(pigmentHex);
-        const softNorm = Math.max(0.35, Math.min(1, brush.softness / 100));
-
-        const radiusMult =
-          brush.preset === 'tiza-gruesa'
-            ? 1.28
-            : brush.preset === 'difuminador'
-              ? 1.18
-              : brush.preset === 'tiza-velo'
-                ? 1.12
-                : 0.96;
-        const outerR = Math.max(9 * resScale, size * radiusMult * (0.72 + softNorm * 0.45));
-
-        const presetStrength =
-          brush.preset === 'difuminador'
-            ? 0.026
-            : brush.preset === 'tiza-velo'
-              ? 0.032
-              : brush.preset === 'tiza-pastel'
-                ? 0.038
-                : brush.preset === 'tiza-gruesa'
-                  ? 0.044
-                  : brush.preset === 'carboncillo'
-                    ? 0.048
-                    : 0.04;
-
-        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        const stepSize = Math.max(2.2 * resScale, outerR * 0.2);
-        const steps = Math.max(1, Math.min(36, Math.ceil(dist / stepSize)));
-        const stampAlpha = Math.min(0.14, alpha * presetStrength);
-
-        for (let s = 0; s <= steps; s++) {
-          const t = steps === 0 ? 1 : s / steps;
-          const cx = p1.x + (p2.x - p1.x) * t;
-          const cy = p1.y + (p2.y - p1.y) * t;
-
-          // Primary silky feathered powder dome (zero hard edge)
-          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR);
-          grad.addColorStop(0, `rgba(${r},${g},${b},${stampAlpha.toFixed(4)})`);
-          grad.addColorStop(0.36, `rgba(${r},${g},${b},${(stampAlpha * 0.56).toFixed(4)})`);
-          grad.addColorStop(0.7, `rgba(${r},${g},${b},${(stampAlpha * 0.18).toFixed(4)})`);
-          grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Subtle airy micro-bristle powder veil for organic cosmetic softness
-          for (let k = 0; k < 2; k++) {
-            const angle = Math.random() * Math.PI * 2;
-            const offsetDist = Math.random() * outerR * 0.32;
-            const sx = cx + Math.cos(angle) * offsetDist;
-            const sy = cy + Math.sin(angle) * offsetDist;
-            const subR = outerR * (0.45 + Math.random() * 0.25);
-            const subA = stampAlpha * 0.42;
-            const subGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, subR);
-            subGrad.addColorStop(0, `rgba(${r},${g},${b},${subA.toFixed(4)})`);
-            subGrad.addColorStop(0.6, `rgba(${r},${g},${b},${(subA * 0.25).toFixed(4)})`);
-            subGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-            ctx.fillStyle = subGrad;
-            ctx.beginPath();
-            ctx.arc(sx, sy, subR, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
-        ctx.restore();
-        return;
-      }
-
-      // Fine Acrylic Precision Brushes (Pinceles): slender, tapered, silky smooth acrylic strokes
-      const [r, g, b] = hexToRgbTuple(brush.color);
+      // Hyperrealistic Fine-Art Texture Brushes (Pincel) & Pixel-Aware Blenders (Difuminados)
       const now = performance.now();
       const dt = Math.max(4, now - (lastStrokeTimeRef.current || now));
       lastStrokeTimeRef.current = now;
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      const velocity = dist / dt; // px per ms
-
-      const fineMultiplier =
-        brush.preset === 'pluma-fina'
-          ? 0.18
-          : brush.preset === 'acrilico-detalle'
-            ? 0.24
-            : brush.preset === 'hilo-crochet'
-              ? 0.26
-              : brush.preset === 'acrilico-fino'
-                ? 0.3
-                : brush.preset === 'acuarela'
-                  ? 0.36
-                  : 0.34; // acrilico-satinado
-
-      const minFineWidth =
-        brush.preset === 'pluma-fina' ? 0.9 * resScale : 1.2 * resScale;
-      const targetBase = Math.max(minFineWidth, size * fineMultiplier);
-      // Gentle artistic velocity taper (faster flicks gracefully narrow the acrylic tip)
-      const taperFactor = Math.max(0.68, Math.min(1.12, 1.08 - velocity * 0.16));
-      const targetWidth = targetBase * taperFactor;
-      const prevW = smoothWidthRef.current || targetWidth;
-      const strokeW = prevW * 0.65 + targetWidth * 0.35;
-      smoothWidthRef.current = strokeW;
-
-      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      const velocity = dist / dt;
+      if (!hyperrealStrokeRef.current) {
+        hyperrealStrokeRef.current = createStrokeState();
+      }
       const fromPt = prevMidRef.current || p1;
-      const isSingleTap = p1.x === p2.x && p1.y === p2.y;
-
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      if (brush.preset === 'hilo-crochet') {
-        ctx.setLineDash([Math.max(5 * resScale, strokeW * 2.2), Math.max(4 * resScale, strokeW * 1.6)]);
-      } else {
-        ctx.setLineDash([]);
-      }
-
-      const acrylicAlpha =
-        brush.preset === 'acuarela'
-          ? alpha * 0.38
-          : brush.preset === 'acrilico-satinado'
-            ? alpha * 0.78
-            : alpha * 0.88;
-
-      const strokeCurve = (
-        offsetX: number,
-        offsetY: number,
-        widthPx: number,
-        a: number
-      ) => {
-        ctx.strokeStyle = `rgba(${r},${g},${b},${Math.max(0.02, Math.min(1, a)).toFixed(3)})`;
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.lineWidth = Math.max(0.75, widthPx);
-        if (isSingleTap) {
-          ctx.beginPath();
-          ctx.arc(p1.x + offsetX, p1.y + offsetY, Math.max(0.6, widthPx / 2), 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          ctx.beginPath();
-          ctx.moveTo(fromPt.x + offsetX, fromPt.y + offsetY);
-          ctx.quadraticCurveTo(p1.x + offsetX, p1.y + offsetY, mid.x + offsetX, mid.y + offsetY);
-          ctx.stroke();
-        }
-      };
-
-      // Delicate satin acrylic edge sheen (controlled & subtle, never bloated)
-      if (brush.softness > 15 && brush.preset !== 'hilo-crochet') {
-        const sheenSpread = strokeW * (1.28 + (brush.softness / 100) * 0.35);
-        strokeCurve(0, 0, sheenSpread, acrylicAlpha * 0.14);
-      }
-
-      // Main crisp fine acrylic stroke
-      strokeCurve(0, 0, strokeW, acrylicAlpha);
-
-      // Subtle micro-bristle acrylic filaments on fine acrylic brushes
-      if (
-        !isSingleTap &&
-        dist > 0.5 &&
-        (brush.preset === 'acrilico-fino' ||
-          brush.preset === 'acrilico-detalle' ||
-          brush.preset === 'acrilico-satinado')
-      ) {
-        const nx = -(p2.y - p1.y) / dist;
-        const ny = (p2.x - p1.x) / dist;
-        const bristleShift = strokeW * 0.28;
-        strokeCurve(nx * bristleShift, ny * bristleShift, strokeW * 0.42, acrylicAlpha * 0.28);
-        strokeCurve(-nx * bristleShift, -ny * bristleShift, strokeW * 0.36, acrylicAlpha * 0.2);
-      }
-
-      prevMidRef.current = mid;
+      const { nextMid } = drawHyperrealStrokeSegment(
+        ctx,
+        canvas,
+        p1,
+        p2,
+        fromPt,
+        brush,
+        resScale,
+        velocity,
+        hyperrealStrokeRef.current
+      );
+      prevMidRef.current = nextMid;
       ctx.restore();
     };
 
@@ -5636,7 +5470,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         lastPosRef.current = pt;
         prevMidRef.current = pt;
         lastStrokeTimeRef.current = performance.now();
-        smoothWidthRef.current = 0;
+        hyperrealStrokeRef.current = createStrokeState();
         lastClientPosRef.current = { x: e.clientX, y: e.clientY };
 
         if (activeTool === 'eraser') {
@@ -5797,7 +5631,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         isDrawingRef.current = false;
         lastPosRef.current = null;
         prevMidRef.current = null;
-        smoothWidthRef.current = 0;
+        hyperrealStrokeRef.current = null;
         lastClientPosRef.current = null;
 
         if (eraseRafRef.current !== null) {
