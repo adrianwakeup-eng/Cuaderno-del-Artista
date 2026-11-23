@@ -6,6 +6,7 @@ import type {
   PaperStyle,
 } from '../types/crochet';
 import { getFontMeta } from '../data/calligraphyFonts';
+import { getMuseumFrameById } from '../data/museumFrames';
 import { CrochetStickerSvg } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
@@ -199,28 +200,64 @@ const MiniElementView: React.FC<{ el: PageElement; unifiedSheet?: boolean }> = (
         />
       )}
 
-      {el.type === 'image' && (
-        <div
-          className={
-            el.frameStyle === 'polaroid'
-              ? 'bg-[#fbf4e4] p-2 pb-5 shadow-md border border-[#b98c53]/40'
-              : el.frameStyle === 'gold'
-                ? 'p-1.5 bg-gradient-to-br from-[#e2b462] via-[#b88035] to-[#7c4d19] rounded shadow-md'
-                : el.frameStyle === 'rounded'
-                  ? 'rounded-2xl overflow-hidden shadow-md'
-                  : ''
-          }
-        >
-          <img
-            src={el.content}
-            alt={el.title || 'Imagen'}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            style={{ filter: filterCss }}
-            className="w-full h-auto object-contain block"
-          />
-        </div>
-      )}
+      {el.type === 'image' && (() => {
+        const mf = getMuseumFrameById(el.museumFrameId);
+        if (mf) {
+          return (
+            <div
+              className="relative w-full"
+              style={{ aspectRatio: `${mf.naturalWidth} / ${mf.naturalHeight}` }}
+            >
+              <div
+                className={`absolute overflow-hidden ${mf.isOval ? 'rounded-[50%]' : ''}`}
+                style={{
+                  top: `${mf.insets.top}%`,
+                  right: `${mf.insets.right}%`,
+                  bottom: `${mf.insets.bottom}%`,
+                  left: `${mf.insets.left}%`,
+                }}
+              >
+                <img
+                  src={el.content}
+                  alt={el.title || 'Imagen'}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  style={{ filter: filterCss }}
+                  className="w-full h-full object-cover block"
+                />
+              </div>
+              <img
+                src={mf.imagePath}
+                alt={mf.name}
+                loading="lazy"
+                className="relative z-10 w-full h-full object-fill block"
+              />
+            </div>
+          );
+        }
+        return (
+          <div
+            className={
+              el.frameStyle === 'polaroid'
+                ? 'bg-[#fbf4e4] p-2 pb-5 shadow-md border border-[#b98c53]/40'
+                : el.frameStyle === 'gold'
+                  ? 'p-1.5 bg-gradient-to-br from-[#e2b462] via-[#b88035] to-[#7c4d19] rounded shadow-md'
+                  : el.frameStyle === 'rounded'
+                    ? 'rounded-2xl overflow-hidden shadow-md'
+                    : ''
+            }
+          >
+            <img
+              src={el.content}
+              alt={el.title || 'Imagen'}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              style={{ filter: filterCss }}
+              className="w-full h-auto object-contain block"
+            />
+          </div>
+        );
+      })()}
 
       {el.type === 'text' && (
         <div

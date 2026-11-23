@@ -5,6 +5,7 @@ export type StudioSection =
   | 'proyectos'
   | 'stickers'
   | 'gifs'
+  | 'marcos'
   | 'fuentes'
   | 'pinceles'
   | 'vestidor'
@@ -146,6 +147,7 @@ export interface PageElement {
   flipY?: boolean;
   opacity?: number; // 0.15..1
   frameStyle?: ImageFrameStyle;
+  museumFrameId?: string;
   filters?: ImageFilters;
   patternData?: CopiedPatternData;
   eraseStrokes?: ElementEraseStroke[];

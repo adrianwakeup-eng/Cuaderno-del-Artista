@@ -5,6 +5,7 @@ import type {
   PageElement,
 } from '../types/crochet';
 import { FONT_CSS_MAP } from '../data/calligraphyFonts';
+import { getMuseumFrameById } from '../data/museumFrames';
 import { waitForCalligraphyFont } from './calligraphyFontLoader';
 
 export const TARGET_8K_LONG_EDGE = 7680;
@@ -809,51 +810,119 @@ export async function exportNotebookSpreadAt8K(
     if (el.type === 'image' && el.content) {
       try {
         const img = await loadImageElement(el.content);
-        const natAspect =
-          (img.naturalHeight || img.height) / Math.max(1, img.naturalWidth || img.width);
-        const drawW = elW;
-        const drawH = el.height ? el.height * scale : drawW * natAspect;
-        const cx = elX + drawW / 2;
-        const cy = elY + drawH / 2;
-        ctx.translate(cx, cy);
-        if (el.rotation) ctx.rotate((el.rotation * Math.PI) / 180);
-        if (el.flipX || el.flipY) ctx.scale(el.flipX ? -1 : 1, el.flipY ? -1 : 1);
+        const museumFrame = getMuseumFrameById(el.museumFrameId);
 
-        // Optional crisp vector frame (polaroid / gold / rounded)
-        const frame = el.frameStyle || 'polaroid';
-        if (frame === 'polaroid' || frame === 'gold') {
-          const pad = 12 * scale;
-          const botPad = (frame === 'polaroid' ? 38 : 16) * scale;
-          ctx.fillStyle = frame === 'gold' ? '#3a1f0e' : '#fbf4e4';
-          ctx.strokeStyle = frame === 'gold' ? '#e5b864' : 'rgba(130,90,45,0.35)';
-          ctx.lineWidth = (frame === 'gold' ? 3.5 : 1.5) * scale;
+        if (museumFrame) {
+          const frameImg = await loadImageElement(museumFrame.imagePath);
+          const frameAspect = museumFrame.naturalHeight / Math.max(1, museumFrame.naturalWidth);
+          const drawW = elW;
+          const drawH = drawW * frameAspect;
+          const cx = elX + drawW / 2;
+          const cy = elY + drawH / 2;
+          ctx.translate(cx, cy);
+          if (el.rotation) ctx.rotate((el.rotation * Math.PI) / 180);
+          if (el.flipX || el.flipY) ctx.scale(el.flipX ? -1 : 1, el.flipY ? -1 : 1);
+
+          const openX = -drawW / 2 + (museumFrame.insets.left / 100) * drawW;
+          const openY = -drawH / 2 + (museumFrame.insets.top / 100) * drawH;
+          const openW = drawW * (1 - (museumFrame.insets.left + museumFrame.insets.right) / 100);
+          const openH = drawH * (1 - (museumFrame.insets.top + museumFrame.insets.bottom) / 100);
+
+          // Draw photo clipped cleanly inside the museum frame opening (cover-fit)
+          ctx.save();
           ctx.beginPath();
-          ctx.roundRect(
-            -drawW / 2 - pad,
-            -drawH / 2 - pad,
-            drawW + pad * 2,
-            drawH + pad + botPad,
-            8 * scale
+          if (museumFrame.isOval) {
+            ctx.ellipse(
+              openX + openW / 2,
+              openY + openH / 2,
+              openW / 2,
+              openH / 2,
+              0,
+              0,
+              Math.PI * 2
+            );
+          } else {
+            ctx.rect(openX, openY, openW, openH);
+          }
+          ctx.clip();
+
+          const photoScale = Math.max(
+            openW / Math.max(1, img.naturalWidth),
+            openH / Math.max(1, img.naturalHeight)
           );
-          ctx.fill();
-          ctx.stroke();
-        }
+          const pw = Math.round(img.naturalWidth * photoScale);
+          const ph = Math.round(img.naturalHeight * photoScale);
+          const superPhoto = superRenderImageToCanvas(img, Math.max(pw, 1200), Math.max(ph, 1200), {
+            sharpness: 0.78,
+            clarity: 0.06,
+            vibrance: 0.05,
+          });
+          ctx.filter = buildCssFilterString(el.filters);
+          ctx.drawImage(
+            superPhoto,
+            openX + (openW - pw) / 2,
+            openY + (openH - ph) / 2,
+            pw,
+            ph
+          );
+          ctx.filter = 'none';
+          ctx.restore();
 
-        const superImg = superRenderImageToCanvas(
-          img,
-          Math.max(drawW, 1200),
-          Math.max(drawH, Math.round(1200 * natAspect)),
-          { sharpness: 0.78, clarity: 0.06, vibrance: 0.05 }
-        );
-        ctx.filter = buildCssFilterString(el.filters);
-        ctx.drawImage(superImg, -drawW / 2, -drawH / 2, drawW, drawH);
-        ctx.filter = 'none';
+          // Overlay the super-rendered 8K photorealistic museum / wood / nature / crochet frame
+          const superFrame = superRenderImageToCanvas(
+            frameImg,
+            Math.max(drawW, 1400),
+            Math.max(drawH, Math.round(1400 * frameAspect)),
+            { sharpness: 0.82, clarity: 0.06, vibrance: 0.04 }
+          );
+          ctx.drawImage(superFrame, -drawW / 2, -drawH / 2, drawW, drawH);
+        } else {
+          const natAspect =
+            (img.naturalHeight || img.height) / Math.max(1, img.naturalWidth || img.width);
+          const drawW = elW;
+          const drawH = el.height ? el.height * scale : drawW * natAspect;
+          const cx = elX + drawW / 2;
+          const cy = elY + drawH / 2;
+          ctx.translate(cx, cy);
+          if (el.rotation) ctx.rotate((el.rotation * Math.PI) / 180);
+          if (el.flipX || el.flipY) ctx.scale(el.flipX ? -1 : 1, el.flipY ? -1 : 1);
 
-        if (el.title && frame !== 'minimal') {
-          ctx.fillStyle = frame === 'gold' ? '#f6e2be' : '#5c361d';
-          ctx.font = `italic 600 ${Math.round(15 * scale)}px 'Cormorant Garamond', Georgia, serif`;
-          ctx.textAlign = 'center';
-          ctx.fillText(el.title, 0, drawH / 2 + 24 * scale);
+          // Optional crisp vector frame (polaroid / gold / rounded)
+          const frame = el.frameStyle || 'polaroid';
+          if (frame === 'polaroid' || frame === 'gold') {
+            const pad = 12 * scale;
+            const botPad = (frame === 'polaroid' ? 38 : 16) * scale;
+            ctx.fillStyle = frame === 'gold' ? '#3a1f0e' : '#fbf4e4';
+            ctx.strokeStyle = frame === 'gold' ? '#e5b864' : 'rgba(130,90,45,0.35)';
+            ctx.lineWidth = (frame === 'gold' ? 3.5 : 1.5) * scale;
+            ctx.beginPath();
+            ctx.roundRect(
+              -drawW / 2 - pad,
+              -drawH / 2 - pad,
+              drawW + pad * 2,
+              drawH + pad + botPad,
+              8 * scale
+            );
+            ctx.fill();
+            ctx.stroke();
+          }
+
+          const superImg = superRenderImageToCanvas(
+            img,
+            Math.max(drawW, 1200),
+            Math.max(drawH, Math.round(1200 * natAspect)),
+            { sharpness: 0.78, clarity: 0.06, vibrance: 0.05 }
+          );
+          ctx.filter = buildCssFilterString(el.filters);
+          ctx.drawImage(superImg, -drawW / 2, -drawH / 2, drawW, drawH);
+          ctx.filter = 'none';
+
+          if (el.title && frame !== 'minimal') {
+            ctx.fillStyle = frame === 'gold' ? '#f6e2be' : '#5c361d';
+            ctx.font = `italic 600 ${Math.round(15 * scale)}px 'Cormorant Garamond', Georgia, serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText(el.title, 0, drawH / 2 + 24 * scale);
+          }
         }
       } catch {
         // skip broken image

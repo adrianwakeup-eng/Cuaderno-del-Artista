@@ -21,6 +21,7 @@ import {
   StickersAndImagesView,
 } from './components/StudioUtilityViews';
 import { CrochetGifsView } from './components/CrochetGifsView';
+import { FramesGalleryView } from './components/FramesGalleryView';
 import { GoldenDressingRoomView } from './components/GoldenDressingRoomView';
 import { ElectronTitleBar, OfflineIndicator } from './components/WindowsDesktopControls';
 import { DEFAULT_WORKSPACE, INITIAL_DESK_NOTES } from './data/seedData';
@@ -1168,6 +1169,47 @@ export default function App() {
                   showToast(`GIF animado pegado: ${title}`);
                 }}
                 onNotify={showToast}
+                onReturnToNotebook={() => setActiveSection('cuaderno')}
+              />
+            )}
+
+            {activeSection === 'marcos' && (
+              <FramesGalleryView
+                onInsertStandaloneFrame={(frame) => {
+                  insertElementOnCurrentSpread({
+                    side: 'right',
+                    type: 'image',
+                    x: 24,
+                    y: 16,
+                    width: frame.defaultWidthPx,
+                    content: frame.imagePath,
+                    title: frame.name,
+                    rotation: 0,
+                    frameStyle: 'minimal',
+                  });
+                  showToast(`Marco colocado en la hoja: ${frame.name}`);
+                }}
+                onInsertFramedPhotoFile={async (file, frame) => {
+                  showToast(`Mejorando foto en Ultra-HD y enmarcando con ${frame.name}...`);
+                  const enhanced = await enhanceUploadedImageToUltraHD(file, {
+                    minLongEdge: 2400,
+                    maxLongEdge: 3840,
+                    preserveAlpha: file.type === 'image/png' || file.type === 'image/webp',
+                  });
+                  insertElementOnCurrentSpread({
+                    side: 'right',
+                    type: 'image',
+                    x: 22,
+                    y: 15,
+                    width: frame.defaultWidthPx,
+                    content: enhanced.dataUrl,
+                    title: file.name.replace(/\.[^/.]+$/, ''),
+                    rotation: 0,
+                    frameStyle: 'minimal',
+                    museumFrameId: frame.id,
+                  });
+                  showToast(`Foto enmarcada en Ultra-HD con ${frame.name}`);
+                }}
                 onReturnToNotebook={() => setActiveSection('cuaderno')}
               />
             )}

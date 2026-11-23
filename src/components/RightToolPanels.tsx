@@ -18,6 +18,7 @@ import {
   FilePlus2,
   Flower2,
   FolderOpen,
+  Frame,
   Grid3X3,
   Heart,
   HelpCircle,
@@ -1403,6 +1404,26 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
               setOpenDrawer(null);
             }}
           />
+          <button
+            type="button"
+            onClick={() => {
+              audioEngine.playToggleChime(true);
+              onGoToSection('marcos');
+              setOpenDrawer(null);
+              onCloseMobileDrawer?.();
+            }}
+            title="Galería de Marcos de Museo: Oro, Madera, Naturaleza y Puntillas Tejidas"
+            className={`col-span-3 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
+              activeSection === 'marcos'
+                ? 'bg-gradient-to-b from-[#d99d45] to-[#985c1d] border-[#ffe3a3] text-white font-semibold shadow-[0_0_12px_rgba(243,191,85,0.45)]'
+                : 'bg-[#211107]/90 hover:bg-[#361c0c] border-[#b98241]/45 hover:border-[#e6b868] text-[#f5dfb8]'
+            }`}
+          >
+            <Frame className="w-3.5 h-3.5 text-[#f6cc74]" />
+            <span className="text-[11px] font-medium tracking-wide">
+              Marcos · Oro, Madera y Puntillas
+            </span>
+          </button>
         </div>
 
         {/* Inline Animated Drawer: Figuras */}

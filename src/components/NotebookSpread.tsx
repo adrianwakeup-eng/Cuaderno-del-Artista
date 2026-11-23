@@ -68,6 +68,7 @@ import {
   CALLIGRAPHY_FONTS,
   getFontMeta,
 } from '../data/calligraphyFonts';
+import { MUSEUM_FRAMES, getMuseumFrameById } from '../data/museumFrames';
 import {
   ensureCalligraphyFontLoaded,
   ensureCalligraphyFontsLoaded,
@@ -381,6 +382,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
   // Photo, Word, Paint & Rotation popups / modal state
   const [editorSubPanel, setEditorSubPanel] = useState<
     | 'adjust'
+    | 'frame'
     | 'opacity'
     | 'symbol-color'
     | 'text-color'
@@ -2121,17 +2123,121 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => cycleFrameStyle(selectedElement)}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
-                    title="Cambiar estilo de marco"
-                  >
-                    <Frame className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">
-                      Marco: {selectedElement.frameStyle || 'polaroid'}
-                    </span>
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditorSubPanel((p) => (p === 'frame' ? null : 'frame'))
+                      }
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs cursor-pointer ${
+                        editorSubPanel === 'frame' || selectedElement.museumFrameId
+                          ? 'bg-[#6b3d1e] border-[#ebb96a] text-white font-medium'
+                          : 'bg-[#361d0e] border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18]'
+                      }`}
+                      title="Elegir marco de museo (oro, madera, naturaleza, puntillas) o estilo clásico"
+                    >
+                      <Frame className="w-3.5 h-3.5 text-[#f5cb73]" />
+                      <span className="hidden md:inline">
+                        {selectedElement.museumFrameId
+                          ? getMuseumFrameById(selectedElement.museumFrameId)?.shortLabel || 'Marco'
+                          : `Marco: ${selectedElement.frameStyle || 'polaroid'}`}
+                      </span>
+                    </button>
+
+                    {editorSubPanel === 'frame' && (
+                      <div
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="absolute top-full left-0 mt-1.5 z-50 w-[300px] sm:w-[340px] rounded-xl leather-panel p-2.5 shadow-2xl space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-display text-[11px] font-bold text-[#ffebc2]">
+                            Marcos de Museo y Puntillas
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditorSubPanel(null)}
+                            className="p-0.5 text-[#d6b688] hover:text-white cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Classic Simple Frame Styles */}
+                        <div className="grid grid-cols-4 gap-1">
+                          {(
+                            [
+                              { id: 'minimal', label: 'Sin marco' },
+                              { id: 'polaroid', label: 'Polaroid' },
+                              { id: 'gold', label: 'Oro fino' },
+                              { id: 'rounded', label: 'Suave' },
+                            ] as const
+                          ).map((st) => {
+                            const active =
+                              !selectedElement.museumFrameId &&
+                              (selectedElement.frameStyle || 'polaroid') === st.id;
+                            return (
+                              <button
+                                key={st.id}
+                                type="button"
+                                onClick={() => {
+                                  audioEngine.playStitchClick();
+                                  updateElement(selectedElement.id, {
+                                    frameStyle: st.id,
+                                    museumFrameId: undefined,
+                                  });
+                                }}
+                                className={`py-1 px-1 rounded-md border text-[10px] cursor-pointer transition-colors ${
+                                  active
+                                    ? 'bg-[#6b3d1e] border-[#ffe08a] text-white font-semibold'
+                                    : 'bg-[#1a0c04] border-[#b98241]/35 text-[#e6cba0] hover:border-[#e6b868]'
+                                }`}
+                              >
+                                {st.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* 12 Photorealistic Museum / Wood / Nature / Crochet Lace Frames */}
+                        <div className="grid grid-cols-3 gap-1.5 max-h-[260px] overflow-y-auto studio-scroll pr-0.5">
+                          {MUSEUM_FRAMES.map((mf) => {
+                            const active = selectedElement.museumFrameId === mf.id;
+                            return (
+                              <button
+                                key={mf.id}
+                                type="button"
+                                onClick={() => {
+                                  audioEngine.playSaveChime();
+                                  updateElement(selectedElement.id, {
+                                    museumFrameId: mf.id,
+                                    frameStyle: 'minimal',
+                                  });
+                                }}
+                                title={`${mf.name} — ${mf.categoryLabel}`}
+                                className={`p-1 rounded-lg border flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                                  active
+                                    ? 'bg-[#5c3214] border-[#ffe08a] ring-1 ring-[#f3bf55]'
+                                    : 'bg-[#170b04] border-[#b98241]/35 hover:border-[#e6b868]'
+                                }`}
+                              >
+                                <div className="w-full h-14 rounded cutting-mat-page flex items-center justify-center p-1 overflow-hidden">
+                                  <img
+                                    src={mf.imagePath}
+                                    alt={mf.shortLabel}
+                                    draggable={false}
+                                    className="max-w-full max-h-full object-contain"
+                                  />
+                                </div>
+                                <span className="text-[9px] leading-tight text-[#f7e2bc] truncate w-full text-center">
+                                  {mf.shortLabel}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <button
                     type="button"
@@ -5241,7 +5347,48 @@ const PageElementItem = memo<{
           />
         )}
 
-        {el.type === 'image' && (
+        {el.type === 'image' && (() => {
+          const museumFrame = getMuseumFrameById(el.museumFrameId);
+          if (museumFrame) {
+            const frameAspect = `${museumFrame.naturalWidth} / ${museumFrame.naturalHeight}`;
+            return (
+              <div
+                className="relative w-full select-none"
+                style={{ aspectRatio: frameAspect }}
+              >
+                {/* Photo nestled cleanly behind the realistic museum frame opening */}
+                <div
+                  className={`absolute overflow-hidden ${museumFrame.isOval ? 'rounded-[50%]' : 'rounded-[2px]'}`}
+                  style={{
+                    top: `${museumFrame.insets.top}%`,
+                    right: `${museumFrame.insets.right}%`,
+                    bottom: `${museumFrame.insets.bottom}%`,
+                    left: `${museumFrame.insets.left}%`,
+                  }}
+                >
+                  <img
+                    src={el.content}
+                    alt={el.title || 'Obra enmarcada'}
+                    referrerPolicy="no-referrer"
+                    decoding="async"
+                    style={{ filter: cssFilter }}
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
+                </div>
+                {/* Photorealistic 3D Museum / Wood / Nature / Crochet Lace Frame Overlay */}
+                <img
+                  src={museumFrame.imagePath}
+                  alt={museumFrame.name}
+                  decoding="async"
+                  draggable={false}
+                  className="pointer-events-none relative z-10 block w-full h-full object-fill drop-shadow-[0_10px_20px_rgba(0,0,0,0.48)]"
+                />
+              </div>
+            );
+          }
+
+          return (
           <div className={`relative ${frameClasses}`}>
             <img
               src={el.content}
@@ -5260,7 +5407,7 @@ const PageElementItem = memo<{
             />
 
             {/* Direct per-image AI Image Matting ("Extraer figura") button */}
-            {!isDrawLocked && onExtractFigure && (
+            {!isDrawLocked && onExtractFigure && !el.content.startsWith('/marcos/') && (
               <div
                 onPointerDown={(e) => e.stopPropagation()}
                 className={`absolute bottom-1.5 left-1.5 z-20 flex items-center gap-1 transition-opacity duration-150 ${
@@ -5329,7 +5476,8 @@ const PageElementItem = memo<{
               </p>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {el.type === 'pattern-note' && el.patternData && (
           <div
