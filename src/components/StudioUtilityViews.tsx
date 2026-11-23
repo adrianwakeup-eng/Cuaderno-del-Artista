@@ -20,6 +20,8 @@ import {
   CATALOG_TEXTURE_BRUSHES,
   DIFUMINADO_PRESETS,
   HYPERREAL_PINCEL_PRESETS,
+  LUZ_MAGICA_PRESETS,
+  MAGIC_LIGHT_COLORS,
   TEXTURE_FAMILIES,
   TOTAL_TEXTURE_BRUSH_COUNT,
   type BrushPresetMeta,
@@ -297,8 +299,8 @@ export const FontsView: React.FC<{
   );
 };
 
-/* ---------- 3. Biblioteca de 2,400+ Texturas Hiperrealistas y Difuminados ---------- */
-type LibraryTab = 'destacados' | 'difuminados' | 'favoritos' | TextureFamilyId;
+/* ---------- 3. Biblioteca de 2,400+ Texturas Hiperrealistas, Luz Mágica y Difuminados ---------- */
+type LibraryTab = 'destacados' | 'luz' | 'difuminados' | 'favoritos' | TextureFamilyId;
 
 export const BrushesQuickView: React.FC<{
   brush: BrushSettings;
@@ -316,11 +318,17 @@ export const BrushesQuickView: React.FC<{
 
   const totalTextures = TOTAL_TEXTURE_BRUSH_COUNT + HYPERREAL_PINCEL_PRESETS.length;
 
-  const items: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'pinceles' }> =
+  const items: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'luz' | 'pinceles' }> =
     React.useMemo(() => {
       const q = search.trim().toLowerCase();
       if (q) {
-        const res: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'pinceles' }> = [];
+        const res: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'luz' | 'pinceles' }> =
+          [];
+        for (const l of LUZ_MAGICA_PRESETS) {
+          if (l.label.toLowerCase().includes(q) || l.description.toLowerCase().includes(q)) {
+            res.push({ meta: l, category: 'luz' });
+          }
+        }
         for (const d of DIFUMINADO_PRESETS) {
           if (d.label.toLowerCase().includes(q) || d.description.toLowerCase().includes(q)) {
             res.push({ meta: d, category: 'difuminados' });
@@ -343,17 +351,25 @@ export const BrushesQuickView: React.FC<{
         return res;
       }
 
+      if (activeTab === 'luz') {
+        return LUZ_MAGICA_PRESETS.map((meta) => ({ meta, category: 'luz' as const }));
+      }
       if (activeTab === 'difuminados') {
         return DIFUMINADO_PRESETS.map((meta) => ({ meta, category: 'difuminados' as const }));
       }
       if (activeTab === 'destacados') {
         return [
+          ...LUZ_MAGICA_PRESETS.map((meta) => ({ meta, category: 'luz' as const })),
           ...HYPERREAL_PINCEL_PRESETS.map((meta) => ({ meta, category: 'pinceles' as const })),
           ...DIFUMINADO_PRESETS.map((meta) => ({ meta, category: 'difuminados' as const })),
         ];
       }
       if (activeTab === 'favoritos') {
-        const favs: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'pinceles' }> = [];
+        const favs: Array<{ meta: BrushPresetMeta; category: 'difuminados' | 'luz' | 'pinceles' }> =
+          [];
+        for (const l of LUZ_MAGICA_PRESETS) {
+          if (favoriteSet.has(l.id)) favs.push({ meta: l, category: 'luz' });
+        }
         for (const d of DIFUMINADO_PRESETS) {
           if (favoriteSet.has(d.id)) favs.push({ meta: d, category: 'difuminados' });
         }
@@ -427,7 +443,15 @@ export const BrushesQuickView: React.FC<{
         <div className="flex flex-wrap gap-1.5">
           {(
             [
-              { id: 'destacados', label: '★ Destacados', count: HYPERREAL_PINCEL_PRESETS.length + DIFUMINADO_PRESETS.length },
+              {
+                id: 'destacados',
+                label: '★ Destacados',
+                count:
+                  LUZ_MAGICA_PRESETS.length +
+                  HYPERREAL_PINCEL_PRESETS.length +
+                  DIFUMINADO_PRESETS.length,
+              },
+              { id: 'luz', label: '✦ Luz Mágica', count: LUZ_MAGICA_PRESETS.length },
               { id: 'difuminados', label: 'Difuminados', count: DIFUMINADO_PRESETS.length },
               { id: 'favoritos', label: '♥ Favoritos', count: favoriteSet.size },
             ] as const
@@ -489,6 +513,7 @@ export const BrushesQuickView: React.FC<{
               const active = brush.preset === meta.id;
               const isFav = favoriteSet.has(meta.id);
               const isDif = category === 'difuminados';
+              const isLuz = category === 'luz';
               return (
                 <div key={meta.id} className="relative group">
                   <button
@@ -497,6 +522,7 @@ export const BrushesQuickView: React.FC<{
                       onChangeBrush({
                         category,
                         preset: meta.id,
+                        ...(isLuz ? { color: MAGIC_LIGHT_COLORS[0].hex } : {}),
                         size: meta.defaultSize,
                         opacity: meta.defaultOpacity,
                         softness: meta.defaultSoftness,
@@ -509,7 +535,23 @@ export const BrushesQuickView: React.FC<{
                         : 'bg-[#221208] border-[#b98241]/35 hover:border-[#dfaf62] hover:bg-[#2c170b]'
                     }`}
                   >
-                    {isDif ? (
+                    {isLuz ? (
+                      <div className="relative w-full h-7 rounded bg-[#120803] flex items-center justify-center px-2 overflow-hidden">
+                        <div
+                          className="w-full h-3 rounded-full"
+                          style={{
+                            background: `radial-gradient(ellipse at center, #FFFDF4 0%, ${meta.tint} 45%, transparent 82%)`,
+                            boxShadow: `0 0 12px ${meta.tint}99`,
+                          }}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="absolute text-[11px] text-[#fffef4] drop-shadow-[0_0_6px_#ffd84d]"
+                        >
+                          ✦ · ✦
+                        </span>
+                      </div>
+                    ) : isDif ? (
                       <div className="w-full h-7 rounded bg-[#140903] flex items-center justify-center px-2">
                         <div
                           className="w-full h-2.5 rounded-full blur-[2px] opacity-85"

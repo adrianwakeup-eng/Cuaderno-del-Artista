@@ -14,7 +14,7 @@ export type PaperStyle = 'grid' | 'dots' | 'plain';
 
 export type FontChoice = 'lora' | 'cormorant' | 'caveat' | 'cinzel';
 
-export type BrushCategory = 'pinceles' | 'difuminados' | 'tizas';
+export type BrushCategory = 'pinceles' | 'difuminados' | 'luz' | 'tizas';
 
 export type BrushPresetId =
   // Difuminados suaves y precisos (Blenders, Smudgers & Harmonizers)
@@ -24,6 +24,13 @@ export type BrushPresetId =
   | 'difuminado-esfumino'
   | 'difuminado-aerografo'
   | 'difuminado-niebla'
+  // Pinceles Mágicos de Luz Luminiscente (Polvo de Hada & Luz Solar)
+  | 'luz-oro-solar'
+  | 'luz-rayo-solar'
+  | 'luz-estela-magica'
+  | 'luz-lluvia-estrellas'
+  | 'luz-halo-etereo'
+  | 'luz-prisma-iris'
   // Pinceles de texturas hiperrealistas
   | 'pelo-animal'
   | 'cabello-seda'

@@ -63,6 +63,8 @@ import {
   CATALOG_TEXTURE_BRUSHES,
   DIFUMINADO_PRESETS,
   HYPERREAL_PINCEL_PRESETS,
+  LUZ_MAGICA_PRESETS,
+  MAGIC_LIGHT_COLORS,
   TEXTURE_FAMILIES,
   TOTAL_TEXTURE_BRUSH_COUNT,
   getBrushPresetMeta,
@@ -586,6 +588,160 @@ const HyperrealBrushSwatch: React.FC<{
             </g>
           ))}
         </g>
+      ) : presetId.startsWith('luz-') ? (
+        /* Radiant Luminescent Magic Light & Fairy-Dust Swatches */
+        <g>
+          <defs>
+            <linearGradient id={`${uid}-beam`} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor={color} stopOpacity="0.08" />
+              <stop offset="50%" stopColor="#FFFDF2" stopOpacity="0.96" />
+              <stop offset="100%" stopColor={color} stopOpacity="0.12" />
+            </linearGradient>
+            <radialGradient id={`${uid}-glow`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+              <stop offset="38%" stopColor={color} stopOpacity="0.72" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          {presetId === 'luz-halo-etereo' ? (
+            <>
+              <ellipse cx="40" cy="12" rx="31" ry="8.5" fill={`url(#${uid}-glow)`} />
+              <ellipse cx="40" cy="12" rx="18" ry="4.2" fill="#FFFDF4" fillOpacity="0.55" />
+            </>
+          ) : presetId === 'luz-rayo-solar' ? (
+            <>
+              <path
+                d="M7 16 Q40 8 73 11"
+                stroke={color}
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeOpacity="0.28"
+              />
+              <path
+                d="M9 15 Q40 8.5 71 11.5"
+                stroke={`url(#${uid}-beam)`}
+                strokeWidth="5.2"
+                strokeLinecap="round"
+                strokeOpacity="0.88"
+              />
+              {[
+                [20, 12, 1.3],
+                [35, 9, 1.1],
+                [52, 13, 1.4],
+                [63, 10, 1.0],
+              ].map(([cx, cy, r], i) => (
+                <circle key={i} cx={cx} cy={cy} r={r} fill="#FFFFFF" fillOpacity="0.92" />
+              ))}
+            </>
+          ) : presetId === 'luz-estela-magica' ? (
+            <>
+              <path
+                d="M8 15 C22 7, 42 18, 72 9"
+                stroke={color}
+                strokeWidth="8.5"
+                strokeLinecap="round"
+                strokeOpacity="0.34"
+              />
+              <path
+                d="M8 15 C22 7, 42 18, 72 9"
+                stroke={color}
+                strokeWidth="3.8"
+                strokeLinecap="round"
+                strokeOpacity="0.82"
+              />
+              <path
+                d="M9 15 C22 7.2, 42 17.8, 71 9.2"
+                stroke="#FFFFFF"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeOpacity="0.98"
+              />
+              {[
+                [18, 9, 3.2],
+                [46, 15, 3.6],
+                [64, 8, 3.0],
+              ].map(([cx, cy, r], i) => (
+                <g key={i}>
+                  <line x1={cx - r} y1={cy} x2={cx + r} y2={cy} stroke="#FFFFFF" strokeWidth="0.9" />
+                  <line x1={cx} y1={cy - r} x2={cx} y2={cy + r} stroke="#FFFFFF" strokeWidth="0.9" />
+                  <circle cx={cx} cy={cy} r="1.1" fill="#FFFFFF" />
+                </g>
+              ))}
+            </>
+          ) : presetId === 'luz-lluvia-estrellas' ? (
+            <>
+              <ellipse cx="40" cy="12" rx="28" ry="6.5" fill={color} fillOpacity="0.16" />
+              {[
+                [14, 14, 3.6],
+                [27, 8, 4.8],
+                [41, 14, 4.2],
+                [54, 8, 5.0],
+                [67, 13, 3.4],
+              ].map(([cx, cy, r], i) => (
+                <g key={i}>
+                  <circle cx={cx} cy={cy} r={r * 0.65} fill={color} fillOpacity="0.4" />
+                  <line x1={cx - r} y1={cy} x2={cx + r} y2={cy} stroke="#FFFDF4" strokeWidth="0.95" />
+                  <line x1={cx} y1={cy - r} x2={cx} y2={cy + r} stroke="#FFFDF4" strokeWidth="0.95" />
+                  <circle cx={cx} cy={cy} r="1.15" fill="#FFFFFF" />
+                </g>
+              ))}
+            </>
+          ) : (
+            /* Polvo de Hada Solar (Principal) & Polvo Prisma Solar */
+            <>
+              <path
+                d="M8 15 C22 8, 40 17, 72 9"
+                stroke={color}
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeOpacity="0.28"
+              />
+              <path
+                d="M10 14.5 C23 8.5, 40 16.5, 70 9.5"
+                stroke={`url(#${uid}-beam)`}
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                strokeOpacity="0.92"
+              />
+              {[
+                [16, 11, 3.4, color],
+                [32, 14, 4.4, presetId === 'luz-prisma-iris' ? '#FF8AD4' : color],
+                [48, 9, 4.8, presetId === 'luz-prisma-iris' ? '#6BE0FF' : color],
+                [64, 13, 3.6, presetId === 'luz-prisma-iris' ? '#64FFB0' : color],
+              ].map(([cx, cy, r, c], i) => (
+                <g key={i}>
+                  <circle cx={cx as number} cy={cy as number} r={(r as number) * 0.72} fill={c as string} fillOpacity="0.45" />
+                  <line
+                    x1={(cx as number) - (r as number)}
+                    y1={cy as number}
+                    x2={(cx as number) + (r as number)}
+                    y2={cy as number}
+                    stroke="#FFFFFF"
+                    strokeWidth="0.95"
+                  />
+                  <line
+                    x1={cx as number}
+                    y1={(cy as number) - (r as number)}
+                    x2={cx as number}
+                    y2={(cy as number) + (r as number)}
+                    stroke="#FFFFFF"
+                    strokeWidth="0.95"
+                  />
+                  <circle cx={cx as number} cy={cy as number} r="1.15" fill="#FFFFFF" />
+                </g>
+              ))}
+              {[
+                [23, 8, 1.0],
+                [39, 17, 1.1],
+                [56, 15, 0.95],
+                [25, 16, 0.85],
+                [58, 7, 1.05],
+              ].map(([cx, cy, r], i) => (
+                <circle key={`m-${i}`} cx={cx} cy={cy} r={r} fill="#FFFDF4" fillOpacity="0.95" />
+              ))}
+            </>
+          )}
+        </g>
       ) : (
         /* Silky Difuminados Smooth Gradient Swatch */
         <>
@@ -687,8 +843,14 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   onClearPageStrokes,
   onCloseMobileDrawer,
 }) => {
-  const [chalkMode, setChalkMode] = useState<'difuminados' | 'pinceles' | 'goma'>(
-    activeTool === 'eraser' ? 'goma' : brush.category === 'pinceles' ? 'pinceles' : 'difuminados'
+  const [chalkMode, setChalkMode] = useState<'difuminados' | 'luz' | 'pinceles' | 'goma'>(
+    activeTool === 'eraser'
+      ? 'goma'
+      : brush.category === 'luz'
+        ? 'luz'
+        : brush.category === 'pinceles'
+          ? 'pinceles'
+          : 'difuminados'
   );
   const [openDrawer, setOpenDrawer] = useState<'abrir' | 'figuras' | 'imagen' | 'rotar' | null>(null);
   const [paletteFocus, setPaletteFocus] = useState<'todo' | 'color' | 'difuminados' | 'capas'>('todo');
@@ -702,6 +864,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
 
   useEffect(() => {
     if (activeTool === 'eraser') setChalkMode('goma');
+    else if (brush.category === 'luz') setChalkMode('luz');
     else if (brush.category === 'pinceles') setChalkMode('pinceles');
     else setChalkMode('difuminados');
   }, [activeTool, brush.category]);
@@ -777,7 +940,9 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   const swatchList =
     chalkMode === 'pinceles'
       ? filteredPincelPresets.slice(0, visibleTextureCount)
-      : DIFUMINADO_PRESETS;
+      : chalkMode === 'luz'
+        ? LUZ_MAGICA_PRESETS
+        : DIFUMINADO_PRESETS;
   const totalPincelCatalogCount = TOTAL_TEXTURE_BRUSH_COUNT + HYPERREAL_PINCEL_PRESETS.length;
   const activeBrushMeta = getBrushPresetMeta(brush.preset);
   const canPrev = currentSpreadIndex > 0;
@@ -1712,15 +1877,18 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
               title={
                 chalkMode === 'goma'
                   ? 'Goma'
-                  : chalkMode === 'pinceles'
-                    ? 'Pincel'
-                    : 'Difuminados'
+                  : chalkMode === 'luz'
+                    ? 'Luz Mágica'
+                    : chalkMode === 'pinceles'
+                      ? 'Pincel'
+                      : 'Difuminados'
               }
               headerRight={
-                <div className="flex items-center gap-0.5 rounded-md bg-[#160a04]/80 border border-[#b98241]/35 p-0.5 text-[10px]">
+                <div className="flex items-center gap-0.5 rounded-md bg-[#160a04]/80 border border-[#b98241]/35 p-0.5 text-[9.5px] shrink-0">
                   {(
                     [
                       { id: 'difuminados', label: 'Difum.' },
+                      { id: 'luz', label: '✦ Luz' },
                       { id: 'pinceles', label: 'Pincel' },
                       { id: 'goma', label: 'Goma' },
                     ] as const
@@ -1735,6 +1903,25 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                           onGoToSection('cuaderno');
                           onChangeBrush({ softness: 10, opacity: 100 });
                           onSelectTool('eraser');
+                        } else if (tab.id === 'luz') {
+                          audioEngine.playToggleChime(true);
+                          onGoToSection('cuaderno');
+                          const firstLuz = LUZ_MAGICA_PRESETS[0];
+                          const isAlreadyLightColor = MAGIC_LIGHT_COLORS.some(
+                            (c) => c.hex.toUpperCase() === brush.color.toUpperCase()
+                          );
+                          const primaryGold = MAGIC_LIGHT_COLORS[0].hex;
+                          const nextColor = isAlreadyLightColor ? brush.color : primaryGold;
+                          onSelectColor(nextColor);
+                          onChangeBrush({
+                            category: 'luz',
+                            preset: firstLuz.id,
+                            color: nextColor,
+                            size: firstLuz.defaultSize,
+                            opacity: firstLuz.defaultOpacity,
+                            softness: firstLuz.defaultSoftness,
+                          });
+                          onSelectTool('draw');
                         } else {
                           audioEngine.playYarnPluck(tab.id === 'pinceles' ? 4 : 1);
                           onGoToSection('cuaderno');
@@ -1760,17 +1947,23 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                           onSelectTool('draw');
                         }
                       }}
-                      className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+                      className={`px-1.5 py-0.5 rounded transition-all cursor-pointer whitespace-nowrap ${
                         chalkMode === tab.id
-                          ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white font-medium'
-                          : 'text-[#d9bd94] hover:text-white'
+                          ? tab.id === 'luz'
+                            ? 'bg-gradient-to-b from-[#ffe785] via-[#eab238] to-[#b57012] text-[#2a1204] font-bold shadow-[0_0_10px_rgba(255,216,77,0.58)]'
+                            : 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white font-medium'
+                          : tab.id === 'luz'
+                            ? 'text-[#ffe082] hover:text-[#fff6cc]'
+                            : 'text-[#d9bd94] hover:text-white'
                       }`}
                       title={
                         tab.id === 'difuminados'
                           ? 'Difuminados suaves y precisos'
-                          : tab.id === 'pinceles'
-                            ? 'Pinceles de texturas hiperrealistas'
-                            : 'Borrador'
+                          : tab.id === 'luz'
+                            ? 'Pincel mágico de luz luminiscente y polvo de hada solar'
+                            : tab.id === 'pinceles'
+                              ? 'Pinceles de texturas hiperrealistas'
+                              : 'Borrador'
                       }
                     >
                       {tab.label}
@@ -1831,6 +2024,65 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                 </div>
               ) : (
                 <>
+                  {chalkMode === 'luz' && (
+                    <div className="mb-1.5 rounded-lg bg-gradient-to-b from-[#2b1707]/95 to-[#160a03]/95 border border-[#f5c85c]/45 px-1.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,236,164,0.18)]">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[9px] font-semibold tracking-wide text-[#ffe494] flex items-center gap-1">
+                          <Sparkles className="w-2.5 h-2.5 text-[#ffd84d]" />
+                          <span>Color de luz</span>
+                        </span>
+                        <span className="text-[8.5px] text-[#e7ca88] truncate">
+                          {MAGIC_LIGHT_COLORS.find(
+                            (c) => c.hex.toUpperCase() === brush.color.toUpperCase()
+                          )?.label ?? `Personalizado (${brush.color})`}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-8 gap-1">
+                        {MAGIC_LIGHT_COLORS.map((lightOpt) => {
+                          const isSelectedColor =
+                            brush.color.toUpperCase() === lightOpt.hex.toUpperCase();
+                          return (
+                            <button
+                              key={lightOpt.id}
+                              type="button"
+                              onClick={() => {
+                                audioEngine.playYarnPluck(lightOpt.primary ? 5 : 3);
+                                onSelectColor(lightOpt.hex);
+                                onChangeBrush({
+                                  category: 'luz',
+                                  color: lightOpt.hex,
+                                });
+                                onSelectTool('draw');
+                              }}
+                              title={lightOpt.label}
+                              aria-label={lightOpt.label}
+                              className={`relative h-5 rounded-full transition-transform cursor-pointer flex items-center justify-center ${
+                                isSelectedColor
+                                  ? 'scale-110 ring-2 ring-[#fff6cc] shadow-[0_0_10px_rgba(255,224,102,0.85)]'
+                                  : 'hover:scale-110 opacity-90 hover:opacity-100'
+                              }`}
+                              style={{
+                                background: `radial-gradient(circle at 38% 34%, ${lightOpt.coreHex} 0%, ${lightOpt.hex} 48%, ${lightOpt.glowHex} 100%)`,
+                                boxShadow: isSelectedColor
+                                  ? `0 0 10px ${lightOpt.hex}`
+                                  : `0 0 5px ${lightOpt.glowHex}88`,
+                              }}
+                            >
+                              {lightOpt.primary && (
+                                <span
+                                  aria-hidden="true"
+                                  className="text-[8px] leading-none text-[#5c3200] font-bold drop-shadow-[0_0_2px_rgba(255,255,255,0.9)]"
+                                >
+                                  ✦
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {chalkMode === 'pinceles' && (
                     <div className="space-y-1.5 mb-1.5">
                       {/* Search + Full 2,412 Library Button */}
@@ -1982,7 +2234,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                               ) : (
                                 <HyperrealBrushSwatch
                                   presetId={preset.id}
-                                  color={preset.tint}
+                                  color={chalkMode === 'luz' ? brush.color : preset.tint}
                                 />
                               )}
                               <span
@@ -2501,14 +2753,19 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
   onChangeBrush,
   onSelectEraser,
 }) => {
+  const isLuz = brush.category === 'luz';
   const isDif = brush.category === 'difuminados' || brush.category === 'tizas';
-  const activeList = isDif ? DIFUMINADO_PRESETS : HYPERREAL_PINCEL_PRESETS;
+  const activeList = isLuz
+    ? LUZ_MAGICA_PRESETS
+    : isDif
+      ? DIFUMINADO_PRESETS
+      : HYPERREAL_PINCEL_PRESETS;
 
   return (
     <div className="w-68 p-3.5 flex flex-col gap-3 select-none bg-[#221208] rounded-xl text-[#f5e4c4]">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-sm text-[#f7e1b5] tracking-wide">
-          Difuminados y Pinceles
+          Difuminados, Luz y Pinceles
         </h3>
         {onSelectEraser && (
           <button
@@ -2523,10 +2780,14 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
       </div>
 
       <div>
-        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-[#160b05] border border-[#b98241]/35 mb-2.5 text-xs">
-          {(['difuminados', 'pinceles'] as BrushCategory[]).map((cat) => {
+        <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-[#160b05] border border-[#b98241]/35 mb-2.5 text-xs">
+          {(['difuminados', 'luz', 'pinceles'] as BrushCategory[]).map((cat) => {
             const activeTab =
-              cat === 'difuminados' ? isDif : brush.category === 'pinceles';
+              cat === 'difuminados'
+                ? isDif
+                : cat === 'luz'
+                  ? isLuz
+                  : brush.category === 'pinceles';
             return (
               <button
                 key={cat}
@@ -2541,6 +2802,16 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
                       opacity: p0.defaultOpacity,
                       softness: p0.defaultSoftness,
                     });
+                  } else if (cat === 'luz') {
+                    const l0 = LUZ_MAGICA_PRESETS[0];
+                    onChangeBrush({
+                      category: 'luz',
+                      preset: l0.id,
+                      color: MAGIC_LIGHT_COLORS[0].hex,
+                      size: l0.defaultSize,
+                      opacity: l0.defaultOpacity,
+                      softness: l0.defaultSoftness,
+                    });
                   } else {
                     const d0 = DIFUMINADO_PRESETS[0];
                     onChangeBrush({
@@ -2554,11 +2825,13 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
                 }}
                 className={`py-1.5 rounded-md transition-colors cursor-pointer ${
                   activeTab
-                    ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-[#fff8e8] font-medium shadow'
+                    ? cat === 'luz'
+                      ? 'bg-gradient-to-b from-[#ffe785] via-[#eab238] to-[#b57012] text-[#2a1204] font-bold shadow'
+                      : 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-[#fff8e8] font-medium shadow'
                     : 'text-[#d9bd94] hover:text-white'
                 }`}
               >
-                {cat === 'pinceles' ? 'Pincel' : 'Difuminados'}
+                {cat === 'pinceles' ? 'Pincel' : cat === 'luz' ? '✦ Luz' : 'Difum.'}
               </button>
             );
           })}
@@ -2573,7 +2846,7 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
                 type="button"
                 onClick={() =>
                   onChangeBrush({
-                    category: isDif ? 'difuminados' : 'pinceles',
+                    category: isLuz ? 'luz' : isDif ? 'difuminados' : 'pinceles',
                     preset: preset.id,
                     size: preset.defaultSize,
                     opacity: preset.defaultOpacity,
@@ -2587,7 +2860,10 @@ export const BrushStudioPanel: React.FC<BrushStudioPanelProps> = ({
                     : 'bg-[#160a04] border-[#8b5d31]/35 hover:border-[#b98241]/60'
                 }`}
               >
-                <HyperrealBrushSwatch presetId={preset.id} color={preset.tint} />
+                <HyperrealBrushSwatch
+                  presetId={preset.id}
+                  color={isLuz ? brush.color : preset.tint}
+                />
                 <span className="text-[9px] leading-none truncate w-full text-center text-[#ebd2aa]">
                   {preset.shortLabel}
                 </span>

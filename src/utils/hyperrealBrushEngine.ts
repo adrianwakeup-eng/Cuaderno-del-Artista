@@ -228,8 +228,153 @@ export const HYPERREAL_PINCEL_PRESETS: BrushPresetMeta[] = [
   },
 ];
 
+export interface MagicLightColorOption {
+  id: string;
+  label: string;
+  hex: string;
+  coreHex: string;
+  glowHex: string;
+  primary?: boolean;
+}
+
+/**
+ * Curated luminescent light colors for the Magic Light Brush.
+ * Primary default: Oro Solar (#FFD84D) — radiant golden sunlight & fairy dust.
+ */
+export const MAGIC_LIGHT_COLORS: MagicLightColorOption[] = [
+  {
+    id: 'oro-solar',
+    label: 'Oro Solar (Principal)',
+    hex: '#FFD84D',
+    coreHex: '#FFFDF0',
+    glowHex: '#FFA818',
+    primary: true,
+  },
+  {
+    id: 'luz-blanca',
+    label: 'Luz Solar Pura',
+    hex: '#FFF8DC',
+    coreHex: '#FFFFFF',
+    glowHex: '#FFE28A',
+  },
+  {
+    id: 'ambar-miel',
+    label: 'Ámbar Atardecer',
+    hex: '#FFA630',
+    coreHex: '#FFF6D4',
+    glowHex: '#FF6B1A',
+  },
+  {
+    id: 'rosa-hada',
+    label: 'Polvo Rosa Hada',
+    hex: '#FF85D0',
+    coreHex: '#FFF2FA',
+    glowHex: '#FF3FA4',
+  },
+  {
+    id: 'celeste-luz',
+    label: 'Luz Celeste Estelar',
+    hex: '#68E2FF',
+    coreHex: '#F0FDFF',
+    glowHex: '#1FA8FF',
+  },
+  {
+    id: 'esmeralda-hada',
+    label: 'Aura Esmeralda',
+    hex: '#64FFB0',
+    coreHex: '#F0FFF7',
+    glowHex: '#12D678',
+  },
+  {
+    id: 'violeta-magico',
+    label: 'Nebulosa Violeta',
+    hex: '#C48AFF',
+    coreHex: '#FAF2FF',
+    glowHex: '#8E42FF',
+  },
+  {
+    id: 'coral-aurora',
+    label: 'Brillo Aurora',
+    hex: '#FF7D66',
+    coreHex: '#FFF3EE',
+    glowHex: '#FF4536',
+  },
+];
+
+export const LUZ_MAGICA_PRESETS: BrushPresetMeta[] = [
+  {
+    id: 'luz-oro-solar',
+    shortLabel: 'Polvo Hada',
+    label: 'Polvo de Hada Solar',
+    description:
+      'Luz dorada muy luminosa con destellos centelleantes y polvo de hada como rayos de sol para iluminar dibujos.',
+    tint: '#FFD84D',
+    defaultSize: 28,
+    defaultOpacity: 88,
+    defaultSoftness: 86,
+  },
+  {
+    id: 'luz-rayo-solar',
+    shortLabel: 'Rayo Sol',
+    label: 'Rayo de Sol Volumétrico',
+    description:
+      'Haz de luz cálida y envolvente con motas suspendidas para bañar de claridad tus obras y retratos.',
+    tint: '#FFE680',
+    defaultSize: 42,
+    defaultOpacity: 74,
+    defaultSoftness: 95,
+  },
+  {
+    id: 'luz-estela-magica',
+    shortLabel: 'Estela Luz',
+    label: 'Estela Mágica Brillante',
+    description:
+      'Núcleo blanco incandescente con halo luminiscente intenso y chispas mágicas al trazar contornos de luz.',
+    tint: '#FFCA3A',
+    defaultSize: 20,
+    defaultOpacity: 92,
+    defaultSoftness: 78,
+  },
+  {
+    id: 'luz-lluvia-estrellas',
+    shortLabel: 'Estrellas',
+    label: 'Lluvia de Destellos',
+    description:
+      'Cascada brillante de estrellitas de cuatro puntas, polvo luminoso y burbujas bokeh doradas.',
+    tint: '#FFF1A8',
+    defaultSize: 32,
+    defaultOpacity: 90,
+    defaultSoftness: 70,
+  },
+  {
+    id: 'luz-halo-etereo',
+    shortLabel: 'Halo Sol',
+    label: 'Halo Etéreo Luminoso',
+    description:
+      'Resplandor puro, sedoso y homogéneo sin partículas para iluminar piel, cabello, ojos y relieves.',
+    tint: '#FFDF73',
+    defaultSize: 36,
+    defaultOpacity: 66,
+    defaultSoftness: 98,
+  },
+  {
+    id: 'luz-prisma-iris',
+    shortLabel: 'Prisma',
+    label: 'Polvo Prisma Solar',
+    description:
+      'Destellos de oro solar combinados con micro-chispas iridiscentes de arcoíris luminoso.',
+    tint: '#FFE08A',
+    defaultSize: 30,
+    defaultOpacity: 88,
+    defaultSoftness: 84,
+  },
+];
+
 export const ALL_BRUSH_META_MAP: Record<string, BrushPresetMeta> = Object.fromEntries(
-  [...DIFUMINADO_PRESETS, ...HYPERREAL_PINCEL_PRESETS].map((p) => [p.id, p])
+  [...DIFUMINADO_PRESETS, ...LUZ_MAGICA_PRESETS, ...HYPERREAL_PINCEL_PRESETS].map((p) => [
+    p.id,
+    p,
+  ])
 );
 
 export function getBrushPresetMeta(id: BrushPresetId): BrushPresetMeta | undefined {
@@ -250,7 +395,12 @@ export function getBrushPresetMeta(id: BrushPresetId): BrushPresetMeta | undefin
   };
 }
 
+export function isMagicLightPreset(brush: BrushSettings): boolean {
+  return brush.category === 'luz' || brush.preset.startsWith('luz-');
+}
+
 export function isDifuminadoPreset(brush: BrushSettings): boolean {
+  if (isMagicLightPreset(brush)) return false;
   return (
     brush.category === 'difuminados' ||
     brush.category === 'tizas' ||
@@ -647,6 +797,337 @@ function drawDifuminadoSegment(
   }
 }
 
+/* ---------- PART 1B: LUMINESCENT MAGIC LIGHT & FAIRY-DUST ENGINE (LUZ MÁGICA) ---------- */
+
+function boostLuminousRgb(r: number, g: number, b: number): [number, number, number] {
+  const maxC = Math.max(r, g, b);
+  if (maxC < 45) {
+    // Fallback to radiant solar gold if brush color was near-black
+    return [255, 216, 77];
+  }
+  const scale = maxC < 245 ? 255 / maxC : 1;
+  return [
+    Math.min(255, Math.round(r * scale)),
+    Math.min(255, Math.round(g * scale)),
+    Math.min(255, Math.round(b * scale)),
+  ];
+}
+
+function mixRgb(
+  a: [number, number, number],
+  b: [number, number, number],
+  t: number
+): [number, number, number] {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
+/** Draw a delicate glowing 4-point or 8-point starburst sparkle flare */
+function drawStarburstGlint(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rayLen: number,
+  rgb: [number, number, number],
+  coreRgb: [number, number, number],
+  intensity: number,
+  angleRad: number,
+  eightPoint = false
+): void {
+  if (rayLen < 1.5 || intensity <= 0.01) return;
+
+  // Soft circular halo around the sparkle
+  const haloR = rayLen * 0.95;
+  const haloGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+  haloGrad.addColorStop(0, rgba(coreRgb[0], coreRgb[1], coreRgb[2], intensity * 0.85));
+  haloGrad.addColorStop(0.28, rgba(rgb[0], rgb[1], rgb[2], intensity * 0.45));
+  haloGrad.addColorStop(0.68, rgba(rgb[0], rgb[1], rgb[2], intensity * 0.12));
+  haloGrad.addColorStop(1, rgba(rgb[0], rgb[1], rgb[2], 0));
+  ctx.fillStyle = haloGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Sharp tapered luminous diamond rays
+  const drawCross = (len: number, thick: number, rot: number, alphaMult: number) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    for (let arm = 0; arm < 2; arm++) {
+      ctx.rotate((Math.PI / 2) * arm);
+      const grad = ctx.createLinearGradient(-len, 0, len, 0);
+      grad.addColorStop(0, rgba(rgb[0], rgb[1], rgb[2], 0));
+      grad.addColorStop(0.35, rgba(rgb[0], rgb[1], rgb[2], intensity * 0.52 * alphaMult));
+      grad.addColorStop(0.5, rgba(255, 255, 250, Math.min(1, intensity * 0.96 * alphaMult)));
+      grad.addColorStop(0.65, rgba(rgb[0], rgb[1], rgb[2], intensity * 0.52 * alphaMult));
+      grad.addColorStop(1, rgba(rgb[0], rgb[1], rgb[2], 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(-len, 0);
+      ctx.quadraticCurveTo(0, -thick, len, 0);
+      ctx.quadraticCurveTo(0, thick, -len, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+
+  drawCross(rayLen, Math.max(0.7, rayLen * 0.14), angleRad, 1);
+  if (eightPoint) {
+    drawCross(rayLen * 0.58, Math.max(0.55, rayLen * 0.1), angleRad + Math.PI / 4, 0.72);
+  }
+
+  // Hot white incandescent center pinpoint
+  ctx.fillStyle = rgba(255, 255, 252, Math.min(1, intensity * 0.98));
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(0.85, rayLen * 0.14), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+const PRISMA_SPARKLE_PALETTE: Array<[number, number, number]> = [
+  [255, 218, 82],  // Solar Gold
+  [255, 246, 198], // Sunlight Cream
+  [255, 145, 212], // Fairy Rose
+  [112, 230, 255], // Celestial Cyan
+  [142, 255, 196], // Mint Fairy
+  [208, 152, 255], // Lilac Star
+];
+
+function drawMagicLightSegment(
+  ctx: CanvasRenderingContext2D,
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  brush: BrushSettings,
+  resScale: number,
+  state: HyperrealStrokeState
+): void {
+  const alpha = Math.max(0.08, Math.min(1, brush.opacity / 100));
+  const softNorm = Math.max(0.2, Math.min(1, brush.softness / 100));
+  const [rawR, rawG, rawB] = hexToRgb(brush.color);
+  const baseRgb = boostLuminousRgb(rawR, rawG, rawB);
+  const coreRgb = mixRgb(baseRgb, [255, 254, 244], 0.78);
+  const outerRgb = mixRgb(baseRgb, [255, 178, 36], baseRgb[0] > 220 && baseRgb[1] > 180 ? 0.35 : 0.08);
+  const preset = brush.preset;
+  const rand = state.rand;
+
+  const sizeBase = Math.max(4, brush.size) * resScale;
+  const radiusMult =
+    preset === 'luz-rayo-solar'
+      ? 1.75
+      : preset === 'luz-halo-etereo'
+        ? 1.55
+        : preset === 'luz-estela-magica'
+          ? 0.92
+          : preset === 'luz-lluvia-estrellas'
+            ? 1.45
+            : 1.25;
+  const radius = Math.max(8 * resScale, sizeBase * radiusMult);
+
+  const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  const stepSpacing =
+    preset === 'luz-lluvia-estrellas'
+      ? Math.max(4 * resScale, radius * 0.24)
+      : Math.max(2 * resScale, radius * 0.16);
+  const steps = Math.max(1, Math.min(44, Math.ceil(dist / stepSpacing)));
+
+  // True physical additive illumination: brightens & adds sunlight directly over existing art
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Helper to paint an exponential multi-stop sunlit glow bloom
+  const paintGlowBloom = (
+    cx: number,
+    cy: number,
+    rad: number,
+    innerCol: [number, number, number],
+    midCol: [number, number, number],
+    edgeCol: [number, number, number],
+    strength: number
+  ) => {
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+    grad.addColorStop(0, rgba(innerCol[0], innerCol[1], innerCol[2], strength));
+    grad.addColorStop(0.24, rgba(midCol[0], midCol[1], midCol[2], strength * 0.68));
+    grad.addColorStop(0.56, rgba(edgeCol[0], edgeCol[1], edgeCol[2], strength * 0.24));
+    grad.addColorStop(1, rgba(edgeCol[0], edgeCol[1], edgeCol[2], 0));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  // 1) LUMINOUS AMBIENT BLOOM & SUNBEAM CORE RIBBON
+  for (let s = 0; s <= steps; s++) {
+    const t = steps === 0 ? 1 : s / steps;
+    const cx = p1.x + (p2.x - p1.x) * t;
+    const cy = p1.y + (p2.y - p1.y) * t;
+
+    if (preset === 'luz-halo-etereo') {
+      // Pure silky sunlit luminescence without dust particles
+      const bloomA = Math.min(0.16, alpha * (0.048 + (1 - softNorm) * 0.032));
+      paintGlowBloom(cx, cy, radius * 1.15, coreRgb, baseRgb, outerRgb, bloomA);
+    } else if (preset === 'luz-rayo-solar') {
+      // Wide volumetric warm sunbeam
+      const bloomA = Math.min(0.13, alpha * 0.042);
+      paintGlowBloom(cx, cy, radius * 1.32, coreRgb, baseRgb, outerRgb, bloomA);
+      // Warm inner sun shaft core
+      paintGlowBloom(cx, cy, radius * 0.45, [255, 255, 246], coreRgb, baseRgb, bloomA * 0.72);
+    } else if (preset === 'luz-estela-magica') {
+      // Intense glowing neon-fairy trail with white-hot core
+      const outerA = Math.min(0.18, alpha * 0.068);
+      paintGlowBloom(cx, cy, radius * 1.12, baseRgb, baseRgb, outerRgb, outerA);
+      paintGlowBloom(cx, cy, radius * 0.36, [255, 255, 252], coreRgb, baseRgb, Math.min(0.32, alpha * 0.16));
+    } else if (preset === 'luz-lluvia-estrellas') {
+      // Delicate misty shimmer bed beneath the star cascade
+      const mistA = Math.min(0.08, alpha * 0.028);
+      paintGlowBloom(cx, cy, radius * 1.05, coreRgb, baseRgb, outerRgb, mistA);
+    } else {
+      // Polvo de Hada Solar (default primary) & Prisma Solar:
+      // Lush golden sunlight aura + bright inner glow ribbon
+      const auraA = Math.min(0.15, alpha * 0.052);
+      paintGlowBloom(cx, cy, radius * 1.18, coreRgb, baseRgb, outerRgb, auraA);
+      paintGlowBloom(cx, cy, radius * 0.38, [255, 255, 246], coreRgb, baseRgb, Math.min(0.19, alpha * 0.082));
+    }
+  }
+
+  // 2) FAIRY-DUST MICRO-SPARKLES, BOKEH ORBS & STARBURST GLINTS
+  if (preset !== 'luz-halo-etereo') {
+    const dustInterval =
+      preset === 'luz-lluvia-estrellas'
+        ? Math.max(4.5 * resScale, radius * 0.22)
+        : preset === 'luz-rayo-solar'
+          ? Math.max(11 * resScale, radius * 0.48)
+          : Math.max(5.5 * resScale, radius * 0.28);
+
+    state.distAccum += Math.max(dist, dist < 0.5 ? dustInterval : 0);
+    let emitted = 0;
+    const maxEmits = 22;
+
+    while (state.distAccum >= dustInterval && emitted < maxEmits) {
+      state.distAccum -= dustInterval;
+      emitted++;
+      const t = rand();
+      const bx = p1.x + (p2.x - p1.x) * t;
+      const by = p1.y + (p2.y - p1.y) * t;
+
+      const spread =
+        preset === 'luz-lluvia-estrellas'
+          ? radius * 1.48
+          : preset === 'luz-rayo-solar'
+            ? radius * 1.25
+            : preset === 'luz-estela-magica'
+              ? radius * 0.92
+              : radius * 1.18;
+
+      // Scatter crisp glowing fairy-dust micro-motes
+      const moteCount =
+        preset === 'luz-lluvia-estrellas'
+          ? 6
+          : preset === 'luz-rayo-solar'
+            ? 3
+            : preset === 'luz-estela-magica'
+              ? 4
+              : 5;
+
+      for (let m = 0; m < moteCount; m++) {
+        const ang = rand() * Math.PI * 2;
+        const rDist = Math.pow(rand(), 0.65) * spread;
+        const mx = bx + Math.cos(ang) * rDist;
+        const my = by + Math.sin(ang) * rDist;
+
+        const moteRgb =
+          preset === 'luz-prisma-iris' && rand() < 0.58
+            ? PRISMA_SPARKLE_PALETTE[Math.floor(rand() * PRISMA_SPARKLE_PALETTE.length)]
+            : baseRgb;
+        const moteCore = mixRgb(moteRgb, [255, 255, 248], 0.82);
+
+        const moteR = Math.max(1.1 * resScale, (0.04 + rand() * 0.11) * radius);
+        const moteAlpha = Math.min(0.95, alpha * (0.42 + rand() * 0.55));
+
+        // Glowing dust mote aura
+        const mGrad = ctx.createRadialGradient(mx, my, 0, mx, my, moteR * 2.4);
+        mGrad.addColorStop(0, rgba(255, 255, 252, moteAlpha));
+        mGrad.addColorStop(0.28, rgba(moteCore[0], moteCore[1], moteCore[2], moteAlpha * 0.78));
+        mGrad.addColorStop(0.62, rgba(moteRgb[0], moteRgb[1], moteRgb[2], moteAlpha * 0.28));
+        mGrad.addColorStop(1, rgba(moteRgb[0], moteRgb[1], moteRgb[2], 0));
+        ctx.fillStyle = mGrad;
+        ctx.beginPath();
+        ctx.arc(mx, my, moteR * 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Soft translucent golden bokeh orbs (especially in Polvo de Hada & Lluvia Estelar)
+      if (
+        (preset === 'luz-oro-solar' ||
+          preset === 'luz-lluvia-estrellas' ||
+          preset === 'luz-prisma-iris') &&
+        rand() < 0.48
+      ) {
+        const bAng = rand() * Math.PI * 2;
+        const bDist = (0.25 + rand() * 0.85) * spread;
+        const ox = bx + Math.cos(bAng) * bDist;
+        const oy = by + Math.sin(bAng) * bDist;
+        const orbR = Math.max(2.6 * resScale, (0.12 + rand() * 0.18) * radius);
+        const orbRgb =
+          preset === 'luz-prisma-iris'
+            ? PRISMA_SPARKLE_PALETTE[Math.floor(rand() * PRISMA_SPARKLE_PALETTE.length)]
+            : baseRgb;
+        const orbGrad = ctx.createRadialGradient(ox, oy, 0, ox, oy, orbR);
+        orbGrad.addColorStop(0, rgba(255, 254, 240, alpha * 0.28));
+        orbGrad.addColorStop(0.72, rgba(orbRgb[0], orbRgb[1], orbRgb[2], alpha * 0.22));
+        orbGrad.addColorStop(0.92, rgba(255, 252, 232, alpha * 0.34));
+        orbGrad.addColorStop(1, rgba(orbRgb[0], orbRgb[1], orbRgb[2], 0));
+        ctx.fillStyle = orbGrad;
+        ctx.beginPath();
+        ctx.arc(ox, oy, orbR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Crisp 4-point & 8-point twinkling starburst glints
+      const starChance =
+        preset === 'luz-lluvia-estrellas'
+          ? 0.92
+          : preset === 'luz-oro-solar' || preset === 'luz-prisma-iris'
+            ? 0.68
+            : preset === 'luz-estela-magica'
+              ? 0.52
+              : 0.28;
+
+      if (rand() < starChance) {
+        const sAng = rand() * Math.PI * 2;
+        const sDist = Math.pow(rand(), 0.72) * spread * 0.95;
+        const sx = bx + Math.cos(sAng) * sDist;
+        const sy = by + Math.sin(sAng) * sDist;
+        const starLen = Math.max(
+          4.2 * resScale,
+          radius * (preset === 'luz-lluvia-estrellas' ? 0.32 + rand() * 0.42 : 0.24 + rand() * 0.34)
+        );
+        const starRgb =
+          preset === 'luz-prisma-iris' && rand() < 0.55
+            ? PRISMA_SPARKLE_PALETTE[Math.floor(rand() * PRISMA_SPARKLE_PALETTE.length)]
+            : baseRgb;
+        const starCore = mixRgb(starRgb, [255, 255, 250], 0.85);
+        const starRot = (rand() - 0.5) * 0.45; // slight twinkle tilt around upright cross
+        drawStarburstGlint(
+          ctx,
+          sx,
+          sy,
+          starLen,
+          starRgb,
+          starCore,
+          Math.min(0.98, alpha * (0.58 + rand() * 0.42)),
+          starRot,
+          rand() < 0.32
+        );
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
 /* ---------- PART 2: 2,400+ PARAMETRIC HYPERREALISTIC TEXTURE BRUSHES ---------- */
 
 export function drawHyperrealStrokeSegment(
@@ -663,6 +1144,13 @@ export function drawHyperrealStrokeSegment(
   const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
 
   ctx.save();
+
+  // Route Magic Light & Fairy-Dust presets to additive luminescent engine
+  if (isMagicLightPreset(brush)) {
+    drawMagicLightSegment(ctx, p1, p2, brush, resScale, state);
+    ctx.restore();
+    return { nextMid: mid };
+  }
 
   // Route Difuminados to true pixel-aware blending/smudging/harmonizing engine
   if (isDifuminadoPreset(brush)) {
