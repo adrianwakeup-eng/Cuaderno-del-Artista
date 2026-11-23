@@ -1,5 +1,4 @@
 import React from 'react';
-import { Pause, Play } from 'lucide-react';
 import type {
   VestidorDecorAnimation,
   VestidorDecorElement,
@@ -437,22 +436,6 @@ const VintageSewingMachineArt: React.FC<{
           </g>
         </g>
       </svg>
-
-      {showInlineControl && onTogglePause && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTogglePause();
-          }}
-          title={isPaused ? 'Reanudar máquina de coser' : 'Pausar máquina de coser'}
-          aria-label={isPaused ? 'Reanudar máquina de coser' : 'Pausar máquina de coser'}
-          className="pointer-events-auto absolute -bottom-2.5 left-1/2 -translate-x-1/2 z-30 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#5c341a]/90 hover:bg-[#774523] border border-[#e4bc78] text-[9.5px] font-bold text-[#fff3d8] shadow cursor-pointer opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap"
-        >
-          {isPaused ? <Play className="w-2.5 h-2.5 text-[#ffd96b]" /> : <Pause className="w-2.5 h-2.5 text-[#ffd96b]" />}
-          <span>{isPaused ? 'Coser' : 'Pausar'}</span>
-        </button>
-      )}
     </div>
   );
 };
@@ -463,14 +446,12 @@ const VintageSewingMachineArt: React.FC<{
 export const StageVintageSewingMachine: React.FC<{
   paused: boolean;
   reducedMotion: boolean;
-  onTogglePause: () => void;
-}> = ({ paused, reducedMotion, onTogglePause }) => (
+  onTogglePause?: () => void;
+}> = ({ paused, reducedMotion }) => (
   <div className="hidden md:block absolute left-[2%] xl:left-[3.5%] bottom-[17.5%] w-[124px] lg:w-[144px] xl:w-[164px] aspect-[1.05/1] z-[11] pointer-events-none opacity-95">
     <VintageSewingMachineArt
       animated={!paused}
       reducedMotion={reducedMotion}
-      onTogglePause={onTogglePause}
-      showInlineControl={true}
     />
   </div>
 );
