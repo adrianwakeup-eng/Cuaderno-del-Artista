@@ -50,6 +50,21 @@ export const TextReaderBar: React.FC<{
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
+              {readerState.availableVoices.length > 1 && (
+                <select
+                  value={readerState.voiceURI}
+                  onChange={(e) => textReaderEngine.selectVoiceByURI(e.target.value)}
+                  aria-label="Seleccionar voz masculina"
+                  title="Cambiar voz masculina"
+                  className="max-w-[132px] px-1.5 py-0.5 rounded-md bg-[#341b0c] hover:bg-[#4e2a14] border border-[#c99552]/40 text-[10px] text-[#f5dca8] focus:outline-none focus:border-[#f0c06c] cursor-pointer truncate"
+                >
+                  {readerState.availableVoices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI} className="bg-[#221208] text-[#ffebc2]">
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              )}
               <button
                 type="button"
                 onClick={cycleRate}

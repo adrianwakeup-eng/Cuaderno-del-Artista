@@ -1,13 +1,23 @@
 /**
  * Natural Neutral Masculine Spanish Text-to-Speech Reader Engine.
- * - Automatically chooses the most pleasant, neutral masculine Spanish voice available
- *   on macOS, Windows, Edge, Chrome, Safari, or Electron.
+ * - Strictly selects an unmistakable, calm, neutral adult MALE Spanish voice
+ *   (prioritizing Studio/Neural male voices like Alonso, Jorge, Juan, Diego, Carlos,
+ *   Álvaro, Pablo, then macOS adult baritone Reed / Rocko, while explicitly avoiding
+ *   female voices including Chrome's "Google español", Mónica, Paulina, etc.).
+ * - Waits for browser voices to finish loading before speaking so it NEVER falls back
+ *   to the OS/browser default female voice on first click.
  * - Uses sentence-chunked playback with word-level offset tracking so Play, Pause,
- *   Resume, Restart, and interactive Time-Bar Scrubbing work reliably without
- *   browser speechSynthesis pause/15s-cutoff bugs.
+ *   Resume, Restart, voice switching, and interactive Time-Bar Scrubbing work reliably.
  */
 
 export type ReaderStatus = 'idle' | 'playing' | 'paused' | 'ended';
+
+export interface VoiceOption {
+  voiceURI: string;
+  label: string;
+  lang: string;
+  isMale: boolean;
+}
 
 export interface TextReaderState {
   active: boolean;
@@ -20,13 +30,16 @@ export interface TextReaderState {
   progress: number;
   charIndex: number;
   voiceName: string;
+  voiceURI: string;
+  availableVoices: VoiceOption[];
   rate: number;
   supported: boolean;
 }
 
 type Listener = (state: TextReaderState) => void;
 
-const MALE_VOICE_NAMES = [
+/** Tier 1: Natural / Studio / Neural adult male Spanish voices */
+const NATURAL_MALE_VOICE_NAMES = [
   'alonso',
   'jorge',
   'juan',
@@ -52,8 +65,6 @@ const MALE_VOICE_NAMES = [
   'sebastián',
   'martin',
   'martín',
-  'eddy',
-  'reed',
   'gerardo',
   'ramon',
   'ramón',
@@ -64,12 +75,30 @@ const MALE_VOICE_NAMES = [
   'miguel',
   'antonio',
   'fernando',
+  'hector',
+  'héctor',
+  'javier',
+  'luis',
+  'pedro',
+  'alejandro',
+  'eduardo',
+  'ricardo',
+  'gabriel',
   'male',
   'hombre',
   'masculin',
 ];
 
+/** Tier 2: macOS built-in adult male Spanish voices (ordered by masculinity & warmth) */
+const BUILTIN_MALE_BARITONE = ['reed'];
+const BUILTIN_MALE_ALT = ['rocko'];
+const BUILTIN_MALE_LIGHT = ['eddy'];
+
+/** Explicitly known FEMALE Spanish voices (including Chrome's built-in Google español!) */
 const FEMALE_VOICE_NAMES = [
+  'google español',
+  'google espanol',
+  'google spanish',
   'monica',
   'mónica',
   'paulina',
@@ -102,6 +131,16 @@ const FEMALE_VOICE_NAMES = [
   'angélica',
   'francisca',
   'soledad',
+  'elvia',
+  'esperanza',
+  'elvira',
+  'estrella',
+  'triana',
+  'vera',
+  'abril',
+  'irene',
+  'lia',
+  'lía',
   'flo',
   'sandy',
   'shelley',
@@ -129,95 +168,165 @@ const NOVELTY_VOICE_NAMES = [
   'zarvox',
   'junior',
   'grandpa',
-  'rocko',
 ];
 
-function scoreSpanishMaleVoice(voice: SpeechSynthesisVoice): {
+type VoiceTier = 'natural-male' | 'baritone-male' | 'alt-male' | 'light-male' | 'other';
+
+function classifySpanishVoice(voice: SpeechSynthesisVoice): {
   score: number;
-  isLikelyMale: boolean;
+  isSpanish: boolean;
+  isMale: boolean;
+  tier: VoiceTier;
 } {
   const name = voice.name.toLowerCase();
-  const lang = (voice.lang || '').toLowerCase();
+  const lang = (voice.lang || '').toLowerCase().replace('_', '-');
+  const isSpanish = lang === 'es' || lang.startsWith('es-');
+
+  if (!isSpanish) {
+    return { score: -1000, isSpanish: false, isMale: false, tier: 'other' };
+  }
 
   let score = 0;
 
-  // Language preference: neutral Spanish first
-  if (lang === 'es-419' || lang === 'es-mx' || lang === 'es-us' || lang === 'es-co') {
+  // Neutral Spanish locale preference (MX / 419 / US / CO slightly ahead of ES)
+  if (lang === 'es-mx' || lang === 'es-419' || lang === 'es-us' || lang === 'es-co') {
     score += 120;
-  } else if (lang === 'es-es' || lang === 'es-ar' || lang === 'es-cl' || lang.startsWith('es')) {
-    score += 108;
   } else {
-    // Non-Spanish voice heavily penalized
-    score -= 200;
+    score += 110;
   }
 
-  // Explicitly avoid novelty / robotic voices
+  // Strongly penalize novelty / robotic / elderly voices
   if (NOVELTY_VOICE_NAMES.some((n) => name.includes(n))) {
-    score -= 250;
+    return { score: -500, isSpanish: true, isMale: false, tier: 'other' };
   }
 
-  // Gender classification
-  const matchesMale = MALE_VOICE_NAMES.some((m) => name.includes(m));
-  const matchesFemale = FEMALE_VOICE_NAMES.some((f) => name.includes(f));
-
-  if (matchesMale && !matchesFemale) {
-    score += 140;
-  } else if (matchesFemale) {
-    score -= 95;
+  const isFemale = FEMALE_VOICE_NAMES.some((f) => name.includes(f));
+  if (isFemale) {
+    return { score: -250 + score, isSpanish: true, isMale: false, tier: 'other' };
   }
 
-  // Prefer natural, neural, enhanced, premium studio-grade voices
-  if (
-    name.includes('natural') ||
-    name.includes('neural') ||
-    name.includes('premium') ||
-    name.includes('enhanced') ||
-    name.includes('online')
-  ) {
-    score += 45;
-  }
-  if (name.includes('google') || name.includes('microsoft') || name.includes('siri')) {
-    score += 18;
-  }
-  // Prefer especially pleasant, warm neutral Spanish male voices
-  if (
-    name.includes('alonso') ||
-    name.includes('jorge') ||
-    name.includes('juan') ||
-    name.includes('diego') ||
-    name.includes('carlos') ||
-    name.includes('alvaro') ||
-    name.includes('álvaro')
-  ) {
-    score += 24;
+  const isNaturalMale = NATURAL_MALE_VOICE_NAMES.some((m) => name.includes(m));
+  const isBaritone = BUILTIN_MALE_BARITONE.some((m) => name.includes(m));
+  const isAltMale = BUILTIN_MALE_ALT.some((m) => name.includes(m));
+  const isLightMale = BUILTIN_MALE_LIGHT.some((m) => name.includes(m));
+
+  let tier: VoiceTier = 'other';
+  let isMale = false;
+
+  if (isNaturalMale) {
+    tier = 'natural-male';
+    isMale = true;
+    score += 300;
+    if (
+      name.includes('natural') ||
+      name.includes('neural') ||
+      name.includes('premium') ||
+      name.includes('enhanced') ||
+      name.includes('online')
+    ) {
+      score += 60;
+    }
+    if (
+      name.includes('alonso') ||
+      name.includes('jorge') ||
+      name.includes('juan') ||
+      name.includes('diego') ||
+      name.includes('carlos') ||
+      name.includes('alvaro') ||
+      name.includes('álvaro')
+    ) {
+      score += 25;
+    }
+  } else if (isBaritone) {
+    // macOS Reed: deep, clear, unmistakable adult male voice!
+    tier = 'baritone-male';
+    isMale = true;
+    score += 210;
+  } else if (isAltMale) {
+    // macOS Rocko: adult male voice
+    tier = 'alt-male';
+    isMale = true;
+    score += 165;
+  } else if (isLightMale) {
+    // macOS Eddy: lighter male voice, kept strictly below Reed and Rocko
+    tier = 'light-male';
+    isMale = true;
+    score += 110;
   }
 
-  return { score, isLikelyMale: matchesMale && !matchesFemale };
+  return { score, isSpanish: true, isMale, tier };
 }
 
-export function pickNeutralMaleSpanishVoice(): {
+function formatVoiceLabel(voice: SpeechSynthesisVoice): string {
+  const clean = voice.name
+    .replace(/Microsoft\s+/i, '')
+    .replace(/\s+Online\s*\(Natural\)/i, '')
+    .replace(/\s*\(Enhanced\)|\s*\(Premium\)/i, '')
+    .replace(/Spanish \(Mexico\)/i, 'Español MX')
+    .replace(/Spanish \(Spain\)/i, 'Español ES')
+    .replace(/Spanish \(United States\)/i, 'Español US')
+    .trim();
+  return clean || 'Voz masculina';
+}
+
+function getPreferredPitchForTier(tier: VoiceTier): number {
+  switch (tier) {
+    case 'natural-male':
+      return 0.9;
+    case 'baritone-male':
+      // Reed sounds unmistakably warm, deep & neutral masculine at 0.82
+      return 0.82;
+    case 'alt-male':
+      return 0.8;
+    case 'light-male':
+      // Lower pitch so Eddy also sounds clearly adult male
+      return 0.72;
+    default:
+      // Worst-case fallback if OS has zero male voices: deepen clearly
+      return 0.6;
+  }
+}
+
+export function pickNeutralMaleSpanishVoice(preferredURI?: string): {
   voice: SpeechSynthesisVoice | null;
-  isLikelyMale: boolean;
+  tier: VoiceTier;
+  options: VoiceOption[];
 } {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    return { voice: null, isLikelyMale: false };
+    return { voice: null, tier: 'other', options: [] };
   }
   const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) return { voice: null, isLikelyMale: false };
+  if (!voices.length) return { voice: null, tier: 'other', options: [] };
 
-  let best: SpeechSynthesisVoice | null = null;
-  let bestScore = -Infinity;
-  let bestMale = false;
+  const ranked = voices
+    .map((v) => ({ voice: v, ...classifySpanishVoice(v) }))
+    .filter((item) => item.isSpanish && item.score > -400)
+    .sort((a, b) => b.score - a.score);
 
-  for (const v of voices) {
-    const { score, isLikelyMale } = scoreSpanishMaleVoice(v);
-    if (score > bestScore) {
-      bestScore = score;
-      best = v;
-      bestMale = isLikelyMale;
+  // Only list male voices in the quick switcher when male voices exist
+  const maleOnly = ranked.filter((item) => item.isMale);
+  const selectable = maleOnly.length > 0 ? maleOnly : ranked;
+
+  const options: VoiceOption[] = selectable.map((item) => ({
+    voiceURI: item.voice.voiceURI,
+    label: formatVoiceLabel(item.voice),
+    lang: item.voice.lang,
+    isMale: item.isMale,
+  }));
+
+  if (preferredURI) {
+    const manual = selectable.find((item) => item.voice.voiceURI === preferredURI);
+    if (manual) {
+      return { voice: manual.voice, tier: manual.tier, options };
     }
   }
-  return { voice: best, isLikelyMale: bestMale };
+
+  const best = selectable[0] || null;
+  return {
+    voice: best ? best.voice : null,
+    tier: best ? best.tier : 'other',
+    options,
+  };
 }
 
 interface TextChunk {
@@ -235,7 +344,6 @@ function buildReadingChunks(fullText: string, startChar: number): TextChunk[] {
   const len = fullText.length;
   let pos = Math.max(0, Math.min(len, startChar));
 
-  // Skip leading whitespace
   while (pos < len && /\s/.test(fullText[pos])) pos++;
 
   const MAX_CHUNK = 210;
@@ -252,7 +360,6 @@ function buildReadingChunks(fullText: string, startChar: number): TextChunk[] {
     const windowEnd = pos + MAX_CHUNK;
     const windowStr = fullText.slice(pos, windowEnd);
 
-    // Prefer sentence ending (. ! ? \n), then clause (, ; :), then word space
     let cut = -1;
     const sentenceMatches = [...windowStr.matchAll(/[.!?\n]+(?:\s+|$)/g)];
     if (sentenceMatches.length > 0) {
@@ -286,7 +393,6 @@ function buildReadingChunks(fullText: string, startChar: number): TextChunk[] {
   return chunks;
 }
 
-/** Snap any target character index to the beginning of its word so seeking never cuts mid-word */
 function snapToWordStart(text: string, approxIndex: number): number {
   const clamped = Math.max(0, Math.min(text.length, Math.round(approxIndex)));
   if (clamped === 0 || clamped >= text.length) return clamped;
@@ -301,8 +407,7 @@ function snapToWordStart(text: string, approxIndex: number): number {
 function estimateDurationSec(text: string, rate: number): number {
   const clean = text.trim();
   if (!clean) return 0;
-  // Natural Spanish reading pace ≈ 14.5 chars/sec at 1.0x (≈ 145–155 wpm)
-  const charsPerSec = 14.5 * Math.max(0.5, rate);
+  const charsPerSec = 14.0 * Math.max(0.5, rate);
   return Math.max(1.5, clean.length / charsPerSec);
 }
 
@@ -319,7 +424,8 @@ class TextReaderEngine {
   private timerId: number | null = null;
   private lastTickAt = 0;
   private selectedVoice: SpeechSynthesisVoice | null = null;
-  private selectedVoiceIsMale = false;
+  private selectedVoiceTier: VoiceTier = 'other';
+  private preferredVoiceURI: string | undefined = undefined;
 
   constructor() {
     const supported =
@@ -337,7 +443,9 @@ class TextReaderEngine {
       duration: 0,
       progress: 0,
       charIndex: 0,
-      voiceName: 'Voz masculina neutral',
+      voiceName: 'Voz masculina',
+      voiceURI: '',
+      availableVoices: [],
       rate: 1.0,
       supported,
     };
@@ -349,26 +457,58 @@ class TextReaderEngine {
           this.refreshVoice();
         });
       } catch {
-        // ignore older browsers
+        // ignore
       }
     }
   }
 
   private refreshVoice(): void {
-    const picked = pickNeutralMaleSpanishVoice();
+    const picked = pickNeutralMaleSpanishVoice(this.preferredVoiceURI);
     this.selectedVoice = picked.voice;
-    this.selectedVoiceIsMale = picked.isLikelyMale;
-    const cleanName = picked.voice
-      ? picked.voice.name
-          .replace(/Microsoft\s+/i, '')
-          .replace(/\s+Online\s*\(Natural\)/i, '')
-          .replace(/\s*\(Enhanced\)|\s*\(Premium\)/i, '')
-          .trim()
-      : 'Voz masculina neutral';
-    if (this.state.voiceName !== cleanName) {
-      this.state = { ...this.state, voiceName: cleanName };
+    this.selectedVoiceTier = picked.tier;
+
+    const nextName = picked.voice ? formatVoiceLabel(picked.voice) : 'Voz masculina';
+    const nextURI = picked.voice?.voiceURI || '';
+    if (
+      this.state.voiceName !== nextName ||
+      this.state.voiceURI !== nextURI ||
+      this.state.availableVoices.length !== picked.options.length
+    ) {
+      this.state = {
+        ...this.state,
+        voiceName: nextName,
+        voiceURI: nextURI,
+        availableVoices: picked.options,
+      };
       this.emit();
     }
+  }
+
+  /** Wait briefly for Chrome/WebKit async voices list so we never fall back to female default */
+  private ensureVoicesLoaded(timeoutMs = 450): Promise<void> {
+    if (!this.state.supported) return Promise.resolve();
+    if (window.speechSynthesis.getVoices().length > 0) {
+      this.refreshVoice();
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        this.refreshVoice();
+        resolve();
+      };
+      const timer = window.setTimeout(finish, timeoutMs);
+      const onChanged = () => {
+        if (window.speechSynthesis.getVoices().length > 0) {
+          window.clearTimeout(timer);
+          window.speechSynthesis.removeEventListener?.('voiceschanged', onChanged);
+          finish();
+        }
+      };
+      window.speechSynthesis.addEventListener?.('voiceschanged', onChanged);
+    });
   }
 
   public getState(): TextReaderState {
@@ -432,12 +572,18 @@ class TextReaderEngine {
     }
   }
 
-  /** Speak a text box from the beginning (or toggle pause/resume if it's already active) */
+  public selectVoiceByURI(uri: string): void {
+    this.preferredVoiceURI = uri;
+    this.refreshVoice();
+    if (this.state.active && this.state.status === 'playing') {
+      this.speakFromChar(snapToWordStart(this.state.text, this.state.charIndex));
+    }
+  }
+
   public playElement(elementId: string, rawText: string): boolean {
     const cleanText = rawText.trim();
     if (!cleanText || !this.state.supported) return false;
 
-    // If clicking the exact same element that is currently playing -> pause it
     if (this.state.active && this.state.elementId === elementId && this.state.text === cleanText) {
       if (this.state.status === 'playing') {
         this.pause();
@@ -449,7 +595,6 @@ class TextReaderEngine {
       }
     }
 
-    this.refreshVoice();
     const duration = estimateDurationSec(cleanText, this.state.rate);
     this.state = {
       ...this.state,
@@ -527,7 +672,6 @@ class TextReaderEngine {
     this.speakFromChar(0);
   }
 
-  /** Jump to any normalized position (0..1) or timestamp along the time control bar */
   public seekToProgress(norm: number): void {
     if (!this.state.active || !this.state.text) return;
     const clamped = Math.max(0, Math.min(1, norm));
@@ -623,85 +767,86 @@ class TextReaderEngine {
       return;
     }
 
-    if (!this.selectedVoice) {
-      this.refreshVoice();
-    }
-
-    this.startTimer();
-
-    const speakChunkIndex = (idx: number) => {
+    void this.ensureVoicesLoaded().then(() => {
       if (token !== this.playbackToken) return;
-      if (idx >= chunks.length) {
-        this.clearTimer();
-        this.state = {
-          ...this.state,
-          status: 'ended',
-          currentTime: this.state.duration,
-          progress: 1,
-          charIndex: fullText.length,
-        };
-        this.emit();
-        return;
-      }
 
-      const chunk = chunks[idx];
-      const utt = new SpeechSynthesisUtterance(chunk.text);
-      if (this.selectedVoice) {
-        utt.voice = this.selectedVoice;
-        utt.lang = this.selectedVoice.lang || 'es-ES';
-      } else {
-        utt.lang = 'es-ES';
-      }
-      // Pleasant, calm, neutral masculine timbre & steady articulation
-      utt.rate = Number((0.96 * this.state.rate).toFixed(2));
-      utt.pitch = this.selectedVoiceIsMale ? 0.94 : 0.8;
-      utt.volume = 1;
+      this.startTimer();
 
-      utt.onboundary = (ev) => {
+      const speakChunkIndex = (idx: number) => {
         if (token !== this.playbackToken) return;
-        const globalChar = Math.min(fullText.length, chunk.start + (ev.charIndex || 0));
-        const ratio = fullText.length > 0 ? globalChar / fullText.length : 0;
-        const syncedTime = ratio * this.state.duration;
-        this.lastTickAt = performance.now();
-        this.state = {
-          ...this.state,
-          charIndex: globalChar,
-          progress: ratio,
-          currentTime: syncedTime,
+        if (idx >= chunks.length) {
+          this.clearTimer();
+          this.state = {
+            ...this.state,
+            status: 'ended',
+            currentTime: this.state.duration,
+            progress: 1,
+            charIndex: fullText.length,
+          };
+          this.emit();
+          return;
+        }
+
+        const chunk = chunks[idx];
+        const utt = new SpeechSynthesisUtterance(chunk.text);
+        if (this.selectedVoice) {
+          utt.voice = this.selectedVoice;
+          utt.lang = this.selectedVoice.lang || 'es-MX';
+        } else {
+          utt.lang = 'es-MX';
+        }
+
+        // Warm, steady, unmistakably adult male voice prosody
+        const baseRate = this.selectedVoiceTier === 'natural-male' ? 0.96 : 0.92;
+        utt.rate = Number((baseRate * this.state.rate).toFixed(2));
+        utt.pitch = getPreferredPitchForTier(this.selectedVoiceTier);
+        utt.volume = 1;
+
+        utt.onboundary = (ev) => {
+          if (token !== this.playbackToken) return;
+          const globalChar = Math.min(fullText.length, chunk.start + (ev.charIndex || 0));
+          const ratio = fullText.length > 0 ? globalChar / fullText.length : 0;
+          const syncedTime = ratio * this.state.duration;
+          this.lastTickAt = performance.now();
+          this.state = {
+            ...this.state,
+            charIndex: globalChar,
+            progress: ratio,
+            currentTime: syncedTime,
+          };
+          this.emit();
         };
-        this.emit();
+
+        utt.onend = () => {
+          if (token !== this.playbackToken) return;
+          const ratio = fullText.length > 0 ? chunk.end / fullText.length : 1;
+          this.state = {
+            ...this.state,
+            charIndex: chunk.end,
+            progress: Math.min(1, ratio),
+            currentTime: Math.min(this.state.duration, ratio * this.state.duration),
+          };
+          this.emit();
+          speakChunkIndex(idx + 1);
+        };
+
+        utt.onerror = (ev) => {
+          if (token !== this.playbackToken) return;
+          if (ev.error === 'interrupted' || ev.error === 'canceled') return;
+          speakChunkIndex(idx + 1);
+        };
+
+        try {
+          window.speechSynthesis.speak(utt);
+        } catch {
+          this.clearTimer();
+          this.state = { ...this.state, status: 'paused' };
+          this.emit();
+        }
       };
 
-      utt.onend = () => {
-        if (token !== this.playbackToken) return;
-        const ratio = fullText.length > 0 ? chunk.end / fullText.length : 1;
-        this.state = {
-          ...this.state,
-          charIndex: chunk.end,
-          progress: Math.min(1, ratio),
-          currentTime: Math.min(this.state.duration, ratio * this.state.duration),
-        };
-        this.emit();
-        speakChunkIndex(idx + 1);
-      };
-
-      utt.onerror = (ev) => {
-        if (token !== this.playbackToken) return;
-        if (ev.error === 'interrupted' || ev.error === 'canceled') return;
-        // Skip failed chunk gracefully or end
-        speakChunkIndex(idx + 1);
-      };
-
-      try {
-        window.speechSynthesis.speak(utt);
-      } catch {
-        this.clearTimer();
-        this.state = { ...this.state, status: 'paused' };
-        this.emit();
-      }
-    };
-
-    speakChunkIndex(0);
+      speakChunkIndex(0);
+    });
   }
 }
 
