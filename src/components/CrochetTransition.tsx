@@ -14,51 +14,13 @@ interface YarnPalette {
 }
 
 const YARN_PALETTES: YarnPalette[] = [
-  { base: '#f0dec0', highlight: '#fff8e8', shade: '#a78c62', strand: '#7d623b' }, // Crema marfil
-  { base: '#c25b39', highlight: '#f29f7e', shade: '#742d17', strand: '#541e0e' }, // Terracota
-  { base: '#6f875e', highlight: '#b1c79d', shade: '#3c4f30', strand: '#283720' }, // Verde salvia
-  { base: '#e2a93b', highlight: '#ffe296', shade: '#8d5b10', strand: '#643d07' }, // Oro miel
-  { base: '#8c2838', highlight: '#d46b7b', shade: '#4c111b', strand: '#350a11' }, // Burdeos vino
-  { base: '#315075', highlight: '#769cc9', shade: '#172a42', strand: '#0e1b2c' }, // Azul prusia
-  { base: '#d9994a', highlight: '#ffd59c', shade: '#88531b', strand: '#60380e' }, // Ocre canela
-  { base: '#c68387', highlight: '#f5c2c5', shade: '#7a4448', strand: '#592e31' }, // Rosa antiguo
+  { base: '#f5e6c8', highlight: '#fffaf0', shade: '#b59a6e', strand: '#80643d' }, // Crema marfil
+  { base: '#d99a48', highlight: '#ffe29c', shade: '#8d5816', strand: '#61390a' }, // Oro miel
+  { base: '#c96244', highlight: '#f6a78b', shade: '#7b311d', strand: '#541e0f' }, // Terracota
+  { base: '#799c72', highlight: '#bdd9b6', shade: '#415e3c', strand: '#283d25' }, // Verde salvia
+  { base: '#9e3246', highlight: '#e27c8f', shade: '#591623', strand: '#380b14' }, // Burdeos
+  { base: '#d89b9d', highlight: '#fae0e1', shade: '#8c5356', strand: '#633436' }, // Rosa antiguo
 ];
-
-interface YarnBallParticle {
-  palette: YarnPalette;
-  radius: number;
-  delay: number;
-  vx: number;
-  vy: number;
-  gravity: number;
-  spin: number;
-  initialAngle: number;
-  tailSeed: number;
-  swirlAngle: number;
-  swirlSpeed: number;
-}
-
-interface RibbonThread {
-  color: string;
-  glowColor: string;
-  width: number;
-  delay: number;
-  angle: number;
-  reach: number;
-  waveFreq: number;
-  waveAmp: number;
-  phase: number;
-  curl: number;
-}
-
-interface GoldenSpark {
-  delay: number;
-  angle: number;
-  speed: number;
-  size: number;
-  twinklePhase: number;
-  driftY: number;
-}
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
@@ -74,10 +36,250 @@ function easeInOutQuart(t: number): number {
   return u < 0.5 ? 8 * u * u * u * u : 1 - Math.pow(-2 * u + 2, 4) / 2;
 }
 
-/**
- * Draws a richly shaded wound yarn ball (bola de estambre) with wrapped strand grooves,
- * specular glow, and realistic soft shadow.
- */
+/** Draws a single interlocking V-shaped crochet chain stitch (cadeneta) with yarn highlight & shade */
+function drawCrochetChainStitch(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  angle: number,
+  len: number,
+  pal: YarnPalette,
+  alpha: number
+) {
+  if (alpha <= 0.01 || len < 2) return;
+  const w = len * 0.44;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Soft yarn drop shadow
+  ctx.strokeStyle = 'rgba(14, 24, 18, 0.35)';
+  ctx.lineWidth = Math.max(2.2, len * 0.28);
+  ctx.beginPath();
+  ctx.ellipse(0, 1.5, len * 0.52, w * 0.56, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Left & right plied yarn loops forming the classic crochet braided "V"
+  ctx.strokeStyle = pal.shade;
+  ctx.lineWidth = Math.max(2.1, len * 0.26);
+  ctx.beginPath();
+  ctx.moveTo(-len * 0.52, 0);
+  ctx.quadraticCurveTo(0, -w, len * 0.52, 0);
+  ctx.quadraticCurveTo(0, w, -len * 0.52, 0);
+  ctx.stroke();
+
+  ctx.strokeStyle = pal.base;
+  ctx.lineWidth = Math.max(1.5, len * 0.19);
+  ctx.beginPath();
+  ctx.moveTo(-len * 0.46, 0);
+  ctx.quadraticCurveTo(0, -w * 0.85, len * 0.46, 0);
+  ctx.quadraticCurveTo(0, w * 0.85, -len * 0.46, 0);
+  ctx.stroke();
+
+  // Twisted fiber highlight ridge along top loop
+  ctx.strokeStyle = pal.highlight;
+  ctx.lineWidth = Math.max(0.8, len * 0.085);
+  ctx.beginPath();
+  ctx.moveTo(-len * 0.32, -w * 0.25);
+  ctx.quadraticCurveTo(0, -w * 0.72, len * 0.3, -w * 0.2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Draws a twisted crochet yarn strand along an arbitrary curve of points */
+function drawTwistedYarnPath(
+  ctx: CanvasRenderingContext2D,
+  pts: Array<{ x: number; y: number }>,
+  pal: YarnPalette,
+  stitchSpacing: number,
+  alpha: number
+) {
+  if (pts.length < 2 || alpha <= 0.01) return;
+  let accum = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1];
+    const p1 = pts[i];
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.5) continue;
+    const ang = Math.atan2(dy, dx);
+    let pos = stitchSpacing - accum;
+    while (pos <= d) {
+      const t = pos / d;
+      drawCrochetChainStitch(
+        ctx,
+        p0.x + dx * t,
+        p0.y + dy * t,
+        ang,
+        stitchSpacing * 1.16,
+        pal,
+        alpha
+      );
+      pos += stitchSpacing;
+    }
+    accum = d - (pos - stitchSpacing);
+  }
+}
+
+/** Draws a handcrafted 6-petal crochet flower with beaded pearl center */
+function drawCrochetFlower(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  rot: number,
+  petalPal: YarnPalette,
+  centerPal: YarnPalette,
+  alpha: number
+) {
+  if (radius < 2 || alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
+  const petals = 6;
+  for (let i = 0; i < petals; i++) {
+    const a = (i / petals) * Math.PI * 2;
+    ctx.save();
+    ctx.rotate(a);
+
+    // Puffy treble-crochet petal loop
+    const pGrad = ctx.createRadialGradient(radius * 0.48, -radius * 0.1, 1, radius * 0.52, 0, radius * 0.55);
+    pGrad.addColorStop(0, petalPal.highlight);
+    pGrad.addColorStop(0.55, petalPal.base);
+    pGrad.addColorStop(1, petalPal.shade);
+
+    ctx.fillStyle = pGrad;
+    ctx.strokeStyle = petalPal.strand;
+    ctx.lineWidth = Math.max(1.2, radius * 0.08);
+    ctx.beginPath();
+    ctx.ellipse(radius * 0.52, 0, radius * 0.44, radius * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner ribbed crochet yarn texture grooves on each petal
+    ctx.strokeStyle = petalPal.highlight;
+    ctx.globalAlpha = alpha * 0.45;
+    ctx.lineWidth = Math.max(0.8, radius * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(radius * 0.22, -radius * 0.08);
+    ctx.lineTo(radius * 0.78, -radius * 0.08);
+    ctx.moveTo(radius * 0.24, radius * 0.08);
+    ctx.lineTo(radius * 0.76, radius * 0.08);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Hand-stitched pearl / golden yarn button center
+  const cGrad = ctx.createRadialGradient(-radius * 0.08, -radius * 0.08, 1, 0, 0, radius * 0.3);
+  cGrad.addColorStop(0, '#fffdf5');
+  cGrad.addColorStop(0.55, centerPal.highlight);
+  cGrad.addColorStop(1, centerPal.shade);
+  ctx.fillStyle = cGrad;
+  ctx.strokeStyle = centerPal.strand;
+  ctx.lineWidth = Math.max(1.1, radius * 0.065);
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.28, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Draws a realistic wooden-and-gold artisan crochet hook (aguja de ganchillo) */
+function drawCrochetHook(
+  ctx: CanvasRenderingContext2D,
+  tipX: number,
+  tipY: number,
+  angle: number,
+  scale: number,
+  alpha: number
+) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(tipX, tipY);
+  ctx.rotate(angle);
+  ctx.scale(scale, scale);
+
+  // Soft cast shadow under hook
+  ctx.save();
+  ctx.translate(4, 7);
+  ctx.strokeStyle = 'rgba(10, 18, 13, 0.36)';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-6, 0);
+  ctx.lineTo(148, 0);
+  ctx.stroke();
+  ctx.restore();
+
+  // Golden brass hook tip & throat notch (gancho)
+  const goldGrad = ctx.createLinearGradient(0, -6, 0, 6);
+  goldGrad.addColorStop(0, '#fff2c2');
+  goldGrad.addColorStop(0.45, '#e8b65a');
+  goldGrad.addColorStop(1, '#8c5a18');
+
+  ctx.fillStyle = goldGrad;
+  ctx.strokeStyle = '#623a0c';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-10, -1.5);
+  ctx.quadraticCurveTo(-14, -7.5, -4, -7.5);
+  ctx.quadraticCurveTo(3, -7.5, 4, -2.5);
+  ctx.quadraticCurveTo(8, -2.2, 13, -4);
+  ctx.lineTo(44, -4.2);
+  ctx.lineTo(44, 4.2);
+  ctx.lineTo(0, 4.2);
+  ctx.quadraticCurveTo(-9, 4.2, -10, -1.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Turned walnut ergonomic handle with brass ferrule collar
+  const woodGrad = ctx.createLinearGradient(0, -8, 0, 8);
+  woodGrad.addColorStop(0, '#c2834b');
+  woodGrad.addColorStop(0.35, '#8c4e24');
+  woodGrad.addColorStop(0.8, '#532910');
+  woodGrad.addColorStop(1, '#311506');
+
+  ctx.fillStyle = woodGrad;
+  ctx.beginPath();
+  ctx.moveTo(42, -5.2);
+  ctx.bezierCurveTo(68, -8.8, 118, -8.5, 146, -5.2);
+  ctx.quadraticCurveTo(154, 0, 146, 5.2);
+  ctx.bezierCurveTo(118, 8.5, 68, 8.8, 42, 5.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#2d1305';
+  ctx.lineWidth = 1.1;
+  ctx.stroke();
+
+  // Brass ferrule rings
+  ctx.fillStyle = goldGrad;
+  ctx.fillRect(41, -5.4, 7, 10.8);
+  ctx.strokeStyle = '#613a0e';
+  ctx.strokeRect(41, -5.4, 7, 10.8);
+
+  // Specular wood polish highlight
+  ctx.strokeStyle = 'rgba(255, 232, 192, 0.35)';
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(56, -3.5);
+  ctx.lineTo(136, -3.2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Draws a shaded wound yarn ball (ovillo) */
 function drawYarnBall(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -92,23 +294,17 @@ function drawYarnBall(
   ctx.globalAlpha = alpha;
   ctx.translate(x, y);
 
-  // Soft cast shadow behind ball
-  ctx.save();
   ctx.beginPath();
-  ctx.arc(r * 0.14, r * 0.2, r * 1.02, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(18, 9, 4, 0.36)';
+  ctx.arc(r * 0.12, r * 0.18, r * 1.02, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(10, 22, 16, 0.34)';
   ctx.fill();
-  ctx.restore();
 
   ctx.rotate(rot);
-
-  // Clip to sphere
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.save();
   ctx.clip();
 
-  // Base spherical gradient
   const grad = ctx.createRadialGradient(-r * 0.32, -r * 0.34, r * 0.1, 0, 0, r * 1.15);
   grad.addColorStop(0, pal.highlight);
   grad.addColorStop(0.45, pal.base);
@@ -116,7 +312,6 @@ function drawYarnBall(
   ctx.fillStyle = grad;
   ctx.fillRect(-r, -r, r * 2, r * 2);
 
-  // Wound yarn strand bundle 1 (diagonal curves)
   ctx.lineCap = 'round';
   for (let i = -3; i <= 3; i++) {
     const off = i * (r * 0.25);
@@ -127,67 +322,143 @@ function drawYarnBall(
     ctx.globalAlpha = alpha * 0.48;
     ctx.lineWidth = Math.max(1.2, r * 0.11);
     ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(-r * 1.1, off - r * 0.45 - r * 0.06);
-    ctx.bezierCurveTo(
-      -r * 0.3,
-      off - r * 0.15 - r * 0.06,
-      r * 0.3,
-      off + r * 0.25 - r * 0.06,
-      r * 1.1,
-      off + r * 0.5 - r * 0.06
-    );
-    ctx.strokeStyle = pal.highlight;
-    ctx.globalAlpha = alpha * 0.32;
-    ctx.lineWidth = Math.max(0.8, r * 0.055);
-    ctx.stroke();
   }
-
-  // Wound yarn strand bundle 2 (crossing wrap)
   for (let i = -2; i <= 2; i++) {
     const off = i * (r * 0.3);
     ctx.beginPath();
     ctx.moveTo(off - r * 0.4, -r * 1.1);
     ctx.bezierCurveTo(off + r * 0.1, -r * 0.25, off - r * 0.15, r * 0.35, off + r * 0.45, r * 1.1);
-    ctx.strokeStyle = pal.strand;
-    ctx.globalAlpha = alpha * 0.44;
-    ctx.lineWidth = Math.max(1.1, r * 0.1);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(off - r * 0.4 + r * 0.05, -r * 1.1);
-    ctx.bezierCurveTo(
-      off + r * 0.1 + r * 0.05,
-      -r * 0.25,
-      off - r * 0.15 + r * 0.05,
-      r * 0.35,
-      off + r * 0.45 + r * 0.05,
-      r * 1.1
-    );
     ctx.strokeStyle = pal.highlight;
-    ctx.globalAlpha = alpha * 0.28;
-    ctx.lineWidth = Math.max(0.7, r * 0.05);
+    ctx.globalAlpha = alpha * 0.34;
+    ctx.lineWidth = Math.max(0.9, r * 0.08);
     ctx.stroke();
   }
 
-  // Warm rim lighting overlay
-  const rimGrad = ctx.createRadialGradient(-r * 0.28, -r * 0.32, r * 0.05, 0, 0, r);
-  rimGrad.addColorStop(0, 'rgba(255, 248, 224, 0.35)');
-  rimGrad.addColorStop(0.55, 'rgba(255, 248, 224, 0)');
-  rimGrad.addColorStop(1, 'rgba(24, 11, 4, 0.42)');
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = rimGrad;
-  ctx.fillRect(-r, -r, r * 2, r * 2);
-
   ctx.restore();
-
-  // Crisp subtle golden edge highlight
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(255, 236, 194, 0.45)';
+  ctx.strokeStyle = 'rgba(255, 240, 206, 0.45)';
   ctx.lineWidth = 1.1;
   ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Draws a scalloped crochet lace doily (carpeta de encaje con anillo mágico, puntos altos,
+ * arcos de cadeneta, abanicos / conchas y picots) around (cx, cy).
+ */
+function drawCrochetLaceMandala(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  rotation: number,
+  stitchProgress: number,
+  alpha: number
+) {
+  if (radius < 6 || alpha <= 0.01) return;
+  const ivory = YARN_PALETTES[0];
+  const gold = YARN_PALETTES[1];
+  const petals = 12;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Ring 1: Magic ring (anillo mágico)
+  const r1 = radius * 0.18;
+  ctx.strokeStyle = gold.highlight;
+  ctx.lineWidth = Math.max(2.2, radius * 0.025);
+  ctx.beginPath();
+  ctx.arc(0, 0, r1, 0, Math.PI * 2 * clamp01(stitchProgress * 2.2));
+  ctx.stroke();
+
+  // Ring 2: 12 Double-Crochet (puntos altos) radiating spokes
+  const r2 = radius * 0.48;
+  const spokesProgress = clamp01((stitchProgress - 0.1) / 0.45);
+  const spokeCount = Math.floor(petals * 2 * spokesProgress);
+  for (let i = 0; i < spokeCount; i++) {
+    const a = (i / (petals * 2)) * Math.PI * 2;
+    const x0 = Math.cos(a) * r1;
+    const y0 = Math.sin(a) * r1;
+    const x1 = Math.cos(a) * r2;
+    const y1 = Math.sin(a) * r2;
+
+    ctx.strokeStyle = i % 2 === 0 ? ivory.base : gold.base;
+    ctx.lineWidth = Math.max(1.8, radius * 0.02);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+
+    // Little horizontal yarn-over cross-bar (signature crochet stitch look!)
+    const mx = (x0 + x1) * 0.52;
+    const my = (y0 + y1) * 0.52;
+    const px = -Math.sin(a) * radius * 0.026;
+    const py = Math.cos(a) * radius * 0.026;
+    ctx.strokeStyle = ivory.highlight;
+    ctx.lineWidth = Math.max(1.1, radius * 0.011);
+    ctx.beginPath();
+    ctx.moveTo(mx - px, my - py);
+    ctx.lineTo(mx + px, my + py);
+    ctx.stroke();
+  }
+
+  // Ring 3: Interlocking chain-stitch arches (arcos de cadeneta)
+  const archProgress = clamp01((stitchProgress - 0.25) / 0.5);
+  const r3 = radius * 0.76;
+  const visibleArches = Math.ceil(petals * archProgress);
+  for (let i = 0; i < visibleArches; i++) {
+    const a0 = (i / petals) * Math.PI * 2;
+    const a1 = ((i + 1) / petals) * Math.PI * 2;
+    const am = (a0 + a1) * 0.5;
+    const x0 = Math.cos(a0) * r2;
+    const y0 = Math.sin(a0) * r2;
+    const xm = Math.cos(am) * r3;
+    const ym = Math.sin(am) * r3;
+    const x1 = Math.cos(a1) * r2;
+    const y1 = Math.sin(a1) * r2;
+
+    ctx.strokeStyle = ivory.highlight;
+    ctx.lineWidth = Math.max(2, radius * 0.022);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(xm * 1.06, ym * 1.06, x1, y1);
+    ctx.stroke();
+
+    // 5-stitch Scalloped Shell (abanico de crochet) + Picot loop at the tip!
+    const shellProgress = clamp01((stitchProgress - 0.42) / 0.52);
+    if (shellProgress > 0.05) {
+      const tipR = radius * (0.76 + 0.24 * shellProgress);
+      for (let s = -2; s <= 2; s++) {
+        const sa = am + s * 0.095;
+        ctx.strokeStyle = s === 0 ? gold.highlight : ivory.base;
+        ctx.lineWidth = Math.max(1.4, radius * 0.015);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(am) * r2 * 0.96, Math.sin(am) * r2 * 0.96);
+        ctx.lineTo(Math.cos(sa) * tipR, Math.sin(sa) * tipR);
+        ctx.stroke();
+      }
+      // Scallop outer lace rim
+      ctx.strokeStyle = ivory.highlight;
+      ctx.lineWidth = Math.max(2.1, radius * 0.02);
+      ctx.beginPath();
+      ctx.arc(Math.cos(am) * r3 * 0.92, Math.sin(am) * r3 * 0.92, radius * 0.16 * shellProgress, am - 1.15, am + 1.15);
+      ctx.stroke();
+
+      // Tiny picot eyelet bead at apex
+      const px = Math.cos(am) * (tipR + radius * 0.045);
+      const py = Math.sin(am) * (tipR + radius * 0.045);
+      ctx.strokeStyle = gold.highlight;
+      ctx.lineWidth = Math.max(1.4, radius * 0.014);
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(2.2, radius * 0.026), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
 
   ctx.restore();
 }
@@ -229,56 +500,27 @@ export const CrochetTransition: React.FC<CrochetTransitionProps> = ({
 
     const maxDim = Math.hypot(width, height);
 
-    // 18 lively yarn balls bursting out from the opening leather book!
-    const yarnBalls: YarnBallParticle[] = Array.from({ length: 18 }, (_, i) => {
-      const spreadAngle =
-        ((i / 18) * Math.PI * 1.92 - Math.PI * 0.96) + (i % 2 === 0 ? 0.14 : -0.14);
-      const speed = maxDim * (0.28 + (i % 5) * 0.085);
+    // 8 artisan yarn balls rolling gently along the crocheted curtain edges
+    const rollingBalls = Array.from({ length: 8 }, (_, i) => {
+      const ang = (i / 8) * Math.PI * 2 + 0.35;
       return {
         palette: YARN_PALETTES[i % YARN_PALETTES.length],
-        radius: Math.max(16, Math.min(38, width * 0.022)) * (0.72 + (i % 4) * 0.18),
-        delay: (i % 6) * 0.045,
-        vx: Math.cos(spreadAngle) * speed * (i % 3 === 0 ? -0.95 : 0.85) - width * 0.14,
-        vy: Math.sin(spreadAngle) * speed * 0.72 - height * 0.22,
-        gravity: height * 0.34,
-        spin: (i % 2 === 0 ? 1 : -1) * (3.2 + (i % 4) * 1.15),
-        initialAngle: i * 0.9,
-        tailSeed: i * 1.37,
-        swirlAngle: (i / 18) * Math.PI * 2,
-        swirlSpeed: (i % 2 === 0 ? 1 : -1) * 1.9,
+        angle: ang,
+        radius: Math.max(18, Math.min(34, width * 0.022)) * (0.85 + (i % 3) * 0.14),
+        spin: (i % 2 === 0 ? 1 : -1) * (3.2 + (i % 3) * 0.9),
       };
     });
 
-    // 26 sweeping multi-colored crochet threads unfurling out of the book
-    const threads: RibbonThread[] = Array.from({ length: 26 }, (_, i) => {
-      const pal = YARN_PALETTES[i % YARN_PALETTES.length];
-      const angle = (i / 26) * Math.PI * 2 - Math.PI * 0.55;
-      return {
-        color: i % 3 === 0 ? pal.highlight : pal.base,
-        glowColor: pal.highlight,
-        width: 2.2 + (i % 4) * 1.05,
-        delay: (i % 7) * 0.032,
-        angle,
-        reach: maxDim * (0.48 + (i % 4) * 0.14),
-        waveFreq: 2.8 + (i % 3) * 1.2,
-        waveAmp: 18 + (i % 5) * 9,
-        phase: i * 0.75,
-        curl: (i % 2 === 0 ? 1 : -1) * (0.55 + (i % 4) * 0.22),
-      };
-    });
-
-    // 48 shimmering golden dust sparks bursting from the book pages
-    const sparks: GoldenSpark[] = Array.from({ length: 48 }, (_, i) => ({
-      delay: (i % 8) * 0.035,
-      angle: (i / 48) * Math.PI * 2 + (i % 3) * 0.15,
-      speed: maxDim * (0.18 + (i % 6) * 0.09),
-      size: 1.8 + (i % 4) * 1.1,
-      twinklePhase: i * 1.1,
-      driftY: -height * (0.06 + (i % 3) * 0.04),
+    // 6 handcrafted crochet flowers blossoming around the opening doily
+    const laceFlowers = Array.from({ length: 6 }, (_, i) => ({
+      angle: (i / 6) * Math.PI * 2 + 0.25,
+      petalPal: YARN_PALETTES[(i + 2) % YARN_PALETTES.length],
+      centerPal: YARN_PALETTES[1],
+      rotOffset: i * 0.7,
     }));
 
-    const TOTAL_DURATION = 2.15; // seconds
-    const MIDPOINT_TIME = 1.12; // switch cover -> open notebook right behind peak golden veil!
+    const TOTAL_DURATION = 2.2;
+    const MIDPOINT_TIME = 1.12;
     let midpointFired = false;
     let rafId = 0;
     const startTime = performance.now();
@@ -293,272 +535,195 @@ export const CrochetTransition: React.FC<CrochetTransitionProps> = ({
 
       ctx.clearRect(0, 0, width, height);
 
-      // Origin starts right at the embossed leather book opening (x≈70%, y≈52%)
-      // and glides smoothly to screen center (50%, 50%) as the notebook opens!
-      const centerGlide = easeInOutQuart(clamp01((t - 0.15) / 0.95));
-      const originX = width * (0.7 - 0.2 * centerGlide);
-      const originY = height * (0.52 - 0.02 * centerGlide);
+      const centerGlide = easeInOutQuart(clamp01((t - 0.08) / 0.92));
+      const cx = width * (0.7 - 0.2 * centerGlide);
+      const cy = height * (0.52 - 0.02 * centerGlide);
 
-      // Phase timings:
-      // 0.00 -> 1.12: Golden warm veil rises + yarn balls & threads erupt from the book
-      // 1.12 -> 2.15: Luminous iris portal opens from center to unveil the open notebook!
-      const veilIn = easeOutCubic(clamp01((t - 0.18) / 0.85));
-      const revealP = easeInOutQuart(clamp01((t - 1.16) / 0.92));
+      const veilIn = easeOutCubic(clamp01((t - 0.1) / 0.78));
+      const revealP = easeInOutQuart(clamp01((t - 1.14) / 0.96));
 
-      // 1. Warm Atelier Curtain Veil (with circular iris reveal during Phase 3!)
+      // 1. Handwoven Forest-Green & Espresso Crochet Curtain Backdrop
       if (veilIn > 0.005 && revealP < 0.995) {
         ctx.save();
-
-        // Rich espresso-and-gold parchment veil that sweeps in smoothly
-        const veilAlpha = veilIn * (1 - revealP * 0.35);
-        const bgGrad = ctx.createRadialGradient(
-          originX,
-          originY,
-          maxDim * 0.04,
-          originX,
-          originY,
-          maxDim * 0.82
-        );
-        bgGrad.addColorStop(0, `rgba(92, 54, 24, ${veilAlpha * 0.94})`);
-        bgGrad.addColorStop(0.45, `rgba(48, 26, 13, ${veilAlpha * 0.96})`);
-        bgGrad.addColorStop(1, `rgba(22, 12, 6, ${veilAlpha * 0.98})`);
+        const veilAlpha = veilIn * (1 - revealP * 0.25);
+        const bgGrad = ctx.createRadialGradient(cx, cy, maxDim * 0.04, cx, cy, maxDim * 0.85);
+        bgGrad.addColorStop(0, `rgba(38, 90, 70, ${veilAlpha * 0.95})`);
+        bgGrad.addColorStop(0.5, `rgba(26, 56, 44, ${veilAlpha * 0.97})`);
+        bgGrad.addColorStop(1, `rgba(24, 15, 9, ${veilAlpha * 0.98})`);
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, width, height);
 
-        // During Phase 3 (t > 1.16), cut a luminous expanding circular iris from center
-        // so the real open Cuaderno del Artista blooms directly through the yarn curtain!
-        if (revealP > 0.001) {
-          const irisRadius = revealP * maxDim * 0.78;
-          ctx.globalCompositeOperation = 'destination-out';
-          const irisGrad = ctx.createRadialGradient(
-            width * 0.5,
-            height * 0.5,
-            Math.max(0, irisRadius - 95),
-            width * 0.5,
-            height * 0.5,
-            irisRadius + 24
-          );
-          irisGrad.addColorStop(0, 'rgba(0,0,0,1)');
-          irisGrad.addColorStop(0.75, 'rgba(0,0,0,0.92)');
-          irisGrad.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = irisGrad;
+        // Subtle woven crochet grid rows across the backdrop
+        ctx.strokeStyle = `rgba(245, 230, 200, ${veilAlpha * 0.065})`;
+        ctx.lineWidth = 1.5;
+        const rowStep = 28;
+        for (let y = rowStep; y < height; y += rowStep) {
           ctx.beginPath();
-          ctx.arc(width * 0.5, height * 0.5, irisRadius + 24, 0, Math.PI * 2);
+          for (let x = 0; x <= width; x += 22) {
+            const wy = y + ((x / 22) % 2 === 0 ? -4 : 4);
+            if (x === 0) ctx.moveTo(x, wy);
+            else ctx.lineTo(x, wy);
+          }
+          ctx.stroke();
+        }
+
+        // Phase 2 (t > 1.14): Scalloped Crochet-Lace Portal expands from center to unveil the notebook!
+        if (revealP > 0.001) {
+          const portalR = revealP * maxDim * 0.76;
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.beginPath();
+          const scallops = 24;
+          const scallopAmp = Math.min(26, portalR * 0.08 + 6);
+          const steps = 160;
+          for (let i = 0; i <= steps; i++) {
+            const a = (i / steps) * Math.PI * 2 + t * 0.12;
+            const wave = Math.abs(Math.sin((a * scallops) / 2)) * scallopAmp;
+            const rr = portalR + wave;
+            const px = width * 0.5 + Math.cos(a) * rr;
+            const py = height * 0.5 + Math.sin(a) * rr;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
           ctx.fill();
           ctx.globalCompositeOperation = 'source-over';
 
-          // Delicate glowing crochet-lace ring framing the expanding iris portal
-          const ringAlpha = (1 - revealP) * 0.85;
-          if (ringAlpha > 0.02) {
+          // Hand-crocheted glowing ivory lace scallop border framing the expanding portal!
+          const rimAlpha = Math.sin(clamp01(revealP) * Math.PI) * 0.95;
+          if (rimAlpha > 0.02 && portalR > 16) {
             ctx.save();
-            ctx.translate(width * 0.5, height * 0.5);
-            ctx.rotate(revealP * 0.8);
-            ctx.beginPath();
-            ctx.arc(0, 0, Math.max(8, irisRadius), 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(250, 214, 138, ${ringAlpha})`;
+            ctx.strokeStyle = `rgba(255, 244, 218, ${rimAlpha})`;
             ctx.lineWidth = 3.2;
-            ctx.setLineDash([12, 8]);
+            ctx.beginPath();
+            for (let i = 0; i <= steps; i++) {
+              const a = (i / steps) * Math.PI * 2 + t * 0.12;
+              const wave = Math.abs(Math.sin((a * scallops) / 2)) * scallopAmp;
+              const rr = portalR + wave;
+              const px = width * 0.5 + Math.cos(a) * rr;
+              const py = height * 0.5 + Math.sin(a) * rr;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
             ctx.stroke();
 
-            ctx.beginPath();
-            ctx.arc(0, 0, Math.max(4, irisRadius + 12), 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(255, 240, 200, ${ringAlpha * 0.55})`;
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([4, 10]);
-            ctx.stroke();
+            // Delicate picot beads along every lace scallop crest
+            ctx.fillStyle = `rgba(255, 224, 148, ${rimAlpha * 0.9})`;
+            for (let s = 0; s < scallops; s++) {
+              const a = ((s + 0.5) / scallops) * Math.PI * 2 + t * 0.12;
+              const rr = portalR + scallopAmp + 8;
+              ctx.beginPath();
+              ctx.arc(width * 0.5 + Math.cos(a) * rr, height * 0.5 + Math.sin(a) * rr, 3.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
             ctx.restore();
           }
         }
-
         ctx.restore();
       }
 
-      // 2. Warm Golden Light Burst erupting right out of the opening book pages
-      const burstGlow =
-        t < 0.7
-          ? easeOutCubic(t / 0.45)
-          : Math.max(0, 1 - (t - 0.7) / 0.85);
-      if (burstGlow > 0.01) {
-        const glowR = maxDim * (0.14 + easeOutCubic(clamp01(t / 1.1)) * 0.36);
-        const burstGrad = ctx.createRadialGradient(originX, originY, 4, originX, originY, glowR);
-        burstGrad.addColorStop(0, `rgba(255, 244, 208, ${burstGlow * 0.85})`);
-        burstGrad.addColorStop(0.35, `rgba(244, 194, 98, ${burstGlow * 0.46})`);
-        burstGrad.addColorStop(1, 'rgba(244, 194, 98, 0)');
-        ctx.fillStyle = burstGrad;
-        ctx.beginPath();
-        ctx.arc(originX, originY, glowR, 0, Math.PI * 2);
-        ctx.fill();
+      // 2. Central Crocheted Lace Doily Mandala knitting itself open!
+      const doilyIn = easeOutCubic(clamp01(t / 1.02));
+      const doilyOut = clamp01(1 - (t - 1.38) / 0.65);
+      const doilyAlpha = doilyIn * doilyOut;
+      if (doilyAlpha > 0.01) {
+        const baseDoilyR = Math.min(width, height) * 0.28 * (0.28 + 0.72 * doilyIn) + revealP * maxDim * 0.44;
+        drawCrochetLaceMandala(
+          ctx,
+          cx,
+          cy,
+          baseDoilyR,
+          t * 0.28,
+          clamp01(t / 0.98),
+          doilyAlpha * 0.94
+        );
       }
 
-      // 3. Flowing Unfurling Crochet Threads (hilos) erupting & swirling across screen
-      const threadFadeOut = 1 - easeOutCubic(clamp01((t - 1.38) / 0.72));
-      if (threadFadeOut > 0.01) {
-        for (const th of threads) {
-          const lt = t - th.delay;
-          if (lt <= 0) continue;
+      // 3. Active Crochet Hook weaving a graceful braided chain-stitch spiral across the stage!
+      const hookPhase = clamp01(t / 1.25);
+      const hookFade = clamp01(1 - (t - 1.15) / 0.42);
+      if (hookFade > 0.01) {
+        const spiralPts: Array<{ x: number; y: number }> = [];
+        const samples = Math.max(2, Math.floor(hookPhase * 52));
+        for (let i = 0; i <= samples; i++) {
+          const u = i / 52;
+          const a = -Math.PI * 0.7 + u * Math.PI * 2.65;
+          const rad = Math.min(width, height) * (0.04 + u * 0.29);
+          spiralPts.push({
+            x: cx + Math.cos(a) * rad,
+            y: cy + Math.sin(a) * rad * 0.88,
+          });
+        }
+        drawTwistedYarnPath(ctx, spiralPts, YARN_PALETTES[0], 13, hookFade * 0.95);
 
-          const grow = easeOutCubic(clamp01(lt / 0.92));
-          const sweep = easeInOutQuart(clamp01((lt - 0.88) / 1.05));
-          const baseAngle = th.angle + th.curl * grow * 0.75 + sweep * th.curl * 0.45;
-          const startDist = sweep * maxDim * 0.36;
-          const endDist = startDist + grow * th.reach;
+        // Draw the artisan crochet hook right at the leading stitch!
+        const tip = spiralPts[spiralPts.length - 1];
+        const prev = spiralPts[Math.max(0, spiralPts.length - 2)];
+        const moveAng = Math.atan2(tip.y - prev.y, tip.x - prev.x);
+        const bob = Math.sin(t * 22) * 0.09; // gentle stitching motion of the hook!
+        drawCrochetHook(
+          ctx,
+          tip.x,
+          tip.y,
+          moveAng - Math.PI * 0.28 + bob,
+          Math.max(0.85, Math.min(1.25, width / 1150)),
+          hookFade
+        );
+      }
 
-          const steps = 22;
-          ctx.save();
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.globalAlpha = Math.min(1, grow * 1.4) * threadFadeOut;
+      // 4. Handcrafted Crochet Flowers blossoming around the opening lace ring
+      const flowerGrow = easeOutCubic(clamp01((t - 0.35) / 0.72));
+      const flowerFade = clamp01(1 - (t - 1.55) / 0.55);
+      if (flowerGrow > 0.01 && flowerFade > 0.01) {
+        const ringR = Math.min(width, height) * 0.23 + revealP * maxDim * 0.46;
+        for (const fl of laceFlowers) {
+          const a = fl.angle + t * 0.22;
+          const fx = cx + Math.cos(a) * ringR;
+          const fy = cy + Math.sin(a) * ringR;
+          const fr = Math.max(16, Math.min(30, width * 0.02)) * flowerGrow;
+          drawCrochetFlower(ctx, fx, fy, fr, fl.rotOffset + t * 0.6, fl.petalPal, fl.centerPal, flowerFade * 0.95);
+        }
+      }
 
-          // Subtle soft golden glow under each yarn thread
-          ctx.beginPath();
-          for (let s = 0; s <= steps; s++) {
-            const frac = s / steps;
-            const dist = startDist + (endDist - startDist) * frac;
-            const swirl = baseAngle + Math.sin(frac * Math.PI * 1.6 + th.phase) * 0.24 * th.curl;
-            const wave =
-              Math.sin(frac * th.waveFreq * Math.PI - lt * 6.5 + th.phase) *
-              th.waveAmp *
-              Math.sin(frac * Math.PI);
-            const px = originX + Math.cos(swirl) * dist - Math.sin(swirl) * wave;
-            const py = originY + Math.sin(swirl) * dist + Math.cos(swirl) * wave;
-            if (s === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
+      // 5. Rolling Yarn Balls trailing braided crochet chains outward as the curtain opens
+      const ballIn = easeOutCubic(clamp01((t - 0.18) / 0.65));
+      const ballOut = clamp01(1 - (t - 1.62) / 0.5);
+      const ballAlpha = ballIn * ballOut;
+      if (ballAlpha > 0.01) {
+        for (let i = 0; i < rollingBalls.length; i++) {
+          const b = rollingBalls[i];
+          const dist = Math.min(width, height) * (0.14 + 0.22 * ballIn) + revealP * maxDim * 0.48;
+          const a = b.angle + t * 0.18;
+          const bx = cx + Math.cos(a) * dist;
+          const by = cy + Math.sin(a) * dist;
+
+          // Trailing braided crochet yarn tail behind each ball
+          const tailPts: Array<{ x: number; y: number }> = [];
+          for (let s = 0; s <= 10; s++) {
+            const u = s / 10;
+            const td = Math.max(0, dist - (1 - u) * 115);
+            const ta = a - (1 - u) * 0.22 + Math.sin(u * 5 + i) * 0.06;
+            tailPts.push({
+              x: cx + Math.cos(ta) * td,
+              y: cy + Math.sin(ta) * td,
+            });
           }
-
-          // Shadow strand
-          ctx.strokeStyle = 'rgba(20, 10, 4, 0.35)';
-          ctx.lineWidth = th.width + 2.2;
-          ctx.stroke();
-
-          // Main colored yarn strand
-          ctx.strokeStyle = th.color;
-          ctx.lineWidth = th.width;
-          ctx.stroke();
-
-          // Twisted ply dashed highlight along the yarn thread!
-          ctx.strokeStyle = th.glowColor;
-          ctx.globalAlpha = Math.min(1, grow * 1.4) * threadFadeOut * 0.55;
-          ctx.lineWidth = Math.max(1, th.width * 0.42);
-          ctx.setLineDash([5, 6]);
-          ctx.lineDashOffset = -lt * 42;
-          ctx.stroke();
-
-          ctx.restore();
+          drawTwistedYarnPath(ctx, tailPts, b.palette, 11, ballAlpha * 0.85);
+          drawYarnBall(ctx, bx, by, b.radius, t * b.spin + i, b.palette, ballAlpha);
         }
-      }
-
-      // 4. Shaded Yarn Balls (bolas de estambre) bursting out of the book with trailing yarn tails!
-      const ballFadeOut = 1 - easeOutCubic(clamp01((t - 1.45) / 0.65));
-      if (ballFadeOut > 0.01) {
-        for (const ball of yarnBalls) {
-          const lt = t - ball.delay;
-          if (lt <= 0) continue;
-
-          const popIn = easeOutCubic(clamp01(lt / 0.26));
-          const flightT = lt;
-          // Push balls outward smoothly during the reveal phase so they sweep off the edges!
-          const pushOut = easeInOutQuart(clamp01((t - 1.05) / 0.95));
-
-          const bx =
-            originX +
-            ball.vx * flightT * 0.72 +
-            Math.cos(ball.swirlAngle + lt * ball.swirlSpeed) * (35 + pushOut * maxDim * 0.32);
-          const by =
-            originY +
-            ball.vy * flightT * 0.68 +
-            0.5 * ball.gravity * flightT * flightT * 0.75 +
-            Math.sin(ball.swirlAngle + lt * ball.swirlSpeed) * (24 + pushOut * maxDim * 0.25);
-
-          const scale = (0.35 + popIn * 0.75) * (1 + pushOut * 0.28);
-          const r = ball.radius * scale;
-          const rot = ball.initialAngle + lt * ball.spin;
-
-          // Unspooling yarn tail connecting each flying yarn ball back toward the opening book!
-          ctx.save();
-          ctx.globalAlpha = popIn * ballFadeOut * 0.82;
-          ctx.beginPath();
-          const tailMidX = (originX + bx) * 0.5 + Math.sin(lt * 5 + ball.tailSeed) * 38;
-          const tailMidY = (originY + by) * 0.5 + Math.cos(lt * 4.2 + ball.tailSeed) * 34;
-          ctx.moveTo(originX, originY);
-          ctx.quadraticCurveTo(tailMidX, tailMidY, bx, by);
-          ctx.strokeStyle = ball.palette.base;
-          ctx.lineWidth = Math.max(1.8, r * 0.13);
-          ctx.lineCap = 'round';
-          ctx.stroke();
-
-          ctx.strokeStyle = ball.palette.highlight;
-          ctx.globalAlpha = popIn * ballFadeOut * 0.45;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 5]);
-          ctx.stroke();
-          ctx.restore();
-
-          drawYarnBall(ctx, bx, by, r, rot, ball.palette, popIn * ballFadeOut);
-        }
-      }
-
-      // 5. Golden Workshop Sparkles & Floating Dust Motes
-      const sparkFadeOut = 1 - easeOutCubic(clamp01((t - 1.35) / 0.7));
-      if (sparkFadeOut > 0.01) {
-        for (const sp of sparks) {
-          const lt = t - sp.delay;
-          if (lt <= 0) continue;
-          const dist = easeOutCubic(clamp01(lt / 1.35)) * sp.speed;
-          const sx = originX + Math.cos(sp.angle + lt * 0.6) * dist;
-          const sy = originY + Math.sin(sp.angle + lt * 0.6) * dist + sp.driftY * lt;
-          const twinkle = 0.5 + 0.5 * Math.sin(lt * 10 + sp.twinklePhase);
-          const alpha = twinkle * sparkFadeOut * clamp01(lt / 0.2);
-
-          ctx.save();
-          ctx.globalAlpha = alpha;
-          ctx.fillStyle = '#fff3c4';
-          ctx.beginPath();
-          ctx.arc(sx, sy, sp.size, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Tiny 4-point star glint on larger sparks
-          if (sp.size > 3.2) {
-            ctx.strokeStyle = 'rgba(255, 232, 165, 0.75)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(sx - sp.size * 2.2, sy);
-            ctx.lineTo(sx + sp.size * 2.2, sy);
-            ctx.moveTo(sx, sy - sp.size * 2.2);
-            ctx.lineTo(sx, sy + sp.size * 2.2);
-            ctx.stroke();
-          }
-          ctx.restore();
-        }
-      }
-
-      // 6. Subtle Editorial Title Caption right before the Iris Reveal blooms open
-      const captionIn = easeOutCubic(clamp01((t - 0.35) / 0.38));
-      const captionOut = 1 - easeOutCubic(clamp01((t - 1.05) / 0.34));
-      const captionAlpha = captionIn * captionOut;
-      if (captionAlpha > 0.02) {
-        ctx.save();
-        ctx.globalAlpha = captionAlpha;
-        ctx.font = 'italic 600 26px Georgia, "Times New Roman", serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(18, 9, 3, 0.85)';
-        ctx.shadowBlur = 16;
-        ctx.fillStyle = '#fce5b8';
-        ctx.fillText('Abriendo tu Cuaderno del Artista…', width * 0.5, height * 0.54);
-        ctx.restore();
       }
 
       if (t < TOTAL_DURATION) {
-        rafId = window.requestAnimationFrame(render);
+        rafId = requestAnimationFrame(render);
       } else {
         completeCbRef.current?.();
       }
     };
 
-    rafId = window.requestAnimationFrame(render);
+    rafId = requestAnimationFrame(render);
 
     return () => {
-      window.cancelAnimationFrame(rafId);
+      cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resize);
     };
   }, [active]);
@@ -569,7 +734,7 @@ export const CrochetTransition: React.FC<CrochetTransitionProps> = ({
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="fixed inset-0 z-[90] pointer-events-none select-none"
+      className="fixed inset-0 z-[120] pointer-events-none select-none"
     />
   );
 };

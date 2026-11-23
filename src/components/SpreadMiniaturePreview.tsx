@@ -80,47 +80,53 @@ const ScaledMiniBookFrame: React.FC<ScaledMiniBookFrameProps> = ({ children }) =
   );
 };
 
-const MiniPageRulerEdge: React.FC<{ side: 'left' | 'right' }> = ({ side }) => (
+const MiniUnifiedRulerEdges: React.FC = () => (
   <>
     <div
       aria-hidden="true"
-      className={`absolute top-4 bottom-4 ${
-        side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-      } w-[18px] border-[#a7d6ba]/35 bg-[#15382b]/65 flex flex-col justify-between py-2 opacity-80 pointer-events-none`}
+      className="absolute top-4 bottom-4 left-0 w-[18px] border-r border-[#a7d6ba]/35 bg-[#15382b]/65 flex flex-col justify-between py-2 opacity-80 pointer-events-none"
     >
       {Array.from({ length: 12 }).map((_, i) => (
         <div
           key={i}
-          className={`h-px bg-[#bfe5ce]/65 ${
-            side === 'left' ? 'ml-0 mr-auto' : 'ml-auto mr-0'
-          } ${i % 2 === 0 ? 'w-[10px]' : 'w-[6px]'}`}
+          className={`h-px bg-[#bfe5ce]/65 ml-0 mr-auto ${i % 2 === 0 ? 'w-[10px]' : 'w-[6px]'}`}
         />
       ))}
     </div>
     <div
       aria-hidden="true"
-      className={`absolute top-0 ${
-        side === 'left' ? 'left-[18px] right-0' : 'left-0 right-[18px]'
-      } h-4 border-b border-[#a7d6ba]/35 bg-[#15382b]/65 flex items-end justify-between px-2 opacity-80 pointer-events-none`}
+      className="absolute top-4 bottom-4 right-0 w-[18px] border-l border-[#a7d6ba]/35 bg-[#15382b]/65 flex flex-col justify-between py-2 opacity-80 pointer-events-none"
     >
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
+        <div
+          key={i}
+          className={`h-px bg-[#bfe5ce]/65 ml-auto mr-0 ${i % 2 === 0 ? 'w-[10px]' : 'w-[6px]'}`}
+        />
+      ))}
+    </div>
+    <div
+      aria-hidden="true"
+      className="absolute top-0 left-[18px] right-[18px] h-4 border-b border-[#a7d6ba]/35 bg-[#15382b]/65 flex items-end justify-between px-2 opacity-80 pointer-events-none"
+    >
+      {Array.from({ length: 20 }).map((_, i) => (
         <div key={i} className={`w-px bg-[#bfe5ce]/65 ${i % 2 === 0 ? 'h-[8px]' : 'h-[5px]'}`} />
       ))}
     </div>
     <div
       aria-hidden="true"
-      className={`absolute bottom-0 ${
-        side === 'left' ? 'left-[18px] right-0' : 'left-0 right-[18px]'
-      } h-4 border-t border-[#a7d6ba]/35 bg-[#15382b]/65 flex items-start justify-between px-2 opacity-80 pointer-events-none`}
+      className="absolute bottom-0 left-[18px] right-[18px] h-4 border-t border-[#a7d6ba]/35 bg-[#15382b]/65 flex items-start justify-between px-2 opacity-80 pointer-events-none"
     >
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 20 }).map((_, i) => (
         <div key={i} className={`w-px bg-[#bfe5ce]/65 ${i % 2 === 0 ? 'h-[8px]' : 'h-[5px]'}`} />
       ))}
     </div>
   </>
 );
 
-const MiniElementView: React.FC<{ el: PageElement }> = ({ el }) => {
+const MiniElementView: React.FC<{ el: PageElement; unifiedSheet?: boolean }> = ({
+  el,
+  unifiedSheet = false,
+}) => {
   const rotation = el.rotation ?? 0;
   const opacity = el.opacity ?? 1;
   const flipTransform = `${el.flipX ? ' scaleX(-1)' : ''}${el.flipY ? ' scaleY(-1)' : ''}`;
@@ -130,9 +136,9 @@ const MiniElementView: React.FC<{ el: PageElement }> = ({ el }) => {
       <div
         style={{
           position: 'absolute',
-          left: '4%',
+          left: unifiedSheet ? '2.5%' : '4%',
           top: '3.5%',
-          width: '92%',
+          width: unifiedSheet ? '44%' : '92%',
           height: '93%',
           opacity,
           display: 'flex',
@@ -155,11 +161,17 @@ const MiniElementView: React.FC<{ el: PageElement }> = ({ el }) => {
     ? `brightness(${el.filters.brightness}%) contrast(${el.filters.contrast}%) saturate(${el.filters.saturate}%) sepia(${el.filters.sepia}%) blur(${el.filters.blur}px)`
     : undefined;
 
+  const leftPct = unifiedSheet
+    ? el.side === 'right'
+      ? 50 + el.x * 0.5
+      : el.x * 0.5
+    : el.x;
+
   return (
     <div
       style={{
         position: 'absolute',
-        left: `${el.x}%`,
+        left: `${leftPct}%`,
         top: `${el.y}%`,
         width: `${el.width}px`,
         opacity,
@@ -314,44 +326,44 @@ const MiniElementView: React.FC<{ el: PageElement }> = ({ el }) => {
 
 export const EditableSpreadMiniature = memo<{ spread: NotebookSpread }>(({ spread }) => {
   const paperClass = PAPER_CLASS[spread.paperStyle] || 'cutting-mat-grid';
-  const leftEls = spread.elements.filter((e) => e.side === 'left');
-  const rightEls = spread.elements.filter((e) => e.side === 'right');
+  const hasLegacySplitDrawing = Boolean(spread.rightDrawingDataUrl);
 
   return (
     <ScaledMiniBookFrame>
-      {/* Left Miniature Page */}
+      {/* Single Continuous Unified Sheet Miniature */}
       <div
-        style={{ width: VIRTUAL_PAGE_W, height: VIRTUAL_SPREAD_H }}
+        style={{ width: VIRTUAL_SPREAD_W, height: VIRTUAL_SPREAD_H }}
         className={`relative cutting-mat-page ${paperClass} overflow-hidden shrink-0`}
       >
-        <MiniPageRulerEdge side="left" />
-        {spread.leftDrawingDataUrl && (
-          <img
-            src={spread.leftDrawingDataUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-fill pointer-events-none"
-          />
+        <MiniUnifiedRulerEdges />
+        {hasLegacySplitDrawing ? (
+          <>
+            {spread.leftDrawingDataUrl && (
+              <img
+                src={spread.leftDrawingDataUrl}
+                alt=""
+                className="absolute inset-y-0 left-0 w-1/2 h-full object-fill pointer-events-none"
+              />
+            )}
+            {spread.rightDrawingDataUrl && (
+              <img
+                src={spread.rightDrawingDataUrl}
+                alt=""
+                className="absolute inset-y-0 right-0 w-1/2 h-full object-fill pointer-events-none"
+              />
+            )}
+          </>
+        ) : (
+          spread.leftDrawingDataUrl && (
+            <img
+              src={spread.leftDrawingDataUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+            />
+          )
         )}
-        {leftEls.map((el) => (
-          <MiniElementView key={el.id} el={el} />
-        ))}
-      </div>
-
-      {/* Right Miniature Page */}
-      <div
-        style={{ width: VIRTUAL_PAGE_W, height: VIRTUAL_SPREAD_H }}
-        className={`relative cutting-mat-page ${paperClass} overflow-hidden shrink-0`}
-      >
-        <MiniPageRulerEdge side="right" />
-        {spread.rightDrawingDataUrl && (
-          <img
-            src={spread.rightDrawingDataUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-fill pointer-events-none"
-          />
-        )}
-        {rightEls.map((el) => (
-          <MiniElementView key={el.id} el={el} />
+        {spread.elements.map((el) => (
+          <MiniElementView key={el.id} el={el} unifiedSheet />
         ))}
       </div>
     </ScaledMiniBookFrame>

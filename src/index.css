@@ -607,7 +607,7 @@
   opacity: 0.12;
 }
 
-/* Studio book page sizing: single unified right dock leaves maximum area for the 2-page open book */
+/* Studio book page sizing: single unified right dock leaves maximum area for the open book */
 .notebook-page-docked {
   width: min(calc((100vw - 332px) / 2), calc((100dvh - 20px) * 0.84));
   height: min(calc((100vw - 332px) * 0.82), calc(100dvh - 20px));
@@ -620,9 +620,26 @@
   flex-shrink: 0;
 }
 
+/* Single unified continuous sheet sizing (one unbroken full-width sheet, zero center split) */
+.notebook-sheet-docked {
+  width: min(calc(100vw - 332px), calc((100dvh - 20px) * 1.68));
+  height: min(calc((100vw - 332px) * 0.82), calc(100dvh - 20px));
+  flex-shrink: 0;
+}
+
+.notebook-sheet-maximized {
+  width: min(calc(100vw - 44px), calc((100dvh - 20px) * 1.68));
+  height: min(calc((100vw - 44px) * 0.82), calc(100dvh - 20px));
+  flex-shrink: 0;
+}
+
 @media (max-width: 1023px) {
   .notebook-page-docked {
     width: min(calc((100vw - 36px) / 2), calc((100dvh - 28px) * 0.84));
+    height: min(calc((100vw - 36px) * 0.82), calc(100dvh - 28px));
+  }
+  .notebook-sheet-docked {
+    width: min(calc(100vw - 36px), calc((100dvh - 28px) * 1.68));
     height: min(calc((100vw - 36px) * 0.82), calc(100dvh - 28px));
   }
 }
@@ -631,6 +648,11 @@
   .notebook-page-docked,
   .notebook-page-maximized {
     width: min(45vw, 560px);
+    height: min(84dvh, 780px);
+  }
+  .notebook-sheet-docked,
+  .notebook-sheet-maximized {
+    width: min(92vw, 1120px);
     height: min(84dvh, 780px);
   }
 }

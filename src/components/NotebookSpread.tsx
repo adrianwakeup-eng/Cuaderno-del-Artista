@@ -1600,6 +1600,8 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
 
   const pageSizeClass =
     dockedMode && !focusMode ? 'notebook-page-docked' : 'notebook-page-maximized';
+  const sheetSizeClass =
+    dockedMode && !focusMode ? 'notebook-sheet-docked' : 'notebook-sheet-maximized';
 
   // Sync metadata with RightStudioDock
   useEffect(() => {
@@ -1766,7 +1768,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
 
   const commitPageEraseResults = useCallback(
     (
-      side: 'left' | 'right',
+      side: 'left' | 'right' | 'unified',
       drawingDataUrl: string | undefined,
       elementStrokeUpdates: Record<string, ElementEraseStroke[]>,
       fullyErasedIds: string[]
@@ -1800,9 +1802,11 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
 
       onUpdateSpread({
         ...activeUserSpread,
-        ...(side === 'left'
-          ? { leftDrawingDataUrl: drawingDataUrl }
-          : { rightDrawingDataUrl: drawingDataUrl }),
+        ...(side === 'unified'
+          ? { leftDrawingDataUrl: drawingDataUrl, rightDrawingDataUrl: undefined }
+          : side === 'left'
+            ? { leftDrawingDataUrl: drawingDataUrl }
+            : { rightDrawingDataUrl: drawingDataUrl }),
         elements: nextElements,
         updatedAt: new Date().toISOString(),
       });
@@ -3459,99 +3463,61 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     />
                   </>
                 ) : activeUserSpread ? (
-                  <>
-                    <SingleNotebookPage
-                      side="left"
-                      spreadId={activeUserSpread.id}
-                      paperStyle={activeUserSpread.paperStyle}
-                      pageSizeClass={pageSizeClass}
-                      layerVisibility={layerVisibility}
-                      layerOrder={layerOrder}
-                      drawingDataUrl={activeUserSpread.leftDrawingDataUrl}
-                      onSaveDrawing={(url) =>
-                        onUpdateSpread({ ...activeUserSpread, leftDrawingDataUrl: url })
+                  <SingleNotebookPage
+                    side="unified"
+                    spreadId={activeUserSpread.id}
+                    paperStyle={activeUserSpread.paperStyle}
+                    pageSizeClass={sheetSizeClass}
+                    layerVisibility={layerVisibility}
+                    layerOrder={layerOrder}
+                    drawingDataUrl={activeUserSpread.leftDrawingDataUrl}
+                    legacyRightDrawingDataUrl={activeUserSpread.rightDrawingDataUrl}
+                    onSaveDrawing={(url) =>
+                      onUpdateSpread({
+                        ...activeUserSpread,
+                        leftDrawingDataUrl: url,
+                        rightDrawingDataUrl: undefined,
+                      })
+                    }
+                    onCommitEraseResults={(url, elUpdates, removedIds) =>
+                      commitPageEraseResults('unified', url, elUpdates, removedIds)
+                    }
+                    activeTool={activeTool}
+                    brush={brush}
+                    onPickColor={onPickColorFromCanvas}
+                    elements={activeUserSpread.elements}
+                    selectedElementId={selectedElementId}
+                    editingTextId={editingTextId}
+                    mattingElementId={mattingElementId}
+                    mattingProgress={mattingProgress}
+                    onSelectElement={(id) => {
+                      const found = activeUserSpread.elements.find((e) => e.id === id);
+                      if (found) lastActiveSideRef.current = found.side;
+                      setSelectedElementId(id);
+                    }}
+                    onEditText={(id) => {
+                      if (id === null) finishEditingText();
+                      else setEditingTextId(id);
+                    }}
+                    onUpdateElement={updateElement}
+                    onDeleteElement={(id) => {
+                      if (deleteElement(id)) {
+                        onNotify?.('Objeto eliminado');
                       }
-                      onCommitEraseResults={(url, elUpdates, removedIds) =>
-                        commitPageEraseResults('left', url, elUpdates, removedIds)
-                      }
-                      activeTool={activeTool}
-                      brush={brush}
-                      onPickColor={onPickColorFromCanvas}
-                      elements={activeUserSpread.elements.filter((e) => e.side === 'left')}
-                      selectedElementId={selectedElementId}
-                      editingTextId={editingTextId}
-                      mattingElementId={mattingElementId}
-                      mattingProgress={mattingProgress}
-                      onSelectElement={(id) => {
-                        lastActiveSideRef.current = 'left';
-                        setSelectedElementId(id);
-                      }}
-                      onEditText={(id) => {
-                        if (id === null) finishEditingText();
-                        else setEditingTextId(id);
-                      }}
-                      onUpdateElement={updateElement}
-                      onDeleteElement={(id) => {
-                        if (deleteElement(id)) {
-                          onNotify?.('Objeto eliminado');
-                        }
-                      }}
-                      onToggleLockElement={toggleElementLock}
-                      onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
-                      onRestoreElementFigure={handleRestoreElementFigure}
-                      onEnterDressingRoom={onEnterDressingRoom}
-                      readerElementId={readerState.active ? readerState.elementId : null}
-                      readerIsPlaying={readerState.active && readerState.status === 'playing'}
-                      onReadElement={handleReadTextElement}
-                      onPlaceElement={(x, y) => handlePlaceElement('left', x, y)}
-                    />
-
-                    <SingleNotebookPage
-                      side="right"
-                      spreadId={activeUserSpread.id}
-                      paperStyle={activeUserSpread.paperStyle}
-                      pageSizeClass={pageSizeClass}
-                      layerVisibility={layerVisibility}
-                      layerOrder={layerOrder}
-                      drawingDataUrl={activeUserSpread.rightDrawingDataUrl}
-                      onSaveDrawing={(url) =>
-                        onUpdateSpread({ ...activeUserSpread, rightDrawingDataUrl: url })
-                      }
-                      onCommitEraseResults={(url, elUpdates, removedIds) =>
-                        commitPageEraseResults('right', url, elUpdates, removedIds)
-                      }
-                      activeTool={activeTool}
-                      brush={brush}
-                      onPickColor={onPickColorFromCanvas}
-                      elements={activeUserSpread.elements.filter((e) => e.side === 'right')}
-                      selectedElementId={selectedElementId}
-                      editingTextId={editingTextId}
-                      mattingElementId={mattingElementId}
-                      mattingProgress={mattingProgress}
-                      onSelectElement={(id) => {
-                        lastActiveSideRef.current = 'right';
-                        setSelectedElementId(id);
-                      }}
-                      onEditText={(id) => {
-                        if (id === null) finishEditingText();
-                        else setEditingTextId(id);
-                      }}
-                      onUpdateElement={updateElement}
-                      onDeleteElement={(id) => {
-                        if (deleteElement(id)) {
-                          onNotify?.('Objeto eliminado');
-                        }
-                      }}
-                      onToggleLockElement={toggleElementLock}
-                      onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
-                      onRestoreElementFigure={handleRestoreElementFigure}
-                      onEnterDressingRoom={onEnterDressingRoom}
-                      readerElementId={readerState.active ? readerState.elementId : null}
-                      readerIsPlaying={readerState.active && readerState.status === 'playing'}
-                      onReadElement={handleReadTextElement}
-                      onPlaceElement={(x, y) => handlePlaceElement('right', x, y)}
-                    />
-                  </>
+                    }}
+                    onToggleLockElement={toggleElementLock}
+                    onExtractElementFigure={(el) => void handleExtractElementFigure(el)}
+                    onRestoreElementFigure={handleRestoreElementFigure}
+                    onEnterDressingRoom={onEnterDressingRoom}
+                    readerElementId={readerState.active ? readerState.elementId : null}
+                    readerIsPlaying={readerState.active && readerState.status === 'playing'}
+                    onReadElement={handleReadTextElement}
+                    onPlaceElement={(sheetXPct, y) => {
+                      const targetSide: 'left' | 'right' = sheetXPct < 50 ? 'left' : 'right';
+                      const localX = targetSide === 'left' ? sheetXPct * 2 : (sheetXPct - 50) * 2;
+                      handlePlaceElement(targetSide, localX, y);
+                    }}
+                  />
                 ) : null}
 
                 {/* Tactile Page-Turn Edge Hotspots */}
@@ -3570,7 +3536,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                   />
                 )}
 
-                {/* 3D Turning Page Leaf Overlay */}
+                {/* 3D Turning Single-Sheet Leaf Overlay */}
                 {flipDir && (
                   <div
                     style={{
@@ -3580,13 +3546,11 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                         ? 'transform 0.44s cubic-bezier(0.22, 1, 0.36, 1)'
                         : 'none',
                     }}
-                    className={`pointer-events-none absolute inset-y-0 w-1/2 z-40 preserve-3d ${
-                      flipDir === 'next' ? 'right-0' : 'left-0'
-                    }`}
+                    className="pointer-events-none absolute inset-0 z-40 preserve-3d"
                   >
                     <div className="absolute inset-0 backface-hidden cutting-mat-page cutting-mat-grid border-l border-[#a7d6ba]/40 shadow-[inset_18px_0_32px_rgba(8,24,18,0.35),-10px_0_24px_rgba(0,0,0,0.35)] flex items-center justify-center">
                       <span className="font-editorial italic text-[#dcf2e4]/65 text-lg">
-                        Pasando página…
+                        Pasando hoja…
                       </span>
                     </div>
                     <div
@@ -4737,6 +4701,7 @@ const PageElementItem = memo<{
   isSelected: boolean;
   isEditing: boolean;
   isDrawLocked: boolean;
+  unifiedSheet?: boolean;
   isReadMode?: boolean;
   isReadingThis?: boolean;
   isReadingPlaying?: boolean;
@@ -4762,6 +4727,7 @@ const PageElementItem = memo<{
     isSelected,
     isEditing,
     isDrawLocked,
+    unifiedSheet = false,
     isReadMode = false,
     isReadingThis = false,
     isReadingPlaying = false,
@@ -4815,7 +4781,12 @@ const PageElementItem = memo<{
       }
     }, [isEditing, el.type]);
 
-    const x = liveOverride ? liveOverride.x : el.x;
+    const baseX = unifiedSheet
+      ? el.side === 'right'
+        ? 50 + el.x * 0.5
+        : el.x * 0.5
+      : el.x;
+    const x = liveOverride ? liveOverride.x : baseX;
     const y = liveOverride ? liveOverride.y : el.y;
     const width = liveOverride ? liveOverride.width : el.width;
     const rotation =
@@ -4851,18 +4822,28 @@ const PageElementItem = memo<{
 
     const hasTextBg = Boolean(el.backgroundColor && el.backgroundColor !== 'transparent');
 
-    // Fixed, large left-page centerpiece wardrobe with clean parchment borders on all sides
+    // Fixed, large left-side centerpiece wardrobe cleanly positioned on the single sheet
     if (el.type === 'wardrobe') {
       return (
         <div
           data-element-box="true"
-          style={{
-            left: '4.5%',
-            right: '6.5%',
-            top: '5%',
-            bottom: '5.5%',
-            opacity: el.opacity ?? 1,
-          }}
+          style={
+            unifiedSheet
+              ? {
+                  left: '2.5%',
+                  width: '44%',
+                  top: '5%',
+                  bottom: '5.5%',
+                  opacity: el.opacity ?? 1,
+                }
+              : {
+                  left: '4.5%',
+                  right: '6.5%',
+                  top: '5%',
+                  bottom: '5.5%',
+                  opacity: el.opacity ?? 1,
+                }
+          }
           className={`absolute flex items-center justify-center ${
             isDrawLocked ? 'pointer-events-none' : 'pointer-events-auto'
           }`}
@@ -5313,13 +5294,14 @@ const PageElementItem = memo<{
 /* ---------- Single Interactive Page with Fast Canvas + Elements ---------- */
 
 interface SinglePageProps {
-  side: 'left' | 'right';
+  side: 'left' | 'right' | 'unified';
   spreadId: string;
   paperStyle: PaperStyle;
   pageSizeClass: string;
   layerVisibility: LayerVisibility;
   layerOrder: StackableLayerId[];
   drawingDataUrl?: string;
+  legacyRightDrawingDataUrl?: string;
   onSaveDrawing: (dataUrl: string) => void;
   onCommitEraseResults: (
     drawingDataUrl: string | undefined,
@@ -5357,6 +5339,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     layerVisibility,
     layerOrder,
     drawingDataUrl,
+    legacyRightDrawingDataUrl,
     onSaveDrawing,
     onCommitEraseResults,
     activeTool,
@@ -5427,41 +5410,79 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       hasMoved?: boolean;
     } | null>(null);
 
+    const isUnified = side === 'unified';
+    const canvasW = isUnified ? PAGE_W * 2 : PAGE_W;
+    const canvasH = PAGE_H;
+
     // Sync canvas image ONLY when spread switches or external undo/clear changed drawingDataUrl
     useEffect(() => {
+      const compositeKey = `${drawingDataUrl || ''}|${legacyRightDrawingDataUrl || ''}`;
       if (
-        drawingDataUrl !== undefined &&
-        drawingDataUrl === lastCommittedUrlRef.current
+        (drawingDataUrl !== undefined || legacyRightDrawingDataUrl !== undefined) &&
+        compositeKey === lastCommittedUrlRef.current
       ) {
         return;
       }
-      lastCommittedUrlRef.current = drawingDataUrl;
+      lastCommittedUrlRef.current = compositeKey;
 
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      if (!drawingDataUrl) {
-        ctx.clearRect(0, 0, PAGE_W, PAGE_H);
+      if (!drawingDataUrl && !legacyRightDrawingDataUrl) {
+        ctx.clearRect(0, 0, canvasW, canvasH);
         return;
       }
 
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0, 0, PAGE_W, PAGE_H);
-        ctx.drawImage(img, 0, 0, PAGE_W, PAGE_H);
+      let cancelled = false;
+      ctx.clearRect(0, 0, canvasW, canvasH);
+
+      if (isUnified) {
+        // Support both new unified full-sheet drawings AND legacy left/right split drawings
+        if (drawingDataUrl) {
+          const leftImg = new Image();
+          leftImg.onload = () => {
+            if (cancelled) return;
+            const isLegacyHalf =
+              Boolean(legacyRightDrawingDataUrl) || leftImg.width <= leftImg.height * 1.15;
+            if (isLegacyHalf) {
+              ctx.drawImage(leftImg, 0, 0, canvasW / 2, canvasH);
+            } else {
+              ctx.drawImage(leftImg, 0, 0, canvasW, canvasH);
+            }
+          };
+          leftImg.src = drawingDataUrl;
+        }
+        if (legacyRightDrawingDataUrl) {
+          const rightImg = new Image();
+          rightImg.onload = () => {
+            if (cancelled) return;
+            ctx.drawImage(rightImg, canvasW / 2, 0, canvasW / 2, canvasH);
+          };
+          rightImg.src = legacyRightDrawingDataUrl;
+        }
+      } else if (drawingDataUrl) {
+        const img = new Image();
+        img.onload = () => {
+          if (cancelled) return;
+          ctx.clearRect(0, 0, canvasW, canvasH);
+          ctx.drawImage(img, 0, 0, canvasW, canvasH);
+        };
+        img.src = drawingDataUrl;
+      }
+      return () => {
+        cancelled = true;
       };
-      img.src = drawingDataUrl;
-    }, [spreadId, drawingDataUrl]);
+    }, [spreadId, drawingDataUrl, legacyRightDrawingDataUrl, isUnified, canvasW, canvasH]);
 
     const getCanvasPoint = (e: React.PointerEvent) => {
       const canvas = canvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
       return {
-        x: ((e.clientX - rect.left) / rect.width) * PAGE_W,
-        y: ((e.clientY - rect.top) / rect.height) * PAGE_H,
+        x: ((e.clientX - rect.left) / rect.width) * canvasW,
+        y: ((e.clientY - rect.top) / rect.height) * canvasH,
       };
     };
 
@@ -5485,7 +5506,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           4 * resScale,
           Math.max(1.5, brush.size * 0.9) * resScale * 0.72
         );
-        const eraserDiameterPagePx = Math.max(10, eraseRadiusCanvas * 2 * (baseW / PAGE_W));
+        const eraserDiameterPagePx = Math.max(10, eraseRadiusCanvas * 2 * (baseW / canvasW));
         const eraserDiameterScreenPx = eraserDiameterPagePx * zoomScale;
         const isSoft = brush.softness > 35;
 
@@ -5774,8 +5795,8 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
             }
           }
           const rawXPct = origXPct + ((clientX - startX) / rect.width) * 100;
-          const minX = side === 'right' ? -96 : 2;
-          const maxX = side === 'left' ? 184 : 84;
+          const minX = isUnified ? 1 : side === 'right' ? -96 : 2;
+          const maxX = isUnified ? 95 : side === 'left' ? 184 : 84;
           nextTransform = {
             id,
             x: Math.max(minX, Math.min(maxX, rawXPct)),
@@ -5813,7 +5834,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           4 * resScale,
           Math.max(1.5, brush.size * 0.9) * resScale * 0.72
         );
-        const diameterPagePx = Math.max(10, eraseRadiusCanvas * 2 * (baseW / PAGE_W));
+        const diameterPagePx = Math.max(10, eraseRadiusCanvas * 2 * (baseW / canvasW));
         const node = eraserCursorRef.current;
         node.style.display = 'block';
         node.style.left = `${x}px`;
@@ -5857,7 +5878,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         }
 
         const dataUrl = canvasRef.current.toDataURL('image/png');
-        lastCommittedUrlRef.current = dataUrl;
+        lastCommittedUrlRef.current = `${dataUrl}|`;
 
         if (eraseDirtyRef.current) {
           eraseDirtyRef.current = false;
@@ -5883,14 +5904,32 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       const pending = liveTransformRef.current;
       const activeDrag = dragElRef.current;
       if (activeDrag && pending) {
-        if (activeDrag.mode === 'drag' && pageRef.current) {
+        if (isUnified) {
+          if (activeDrag.mode === 'drag') {
+            const clampedX = Math.max(1, Math.min(95, pending.x));
+            const finalSide: 'left' | 'right' = clampedX < 50 ? 'left' : 'right';
+            const finalX = finalSide === 'left' ? clampedX * 2 : (clampedX - 50) * 2;
+            onUpdateElement(pending.id, {
+              side: finalSide,
+              x: finalX,
+              y: pending.y,
+              width: pending.width,
+            });
+          } else {
+            onUpdateElement(pending.id, {
+              y: pending.y,
+              width: pending.width,
+              ...(pending.rotation !== undefined ? { rotation: pending.rotation } : {}),
+            });
+          }
+        } else if (activeDrag.mode === 'drag' && pageRef.current) {
           const originRect = pageRef.current.getBoundingClientRect();
           const siblingSide: 'left' | 'right' = side === 'left' ? 'right' : 'left';
           const siblingEl = pageRef.current.parentElement?.querySelector(
             `[data-page-side="${siblingSide}"]`
           ) as HTMLElement | null;
 
-          let finalSide: 'left' | 'right' = side;
+          let finalSide: 'left' | 'right' = side === 'right' ? 'right' : 'left';
           let finalX = Math.max(2, Math.min(84, pending.x));
 
           if (siblingEl) {
@@ -5932,7 +5971,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       dragElRef.current = null;
       liveTransformRef.current = null;
       setLiveTransform(null);
-    }, [onSaveDrawing, onCommitEraseResults, onUpdateElement, side]);
+    }, [onSaveDrawing, onCommitEraseResults, onUpdateElement, side, isUnified]);
 
     useEffect(() => {
       const onWindowMove = (e: PointerEvent) => {
@@ -5967,20 +6006,25 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         onSelectElement(el.id);
         if (el.locked) return;
         if (editingTextId !== el.id) {
+          const startXPct = isUnified
+            ? el.side === 'right'
+              ? 50 + el.x * 0.5
+              : el.x * 0.5
+            : el.x;
           dragElRef.current = {
             mode: 'drag',
             id: el.id,
             elementType: el.type,
             startX: e.clientX,
             startY: e.clientY,
-            origXPct: el.x,
+            origXPct: startXPct,
             origYPct: el.y,
             origWidth: el.width,
             hasMoved: false,
           };
         }
       },
-      [activeTool, onSelectElement, editingTextId]
+      [activeTool, onSelectElement, editingTextId, isUnified]
     );
 
     const handleStartResizeElement = useCallback(
@@ -5989,18 +6033,23 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         e.preventDefault();
         onSelectElement(el.id);
         if (el.locked) return;
+        const startXPct = isUnified
+          ? el.side === 'right'
+            ? 50 + el.x * 0.5
+            : el.x * 0.5
+          : el.x;
         dragElRef.current = {
           mode: 'resize',
           id: el.id,
           elementType: el.type,
           startX: e.clientX,
           startY: e.clientY,
-          origXPct: el.x,
+          origXPct: startXPct,
           origYPct: el.y,
           origWidth: el.width,
         };
       },
-      [onSelectElement]
+      [onSelectElement, isUnified]
     );
 
     const handleStartRotateElement = useCallback(
@@ -6014,13 +6063,18 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
           ?.getBoundingClientRect();
         const centerX = box ? box.left + box.width / 2 : e.clientX;
         const centerY = box ? box.top + box.height / 2 : e.clientY + 40;
+        const startXPct = isUnified
+          ? el.side === 'right'
+            ? 50 + el.x * 0.5
+            : el.x * 0.5
+          : el.x;
         dragElRef.current = {
           mode: 'rotate',
           id: el.id,
           elementType: el.type,
           startX: e.clientX,
           startY: e.clientY,
-          origXPct: el.x,
+          origXPct: startXPct,
           origYPct: el.y,
           origWidth: el.width,
           centerX,
@@ -6114,71 +6168,129 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
                 : 'cursor-default'
         }`}
       >
-        {/* Clipped Paper Decorations & Full-Perimeter cm Rulers (Side 25cm + Top & Bottom 20cm) */}
+        {/* Clipped Paper Decorations & Full-Perimeter cm Rulers (Continuous 40cm Horizontal + 25cm Vertical on Unified Sheet) */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-          {/* Outer Top & Bottom Corner Caps joining vertical & horizontal rulers */}
-          <div
-            className={`pointer-events-none absolute top-0 ${
-              side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-            } w-7 h-6 border-b border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center`}
-          >
-            <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
-          </div>
-          <div
-            className={`pointer-events-none absolute bottom-0 ${
-              side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-            } w-7 h-6 border-t border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center`}
-          >
-            <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
-          </div>
-
-          {/* Top Horizontal 20cm Ruler */}
-          <div
-            className={`pointer-events-none absolute top-0 ${
-              side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
-            } h-6 border-b border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-end justify-between px-2`}
-          >
-            {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
-              <div key={cm} className="flex flex-col items-center justify-end gap-0.5 leading-none">
-                <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
-                <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
+          {isUnified ? (
+            <>
+              {/* All 4 Corner Caps */}
+              <div className="pointer-events-none absolute top-0 left-0 w-7 h-6 border-r border-b border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center">
+                <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
               </div>
-            ))}
-          </div>
-
-          {/* Bottom Horizontal 20cm Ruler */}
-          <div
-            className={`pointer-events-none absolute bottom-0 ${
-              side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
-            } h-6 border-t border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-start justify-between px-2`}
-          >
-            {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
-              <div key={cm} className="flex flex-col items-center justify-start gap-0.5 leading-none">
-                <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
-                <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+              <div className="pointer-events-none absolute top-0 right-0 w-7 h-6 border-l border-b border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center">
+                <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
               </div>
-            ))}
-          </div>
+              <div className="pointer-events-none absolute bottom-0 left-0 w-7 h-6 border-r border-t border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center">
+                <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
+              </div>
+              <div className="pointer-events-none absolute bottom-0 right-0 w-7 h-6 border-l border-t border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center">
+                <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
+              </div>
 
-          {/* Outer Vertical 25cm Ruler */}
-          {side === 'left' ? (
-            <div className="pointer-events-none absolute top-6 bottom-6 left-0 w-7 border-r border-[#a7d6ba]/40 flex flex-col justify-between py-2 pl-1 text-left bg-[#15382b]/65">
-              {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
-                <div key={cm} className="flex items-center justify-start gap-1 leading-none">
-                  <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
-                  <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
-                </div>
-              ))}
-            </div>
+              {/* Continuous Top Horizontal 40cm Ruler */}
+              <div className="pointer-events-none absolute top-0 left-7 right-7 h-6 border-b border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-end justify-between px-2">
+                {Array.from({ length: 40 }, (_, i) => i + 1).map((cm) => (
+                  <div key={cm} className="flex flex-col items-center justify-end gap-0.5 leading-none">
+                    <span className="text-[7px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                    <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Continuous Bottom Horizontal 40cm Ruler */}
+              <div className="pointer-events-none absolute bottom-0 left-7 right-7 h-6 border-t border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-start justify-between px-2">
+                {Array.from({ length: 40 }, (_, i) => i + 1).map((cm) => (
+                  <div key={cm} className="flex flex-col items-center justify-start gap-0.5 leading-none">
+                    <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
+                    <span className="text-[7px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Left & Right Vertical 25cm Rulers */}
+              <div className="pointer-events-none absolute top-6 bottom-6 left-0 w-7 border-r border-[#a7d6ba]/40 flex flex-col justify-between py-2 pl-1 text-left bg-[#15382b]/65">
+                {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
+                  <div key={cm} className="flex items-center justify-start gap-1 leading-none">
+                    <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                    <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
+                  </div>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute top-6 bottom-6 right-0 w-7 border-l border-[#a7d6ba]/40 flex flex-col justify-between py-2 pr-1 text-right bg-[#15382b]/65">
+                {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
+                  <div key={cm} className="flex items-center justify-end gap-1 leading-none">
+                    <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
+                    <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
-            <div className="pointer-events-none absolute top-6 bottom-6 right-0 w-7 border-l border-[#a7d6ba]/40 flex flex-col justify-between py-2 pr-1 text-right bg-[#15382b]/65">
-              {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
-                <div key={cm} className="flex items-center justify-end gap-1 leading-none">
-                  <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
-                  <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+            <>
+              {/* Outer Top & Bottom Corner Caps joining vertical & horizontal rulers */}
+              <div
+                className={`pointer-events-none absolute top-0 ${
+                  side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
+                } w-7 h-6 border-b border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center`}
+              >
+                <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
+              </div>
+              <div
+                className={`pointer-events-none absolute bottom-0 ${
+                  side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
+                } w-7 h-6 border-t border-[#a7d6ba]/40 bg-[#15382b]/75 flex items-center justify-center`}
+              >
+                <span className="text-[7.5px] font-mono-tab font-semibold text-[#def4e6]">cm</span>
+              </div>
+
+              {/* Top Horizontal 20cm Ruler */}
+              <div
+                className={`pointer-events-none absolute top-0 ${
+                  side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
+                } h-6 border-b border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-end justify-between px-2`}
+              >
+                {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
+                  <div key={cm} className="flex flex-col items-center justify-end gap-0.5 leading-none">
+                    <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                    <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom Horizontal 20cm Ruler */}
+              <div
+                className={`pointer-events-none absolute bottom-0 ${
+                  side === 'left' ? 'left-7 right-0' : 'left-0 right-7'
+                } h-6 border-t border-[#a7d6ba]/40 bg-[#15382b]/65 flex items-start justify-between px-2`}
+              >
+                {Array.from({ length: 20 }, (_, i) => i + 1).map((cm) => (
+                  <div key={cm} className="flex flex-col items-center justify-start gap-0.5 leading-none">
+                    <span className="w-px h-1.5 bg-[#bfe5ce]/70" />
+                    <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Outer Vertical 25cm Ruler */}
+              {side === 'left' ? (
+                <div className="pointer-events-none absolute top-6 bottom-6 left-0 w-7 border-r border-[#a7d6ba]/40 flex flex-col justify-between py-2 pl-1 text-left bg-[#15382b]/65">
+                  {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
+                    <div key={cm} className="flex items-center justify-start gap-1 leading-none">
+                      <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                      <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div className="pointer-events-none absolute top-6 bottom-6 right-0 w-7 border-l border-[#a7d6ba]/40 flex flex-col justify-between py-2 pr-1 text-right bg-[#15382b]/65">
+                  {Array.from({ length: 25 }, (_, i) => i + 1).map((cm) => (
+                    <div key={cm} className="flex items-center justify-end gap-1 leading-none">
+                      <span className="w-1.5 h-px bg-[#bfe5ce]/70" />
+                      <span className="text-[7.5px] font-mono-tab text-[#def4e6]/90">{cm}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -6194,6 +6306,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
               isSelected={el.id === selectedElementId}
               isEditing={el.id === editingTextId}
               isDrawLocked={isDrawLocked}
+              unifiedSheet={isUnified}
               isMatting={mattingElementId === el.id}
               mattingProgress={mattingElementId === el.id ? mattingProgress : 0}
               liveOverride={liveTransform?.id === el.id ? liveTransform : undefined}
@@ -6216,8 +6329,8 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         {/* Drawing Canvas Layer */}
         <canvas
           ref={canvasRef}
-          width={PAGE_W}
-          height={PAGE_H}
+          width={canvasW}
+          height={canvasH}
           onPointerDown={handleCanvasPointerDown}
           style={{ zIndex: getLayerZ('drawing') }}
           className={`absolute inset-0 w-full h-full touch-none transition-opacity ${
@@ -6253,6 +6366,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
               isSelected={el.id === selectedElementId}
               isEditing={el.id === editingTextId}
               isDrawLocked={isDrawLocked}
+              unifiedSheet={isUnified}
               isReadMode={activeTool === 'read'}
               isReadingThis={readerElementId === el.id}
               isReadingPlaying={readerElementId === el.id && readerIsPlaying}

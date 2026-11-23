@@ -470,29 +470,8 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
             }
           }}
           aria-label="Abrir Cuaderno del Artista"
-          className="absolute right-[8%] top-[4%] bottom-[4%] w-[36%] z-30 cursor-pointer preserve-3d group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f2cd86] rounded-r-xl"
+          className="absolute right-[8%] top-[4%] bottom-[4%] w-[36%] z-30 cursor-pointer preserve-3d group focus:outline-none rounded-r-xl"
         >
-          {/* Subtle shimmer outline around the embossed book cover */}
-          <div className="absolute inset-0 rounded-r-xl border border-[#f5d493]/0 group-hover:border-[#f5d493]/55 group-hover:shadow-[0_0_38px_rgba(245,205,130,0.32)] transition-all duration-300" />
-
-          {/* Animated crochet thread highlight on hover */}
-          <svg
-            viewBox="0 0 220 340"
-            className="pointer-events-none absolute inset-0 w-full h-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-            fill="none"
-          >
-            <rect
-              x="8"
-              y="8"
-              width="204"
-              height="324"
-              rx="10"
-              stroke="#f5d598"
-              strokeWidth="2"
-              strokeDasharray="6 6"
-            />
-          </svg>
-
           {/* Circular Crochet_Fuentes-Nazco Logo Medallion below the yarn ball */}
           <div className="pointer-events-none absolute left-[54%] -translate-x-1/2 bottom-[11%] w-[44%] aspect-square flex items-center justify-center">
             <div className="relative w-full h-full rounded-full overflow-hidden border-[2.5px] border-[#d9a75c]/80 ring-2 ring-[#2a1408]/80 shadow-[0_10px_26px_rgba(0,0,0,0.75),inset_0_0_10px_rgba(0,0,0,0.45)] group-hover:scale-[1.03] group-hover:border-[#f5d598] transition-all duration-300">
