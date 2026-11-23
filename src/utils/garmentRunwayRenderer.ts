@@ -112,7 +112,7 @@ export async function renderSkinSafeRunwayImage(
   srcUrl: string,
   maskUrl: string | undefined,
   grade: RunwayColorGrade | null | undefined,
-  maxWidth = 640
+  maxWidth = 960
 ): Promise<string> {
   if (!srcUrl || isGradeIdentity(grade)) return srcUrl;
 
@@ -244,8 +244,8 @@ export async function composeTransparentModelWithRug(options: {
       includeRug ? loadCachedImage(rugSrc).catch(() => null) : Promise.resolve(null),
     ]);
 
-    const W = 960;
-    const H = 1360;
+    const W = 1280;
+    const H = 1820;
     const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
@@ -255,35 +255,35 @@ export async function composeTransparentModelWithRug(options: {
     // 100% transparent background
     ctx.clearRect(0, 0, W, H);
 
-    const rugY = H - 156;
+    const rugY = H - 208;
 
     // 1. Circular hand-crocheted rug at feet
     if (includeRug && rugImg && rugImg.naturalWidth > 0) {
       ctx.save();
-      const rugW = 720;
+      const rugW = 960;
       const rugH = (rugImg.naturalHeight / rugImg.naturalWidth) * rugW;
       ctx.shadowColor = 'rgba(54, 24, 10, 0.24)';
-      ctx.shadowBlur = 16;
-      ctx.shadowOffsetY = 8;
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 10;
       ctx.drawImage(rugImg, (W - rugW) / 2, rugY - rugH * 0.5, rugW, rugH);
       ctx.restore();
 
       // Grounded foot contact shadow on rug
       ctx.save();
-      const footShadow = ctx.createRadialGradient(W / 2, rugY + 4, 16, W / 2, rugY + 4, 170);
+      const footShadow = ctx.createRadialGradient(W / 2, rugY + 6, 22, W / 2, rugY + 6, 226);
       footShadow.addColorStop(0, 'rgba(54, 24, 10, 0.44)');
       footShadow.addColorStop(0.58, 'rgba(54, 24, 10, 0.16)');
       footShadow.addColorStop(1, 'rgba(54, 24, 10, 0)');
       ctx.fillStyle = footShadow;
       ctx.beginPath();
-      ctx.ellipse(W / 2, rugY + 4, 170, 26, 0, 0, Math.PI * 2);
+      ctx.ellipse(W / 2, rugY + 6, 226, 34, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    // 2. Crisp full-resolution 2D model standing flush on the rug
-    const maxDrawH = rugY + 26 - 68;
-    const maxDrawW = W - 120;
+    // 2. Crisp Ultra-HD 2D model standing flush on the rug
+    const maxDrawH = rugY + 34 - 88;
+    const maxDrawW = W - 160;
     const aspect = modelImg.naturalWidth / Math.max(1, modelImg.naturalHeight);
     let targetH = maxDrawH;
     let targetW = targetH * aspect;
@@ -292,7 +292,7 @@ export async function composeTransparentModelWithRug(options: {
       targetH = targetW / aspect;
     }
     const drawX = (W - targetW) / 2;
-    const drawY = rugY + 26 - targetH;
+    const drawY = rugY + 34 - targetH;
 
     ctx.save();
     if (flipX) {

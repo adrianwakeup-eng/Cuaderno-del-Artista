@@ -393,7 +393,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         effectiveRawModelSrc,
         activeGarment?.garmentMaskUrl,
         effectiveColorGrade,
-        640
+        960
       )
         .then((outUrl) => {
           if (alive) setGradedSrc(outUrl);

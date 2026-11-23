@@ -235,7 +235,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
 
   useEffect(() => {
     let alive = true;
-    const SEED_FLAG = 'vestidor_pasarelas_alta_moda_seeded_v2';
+    const SEED_FLAG = 'vestidor_pasarelas_uhd_clean_v3';
     void Promise.all([loadVestidorCatalog(), loadVestidorTrash(), loadVestidorDecorations()])
       .then(([items, trashed, savedDecor]) => {
         if (!alive) return;
