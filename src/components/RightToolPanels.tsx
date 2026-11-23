@@ -6,10 +6,12 @@ import {
   ArrowUp,
   BookMarked,
   BookOpen,
+  Check,
   ChevronLeft,
   ChevronRight,
   Circle,
   Cloud,
+  Copy,
   DoorOpen,
   Download,
   Eraser,
@@ -782,6 +784,96 @@ const HyperrealBrushSwatch: React.FC<{
   );
 };
 
+const COLOR_CODE_CATALOG: Array<{ name: string; hex: string; tags: string }> = [
+  // Oros, Metales & Luz
+  { name: 'Oro Solar 24k', hex: '#FFD84D', tags: 'dorado oro luz sol amarillo' },
+  { name: 'Oro Antiguo', hex: '#C89B3C', tags: 'dorado bronce museo marco' },
+  { name: 'Oro Champán', hex: '#F3DFB1', tags: 'champan crema dorado claro' },
+  { name: 'Bronce Imperial', hex: '#8C6239', tags: 'bronce cobre cafe madera' },
+  { name: 'Cobre Bruñido', hex: '#B86B43', tags: 'cobre terracota naranja' },
+  { name: 'Plata Lunar', hex: '#D8DEE6', tags: 'plata gris metalico luz' },
+  // Pieles & Retrato Hiperrealista
+  { name: 'Piel Porcelana', hex: '#FCE6D8', tags: 'piel rostro retrato claro' },
+  { name: 'Piel Marfil Cálido', hex: '#F3CFAF', tags: 'piel rostro durazno retrato' },
+  { name: 'Piel Miel Dorada', hex: '#DFA579', tags: 'piel bronceado retrato calido' },
+  { name: 'Piel Canela', hex: '#B9784F', tags: 'piel morena retrato sombra' },
+  { name: 'Piel Cacao Profundo', hex: '#6E3F26', tags: 'piel oscura sombra retrato' },
+  { name: 'Rubor Rosado', hex: '#E5989B', tags: 'piel mejilla labio rosa' },
+  { name: 'Labio Carmín', hex: '#A4303F', tags: 'labios rojo carmin vino' },
+  { name: 'Sombra Ocular Sepia', hex: '#4E2712', tags: 'sombra piel ojo sepia cafe' },
+  // Verdes Botánicos & Bosque
+  { name: 'Verde Hoja Atelier', hex: '#1F4E3D', tags: 'verde bosque hoja cuaderno' },
+  { name: 'Verde Esmeralda', hex: '#1E824C', tags: 'esmeralda hada joya verde' },
+  { name: 'Verde Salvia', hex: '#8DA47E', tags: 'salvia pastel crochet hoja' },
+  { name: 'Verde Oliva Antiguo', hex: '#6B7B3F', tags: 'oliva musgo naturaleza' },
+  { name: 'Menta Luminosa', hex: '#8CE2B2', tags: 'menta verde claro pastel' },
+  { name: 'Verde Ciprés', hex: '#26432F', tags: 'bosque pino oscuro sombra' },
+  // Rojos, Rosas & Flores
+  { name: 'Rojo Burdeos', hex: '#6E1423', tags: 'vino burdeos rojo oscuro' },
+  { name: 'Rojo Carmesí', hex: '#C1121F', tags: 'rojo intenso sangre flor' },
+  { name: 'Terracota Artesanal', hex: '#C95B3C', tags: 'terracota arcilla barro naranja' },
+  { name: 'Coral Atardecer', hex: '#F2846B', tags: 'coral salmon rosa naranja' },
+  { name: 'Rosa Antiguo', hex: '#C87D87', tags: 'rosa viejo vintage crochet' },
+  { name: 'Rosa Pétalo', hex: '#F6C6CF', tags: 'rosa pastel flor suave' },
+  { name: 'Magenta Real', hex: '#B8336A', tags: 'fucsia magenta flor' },
+  // Azules, Cielos & Aguas
+  { name: 'Azul Medianoche', hex: '#14213D', tags: 'azul oscuro noche marino' },
+  { name: 'Azul Marino Clásico', hex: '#1D3557', tags: 'marino jean denim crochet' },
+  { name: 'Azul Cobalto', hex: '#2B59C3', tags: 'azul rey cobalto intenso' },
+  { name: 'Azul Cerúleo', hex: '#4A90D9', tags: 'cielo agua azul brillante' },
+  { name: 'Azul Hielo', hex: '#CBE4F9', tags: 'celeste hielo invierno claro' },
+  { name: 'Turquesa Egeo', hex: '#2A9D8F', tags: 'turquesa mar grecia agua' },
+  // Violetas & Lavandas
+  { name: 'Púrpura Imperial', hex: '#5A189A', tags: 'morado violeta realeza' },
+  { name: 'Amatista', hex: '#8E54B5', tags: 'violeta amatista lila' },
+  { name: 'Lavanda Suave', hex: '#C8B6E2', tags: 'lavanda lila pastel' },
+  // Tierras, Maderas & Neutros
+  { name: 'Blanco Puro', hex: '#FFFFFF', tags: 'blanco brillo ojo luz' },
+  { name: 'Marfil Pergamino', hex: '#F7EFE0', tags: 'marfil crema papel hilo' },
+  { name: 'Arena Natural', hex: '#DFC7A7', tags: 'arena beige lino crochet' },
+  { name: 'Ocre Dorado', hex: '#CC8B3C', tags: 'ocre mostaza tierra' },
+  { name: 'Siena Tostada', hex: '#8F4324', tags: 'siena madera ladrillo' },
+  { name: 'Nogal Oscuro', hex: '#3E2516', tags: 'nogal madera chocolate cafe' },
+  { name: 'Gris Grafito', hex: '#4A4E54', tags: 'gris lapiz sombra grafito' },
+  { name: 'Gris Perla', hex: '#B8BDC4', tags: 'gris claro nube plata' },
+  { name: 'Negro Azabache', hex: '#0B0B0D', tags: 'negro pupila carbon sombra' },
+];
+
+function parseColorQueryToHex(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  const hexFull = s.match(/^#?([0-9a-fA-F]{6})$/);
+  if (hexFull) {
+    return `#${hexFull[1].toUpperCase()}`;
+  }
+  const hexShort = s.match(/^#?([0-9a-fA-F]{3})$/);
+  if (hexShort) {
+    const [r, g, b] = hexShort[1].split('');
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  const rgbMatch = s.match(
+    /^(?:rgba?\s*\(\s*)?(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})(?:\s*(?:,\s*[\d.]+\s*)?\))?$/i
+  );
+  if (rgbMatch) {
+    const r = Math.min(255, Math.max(0, Number(rgbMatch[1])));
+    const g = Math.min(255, Math.max(0, Number(rgbMatch[2])));
+    const b = Math.min(255, Math.max(0, Number(rgbMatch[3])));
+    const toHex = (n: number) => n.toString(16).padStart(2, '0').toUpperCase();
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+  return null;
+}
+
+function hexToRgbLabel(hex: string): string {
+  const clean = hex.replace('#', '');
+  if (clean.length !== 6) return '';
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return '';
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 /* ---------- Complete Animated Right Studio Command Dock ---------- */
 export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   activeSection,
@@ -864,8 +956,46 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   >('destacados');
   const [textureSearch, setTextureSearch] = useState('');
   const [visibleTextureCount, setVisibleTextureCount] = useState(24);
+  const [colorQuery, setColorQuery] = useState('');
+  const [copiedColorCode, setCopiedColorCode] = useState(false);
   const { favoriteSet, toggleFavorite } = useFavoriteBrushes();
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  const parsedDirectHex = useMemo(() => parseColorQueryToHex(colorQuery), [colorQuery]);
+  const matchedColorSwatches = useMemo(() => {
+    const q = colorQuery.trim().toLowerCase();
+    if (!q) return [];
+    const qNoHash = q.replace(/^#/, '');
+    return COLOR_CODE_CATALOG.filter(
+      (c) =>
+        c.hex.toLowerCase().includes(qNoHash) ||
+        c.name.toLowerCase().includes(q) ||
+        c.tags.toLowerCase().includes(q)
+    ).slice(0, 12);
+  }, [colorQuery]);
+
+  const handleCopyActiveColor = async () => {
+    const code = brush.color.toUpperCase();
+    audioEngine.playSaveChime();
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = code;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {
+        // ignore
+      }
+    }
+    setCopiedColorCode(true);
+    window.setTimeout(() => setCopiedColorCode(false), 1800);
+  };
 
   useEffect(() => {
     if (activeTool === 'eraser') setChalkMode('goma');
@@ -1875,12 +2005,24 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
               key="dock-color"
               title="Color"
               headerRight={
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono-tab text-[#e4c698]">{brush.color}</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyActiveColor()}
+                    title={`Copiar código ${brush.color.toUpperCase()} (${hexToRgbLabel(brush.color)})`}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#180c05]/90 hover:bg-[#3a1f0e] border border-[#c8964f]/45 text-[10px] font-mono-tab text-[#f5ddb2] transition-colors cursor-pointer"
+                  >
+                    <span>{copiedColorCode ? '¡Copiado!' : brush.color.toUpperCase()}</span>
+                    {copiedColorCode ? (
+                      <Check className="w-2.5 h-2.5 text-[#9ef08c]" />
+                    ) : (
+                      <Copy className="w-2.5 h-2.5 text-[#e4b86a]" />
+                    )}
+                  </button>
                   <span
-                    className="w-4 h-4 rounded border border-[#f5d599]/80 shadow-inner"
+                    className="w-4 h-4 rounded border border-[#f5d599]/80 shadow-inner shrink-0"
                     style={{ backgroundColor: brush.color }}
-                    title={`Color activo: ${brush.color}`}
+                    title={`Color activo: ${brush.color.toUpperCase()} · ${hexToRgbLabel(brush.color)}`}
                   />
                 </div>
               }
@@ -1900,6 +2042,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                           onSelectColor(c);
                         }}
                         aria-label={`Color ${c}`}
+                        title={`Seleccionar ${c}`}
                         className={`w-full aspect-square rounded-[3px] border cursor-pointer ${
                           selected
                             ? 'border-white scale-110 ring-1 ring-[#f4ca76] z-10'
@@ -1912,6 +2055,94 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                 </div>
 
                 <ColorWheelPicker color={brush.color} onChange={onSelectColor} />
+              </div>
+
+              {/* Search or Paste Color Code (#HEX, RGB, or Spanish pigment name) */}
+              <div className="mt-2 pt-1.5 border-t border-[#b98241]/25 space-y-1.5">
+                <div className="flex items-center gap-1">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="w-3 h-3 text-[#c89d60] absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={colorQuery}
+                      onChange={(e) => setColorQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (parsedDirectHex) {
+                            audioEngine.playYarnPluck(4);
+                            onSelectColor(parsedDirectHex);
+                            setColorQuery('');
+                          } else if (matchedColorSwatches.length > 0) {
+                            audioEngine.playYarnPluck(4);
+                            onSelectColor(matchedColorSwatches[0].hex);
+                            setColorQuery('');
+                          }
+                        }
+                      }}
+                      placeholder="Buscar #HEX, RGB o color (oro, piel)..."
+                      aria-label="Buscar color por código HEX, RGB o nombre"
+                      className="w-full pl-5 pr-5 py-1 rounded-md bg-[#140903] border border-[#b98241]/45 text-[10px] font-mono-tab text-[#fae8c7] placeholder:font-sans placeholder:text-[#9c784d] focus:outline-none focus:border-[#f0c06c]"
+                    />
+                    {colorQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setColorQuery('')}
+                        aria-label="Limpiar búsqueda de color"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-[#cfa467] hover:text-white cursor-pointer"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                  {parsedDirectHex && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioEngine.playYarnPluck(4);
+                        onSelectColor(parsedDirectHex);
+                        setColorQuery('');
+                      }}
+                      title={`Aplicar código ${parsedDirectHex} (${hexToRgbLabel(parsedDirectHex)})`}
+                      className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-gradient-to-b from-[#c78b36] to-[#8a5517] border border-[#ffe29a]/75 text-[9.5px] font-semibold text-white shrink-0 cursor-pointer"
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-white/80"
+                        style={{ backgroundColor: parsedDirectHex }}
+                      />
+                      <span>Usar</span>
+                    </button>
+                  )}
+                </div>
+
+                {matchedColorSwatches.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1 max-h-[112px] overflow-y-auto studio-scroll pr-0.5">
+                    {matchedColorSwatches.map((item) => (
+                      <button
+                        key={item.hex + item.name}
+                        type="button"
+                        onClick={() => {
+                          audioEngine.playYarnPluck(3);
+                          onSelectColor(item.hex);
+                        }}
+                        title={`${item.name} · ${item.hex} · ${hexToRgbLabel(item.hex)}`}
+                        className="flex items-center gap-1.5 px-1.5 py-1 rounded bg-[#180c05]/90 hover:bg-[#381d0c] border border-[#b98241]/35 text-left transition-colors cursor-pointer min-w-0"
+                      >
+                        <span
+                          className="w-3.5 h-3.5 rounded-xs border border-[#f5d599]/70 shrink-0"
+                          style={{ backgroundColor: item.hex }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[9px] font-medium text-[#f8e4be] truncate leading-tight">
+                            {item.name}
+                          </p>
+                          <p className="text-[8px] font-mono-tab text-[#c59b62] leading-none">
+                            {item.hex}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Recent Colors + Gotero */}
@@ -2390,14 +2621,14 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                   label="Tamaño"
                   value={brush.size}
                   min={1}
-                  max={60}
+                  max={120}
                   unit="px"
                   onChange={(size) => onChangeBrush({ size })}
                 />
                 <SliderRow
                   label="Opacidad"
                   value={brush.opacity}
-                  min={10}
+                  min={1}
                   max={100}
                   unit="%"
                   onChange={(opacity) => onChangeBrush({ opacity })}

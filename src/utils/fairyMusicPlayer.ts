@@ -29,21 +29,88 @@ class FairyMusicPlayer {
   private fadeTimer: number | null = null;
   private lastOnsetTs = 0;
   private prevMelody = 0;
+  private audioErrored = false;
+  private synthTimer: number | null = null;
+  private synthCtx: AudioContext | null = null;
+  private synthStep = 0;
+
+  private playSynthHarpPluck(freq: number, vol = 0.08) {
+    if (this.isMuted || !this.isPlaying) return;
+    try {
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      if (!this.synthCtx) this.synthCtx = new AC();
+      if (this.synthCtx.state === 'suspended') {
+        void this.synthCtx.resume();
+      }
+      const ctx = this.synthCtx;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const harm = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      harm.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      harm.frequency.setValueAtTime(freq * 2, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(vol, now + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
+      osc.connect(gain);
+      harm.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      harm.start(now);
+      osc.stop(now + 1.5);
+      harm.stop(now + 1.5);
+    } catch {
+      // ignore audio context errors
+    }
+  }
+
+  private startSynthFallback() {
+    if (this.synthTimer !== null) return;
+    // Enchanted Celtic D-minor / F-major harp arpeggio notes
+    const scaleHz = [293.66, 349.23, 440.0, 523.25, 587.33, 659.25, 698.46, 880.0];
+    const pattern = [0, 2, 4, 5, 7, 5, 4, 2, 1, 3, 4, 6, 7, 6, 4, 3];
+    this.synthTimer = window.setInterval(() => {
+      if (!this.isPlaying || this.isMuted) return;
+      const noteIdx = pattern[this.synthStep % pattern.length];
+      this.synthStep += 1;
+      const hz = scaleHz[noteIdx];
+      this.playSynthHarpPluck(hz, this.synthStep % 4 === 1 ? 0.085 : 0.055);
+    }, 340);
+  }
+
+  private stopSynthFallback() {
+    if (this.synthTimer !== null) {
+      window.clearInterval(this.synthTimer);
+      this.synthTimer = null;
+    }
+  }
 
   private ensureAudio(): HTMLAudioElement {
     if (!this.audio) {
       const el = new Audio();
       el.src = FAIRY_MUSIC_TRACK_URL;
       el.loop = true;
-      // Use 'metadata' so large 320kbps MP3s begin streaming immediately via HTTP 206 Range requests
       el.preload = 'metadata';
       el.volume = this.isMuted ? 0 : this.targetVolume;
       el.muted = this.isMuted;
 
-      // If play() was initiated while metadata/chunks were still buffering, ensure playback resumes
       el.addEventListener('canplay', () => {
+        this.audioErrored = false;
+        this.stopSynthFallback();
         if (this.isPlaying && el.paused) {
           void el.play().catch(() => {});
+        }
+      });
+
+      el.addEventListener('error', () => {
+        this.audioErrored = true;
+        if (this.isPlaying) {
+          this.startSynthFallback();
         }
       });
 
@@ -96,11 +163,18 @@ class FairyMusicPlayer {
     el.muted = muted;
     el.volume = muted ? 0 : Math.max(0.18, el.volume);
 
+    if (this.audioErrored) {
+      this.startSynthFallback();
+      return;
+    }
+
     if (el.paused) {
       const playPromise = el.play();
       if (playPromise && typeof playPromise.catch === 'function') {
         playPromise.catch(() => {
-          // Will retry automatically on 'canplay' or next user interaction if blocked
+          if (this.isPlaying && this.audioErrored) {
+            this.startSynthFallback();
+          }
         });
       }
     }
@@ -124,6 +198,7 @@ class FairyMusicPlayer {
 
   public stop() {
     this.isPlaying = false;
+    this.stopSynthFallback();
     const el = this.audio;
     if (!el) return;
 

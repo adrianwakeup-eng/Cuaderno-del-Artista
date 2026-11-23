@@ -40,8 +40,10 @@ echo.
 echo ====================================================================
 echo   COMPILACION COMPLETADA CON EXITO
 echo   Tus ejecutables de Windows estan en la carpeta: release\
-echo   - Cuaderno-del-Artista-Instalador-*.exe (con acceso directo)
-echo   - Cuaderno-del-Artista-Portable-*.exe   (sin instalar)
+echo   - Cuaderno-del-Artista-Windows-Portable-*-x64.exe  (Portable 64 bits)
+echo   - Cuaderno-del-Artista-Windows-Portable-*-ia32.exe (Portable 32 bits)
+echo   - Cuaderno-del-Artista-Windows-Portable-*-x64.zip  (Carpeta portable)
+echo   - Cuaderno-del-Artista-Windows-Instalador-*-x64.exe (Instalador)
 echo ====================================================================
 echo.
 if exist "release" explorer "release"

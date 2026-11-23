@@ -9,8 +9,8 @@ import { getMuseumFrameById } from '../data/museumFrames';
 import { waitForCalligraphyFont } from './calligraphyFontLoader';
 
 export const TARGET_8K_LONG_EDGE = 7680;
-export const UPLOAD_MIN_ULTRAHD_EDGE = 2400;
-export const UPLOAD_MAX_ULTRAHD_EDGE = 3840;
+export const UPLOAD_MIN_ULTRAHD_EDGE = 2880;
+export const UPLOAD_MAX_ULTRAHD_EDGE = 4096;
 const SAFE_MAX_CANVAS_PIXELS = 46_000_000; // Safe across macOS Safari, Chrome, Edge & Firefox
 
 export interface UltraHDEnhanceOptions {
@@ -136,10 +136,10 @@ export function applyDetailSuperResolutionPass(
     edgeThreshold?: number;
   }
 ): void {
-  const sharpness = options?.sharpness ?? 0.72;
-  const clarity = options?.clarity ?? 0.08;
-  const vibrance = options?.vibrance ?? 0.06;
-  const edgeThreshold = options?.edgeThreshold ?? 2.8;
+  const sharpness = options?.sharpness ?? 0.78;
+  const clarity = options?.clarity ?? 0.09;
+  const vibrance = options?.vibrance ?? 0.07;
+  const edgeThreshold = options?.edgeThreshold ?? 2.4;
 
   const w = canvas.width;
   const h = canvas.height;

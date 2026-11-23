@@ -81,6 +81,20 @@ export default defineConfig(() => {
                 },
               },
             },
+            {
+              urlPattern: /\.(?:webp|png|jpg|jpeg|svg|gif)$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'studio-media-cache',
+                expiration: {
+                  maxEntries: 320,
+                  maxAgeSeconds: 60 * 60 * 24 * 90,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
           ],
         },
         devOptions: {
@@ -98,8 +112,9 @@ export default defineConfig(() => {
           if (error) {
             return;
           }
-          const distDir = path.resolve(__dirname, 'dist');
-          const srcAssets = path.resolve(__dirname, 'src/assets');
+          const rootDir = import.meta.dirname ?? process.cwd();
+          const distDir = path.resolve(rootDir, 'dist');
+          const srcAssets = path.resolve(rootDir, 'src/assets');
           const distAssets = path.resolve(distDir, 'src/assets');
           if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
             fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
@@ -109,7 +124,7 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname ?? process.cwd(), '.'),
       },
     },
     server: {

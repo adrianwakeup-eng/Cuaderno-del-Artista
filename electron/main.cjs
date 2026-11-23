@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, session, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -20,16 +20,40 @@ const MIME_TYPES = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
   '.wasm': 'application/wasm',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.bin': 'application/octet-stream',
   '.mp3': 'audio/mpeg',
   '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.ogg': 'audio/ogg',
+  '.webm': 'audio/webm',
 };
 
 const APP_SCHEME = 'app';
 const APP_HOST = 'cuaderno-del-artista';
 
+// True Portable Mode on Windows: when launched from a portable .exe, store user data
+// in a local "Cuaderno-Datos" folder beside the executable if writable (ideal for USB drives),
+// falling back safely to the standard OS userData folder if the drive is read-only.
+if (process.env.PORTABLE_EXECUTABLE_DIR) {
+  const portableDataDir = path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'Cuaderno-Datos');
+  try {
+    fs.mkdirSync(portableDataDir, { recursive: true });
+    const probeFile = path.join(portableDataDir, '.write-check');
+    fs.writeFileSync(probeFile, 'ok');
+    fs.unlinkSync(probeFile);
+    app.setPath('userData', portableDataDir);
+  } catch {
+    // Read-only portable location -> safely keep default OS AppData path
+  }
+}
+
 // Register custom privileged scheme BEFORE app.whenReady()
-// Gives a fixed secure origin (IndexedDB/localStorage persist forever) with zero file:// bugs and zero firewall popups.
+// Gives a fixed secure origin (IndexedDB/localStorage/MediaRecorder persist forever)
+// with zero file:// bugs and zero Windows firewall popups.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: APP_SCHEME,
@@ -45,7 +69,7 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow = null;
 
-// Prevent multiple instances on Windows when clicking desktop shortcut again
+// Prevent multiple simultaneous instances when clicking desktop shortcut again
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -64,6 +88,7 @@ function resolveIconPath() {
     path.join(__dirname, filename).replace('app.asar', 'app.asar.unpacked'),
     path.join(__dirname, filename),
     path.join(__dirname, '..', 'dist', 'app-icon.ico'),
+    path.join(__dirname, '..', 'dist', 'pwa-512x512.png'),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
@@ -91,28 +116,71 @@ function registerAppProtocol() {
       }
 
       let fileToServe = targetPath;
-      let existsAsFile = false;
+      let fileStat = null;
       try {
         const stat = await fs.promises.stat(targetPath);
-        existsAsFile = stat.isFile();
+        if (stat.isFile()) {
+          fileStat = stat;
+        }
       } catch {
-        existsAsFile = false;
+        fileStat = null;
       }
 
-      if (!existsAsFile) {
-        // If URL looks like a static asset with extension, return 404; otherwise SPA fallback to index.html
+      if (!fileStat) {
         if (path.extname(relPath)) {
           return new Response('Not Found', { status: 404 });
         }
         fileToServe = path.join(distDir, 'index.html');
+        fileStat = await fs.promises.stat(fileToServe);
+      }
+
+      const ext = path.extname(fileToServe).toLowerCase();
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      const totalSize = fileStat.size;
+      const rangeHeader = request.headers.get('range');
+
+      // Support HTTP 206 Partial Content byte-range streaming for MP3/audio seeking
+      if (rangeHeader && rangeHeader.startsWith('bytes=')) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+        if (match) {
+          let start = match[1] ? parseInt(match[1], 10) : 0;
+          let end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+          if (!match[1] && match[2]) {
+            const suffixLen = parseInt(match[2], 10);
+            start = Math.max(0, totalSize - suffixLen);
+            end = totalSize - 1;
+          }
+          start = Math.max(0, Math.min(start, totalSize - 1));
+          end = Math.max(start, Math.min(end, totalSize - 1));
+          const chunkLength = end - start + 1;
+
+          const fh = await fs.promises.open(fileToServe, 'r');
+          try {
+            const buf = Buffer.allocUnsafe(chunkLength);
+            await fh.read(buf, 0, chunkLength, start);
+            return new Response(buf, {
+              status: 206,
+              headers: {
+                'Content-Type': contentType,
+                'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': String(chunkLength),
+                'Cache-Control': 'public, max-age=31536000',
+              },
+            });
+          } finally {
+            await fh.close();
+          }
+        }
       }
 
       const data = await fs.promises.readFile(fileToServe);
-      const ext = path.extname(fileToServe).toLowerCase();
       return new Response(data, {
         status: 200,
         headers: {
-          'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+          'Content-Type': contentType,
+          'Content-Length': String(data.length),
+          'Accept-Ranges': 'bytes',
           'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000',
         },
       });
@@ -122,6 +190,39 @@ function registerAppProtocol() {
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
     }
+  });
+}
+
+function configurePermissions() {
+  const allowedOriginPrefix = `${APP_SCHEME}://${APP_HOST}`;
+  const allowedPermissions = new Set([
+    'media',
+    'audioCapture',
+    'microphone',
+    'clipboard-read',
+    'clipboard-sanitized-write',
+    'fullscreen',
+  ]);
+
+  session.defaultSession.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
+    if (
+      allowedPermissions.has(permission) &&
+      (requestingOrigin.startsWith(allowedOriginPrefix) ||
+        requestingOrigin.startsWith('http://localhost:') ||
+        requestingOrigin.startsWith('http://127.0.0.1:'))
+    ) {
+      return true;
+    }
+    return false;
+  });
+
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+    const url = wc?.getURL() || '';
+    const trusted =
+      url.startsWith(allowedOriginPrefix) ||
+      url.startsWith('http://localhost:') ||
+      url.startsWith('http://127.0.0.1:');
+    callback(Boolean(trusted && allowedPermissions.has(permission)));
   });
 }
 
@@ -147,8 +248,10 @@ async function createWindow() {
     },
   });
 
-  // Clean native Windows window without File/Edit/View menu bar
-  mainWindow.setMenu(null);
+  // Clean native window without File/Edit/View menu bar on Windows & Linux
+  if (process.platform !== 'darwin') {
+    mainWindow.setMenu(null);
+  }
 
   let shown = false;
   const revealWindow = () => {
@@ -159,7 +262,6 @@ async function createWindow() {
   };
 
   mainWindow.once('ready-to-show', revealWindow);
-  // Guarantee window always becomes visible even if a font request is slow offline
   setTimeout(revealWindow, 2200);
 
   mainWindow.on('maximize', () => {
@@ -170,9 +272,13 @@ async function createWindow() {
     mainWindow?.webContents.send('window:maximized-change', false);
   });
 
-  // Open external links safely in default Windows browser
+  // Open external links safely in default OS browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(`${APP_SCHEME}://`) || url.startsWith('http://localhost:') || url.startsWith('http://127.0.0.1:')) {
+    if (
+      url.startsWith(`${APP_SCHEME}://`) ||
+      url.startsWith('http://localhost:') ||
+      url.startsWith('http://127.0.0.1:')
+    ) {
       return { action: 'allow' };
     }
     if (url.startsWith('https://') || url.startsWith('http://')) {
@@ -181,7 +287,7 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
-  // Useful Windows shortcuts: F11 fullscreen, Ctrl+R reload, F12 DevTools
+  // Useful cross-platform shortcuts: F11 fullscreen, Ctrl/Cmd+R reload, F12 DevTools
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
     if (input.key === 'F11') {
@@ -202,7 +308,7 @@ async function createWindow() {
     const safeDesc = String(errorDescription || 'Error desconocido').replace(/[<>&"]/g, '');
     mainWindow?.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
-        `<!doctype html><html lang="es"><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#1b1109;color:#f6e2be;font-family:Segoe UI,sans-serif;text-align:center;padding:24px;">
+        `<!doctype html><html lang="es"><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#1b1109;color:#f6e2be;font-family:Segoe UI,system-ui,sans-serif;text-align:center;padding:24px;">
           <div style="max-width:460px;background:#2b1509;border:1px solid #c9954c;border-radius:16px;padding:28px;">
             <h2 style="margin-top:0;color:#ffebc2;">No se pudo cargar Cuaderno del Artista</h2>
             <p style="font-size:14px;color:#dfc499;">Código ${errorCode}: ${safeDesc}</p>
@@ -234,9 +340,12 @@ ipcMain.on('window:toggle-fullscreen', () => {
 });
 ipcMain.handle('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
 
-app.setAppUserModelId('com.cuadernodelartista.crochet');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.cuadernodelartista.crochet');
+}
 
 app.whenReady().then(() => {
+  configurePermissions();
   registerAppProtocol();
   void createWindow();
   app.on('activate', () => {

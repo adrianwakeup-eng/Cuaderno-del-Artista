@@ -1057,7 +1057,7 @@ export default function App() {
                 rotateAllSignal={rotateAllSignal}
                 zoom={bookZoom}
                 onChangeZoom={(next) =>
-                  setBookZoom(Math.max(25, Math.min(500, Math.round(next))))
+                  setBookZoom(Math.max(25, Math.min(800, Math.round(next))))
                 }
                 onSpreadMetaChange={setSpreadMeta}
               />
@@ -1449,7 +1449,7 @@ export default function App() {
                   onChangeSpreadIndex={setCurrentSpreadIndex}
                   onTurnPage={(dir) => setTurnPageSignal({ id: Date.now(), dir })}
                   onChangeZoom={(delta) =>
-                    setBookZoom((z) => Math.max(25, Math.min(500, z + delta)))
+                    setBookZoom((z) => Math.max(25, Math.min(800, z + delta)))
                   }
                   onToggleOverview={() => setToggleOverviewSignal((c) => c + 1)}
                   onUpdateSpreadTitle={(title) => {
@@ -1612,7 +1612,7 @@ export default function App() {
                         onChangeSpreadIndex={setCurrentSpreadIndex}
                         onTurnPage={(dir) => setTurnPageSignal({ id: Date.now(), dir })}
                         onChangeZoom={(delta) =>
-                          setBookZoom((z) => Math.max(25, Math.min(500, z + delta)))
+                          setBookZoom((z) => Math.max(25, Math.min(800, z + delta)))
                         }
                         onToggleOverview={() => setToggleOverviewSignal((c) => c + 1)}
                         onUpdateSpreadTitle={(title) => {

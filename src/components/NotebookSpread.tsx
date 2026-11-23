@@ -193,8 +193,8 @@ const DEFAULT_FILTERS: ImageFilters = {
   blur: 0,
 };
 
-const PAGE_W = 920;
-const PAGE_H = 1200;
+const PAGE_W = 1480;
+const PAGE_H = 1930;
 const PATTERNS_PER_CATALOG_PAGE = 4; // 4 left + 4 right = 8 patterns per spread
 const MANDALAS_PER_PAGE = 6; // 6 left + 6 right = 12 mandalas per spread
 
@@ -364,7 +364,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     (updater: number | ((z: number) => number)) => {
       const current = zoomRef.current;
       const rawNext = typeof updater === 'function' ? updater(current) : updater;
-      const next = Math.max(25, Math.min(500, Math.round(rawNext)));
+      const next = Math.max(25, Math.min(800, Math.round(rawNext)));
       zoomRef.current = next;
       if (onChangeZoom) onChangeZoom(next);
       else setInternalZoom(next);
@@ -615,7 +615,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
         const dist = Math.max(12, getTouchDist(t1, t2));
         const nextZoom = Math.max(
           25,
-          Math.min(500, Math.round(pinchState.startZoom * (dist / pinchState.startDist)))
+          Math.min(800, Math.round(pinchState.startZoom * (dist / pinchState.startDist)))
         );
         const rect = viewport.getBoundingClientRect();
         const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
@@ -642,9 +642,9 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       const prevZoom = zoomRef.current;
       const clampedDelta = Math.max(-120, Math.min(120, e.deltaY));
       const factor = Math.exp(-clampedDelta * 0.0028);
-      let nextZoom = Math.max(25, Math.min(500, Math.round(prevZoom * factor)));
+      let nextZoom = Math.max(25, Math.min(800, Math.round(prevZoom * factor)));
       if (nextZoom === prevZoom && clampedDelta !== 0) {
-        nextZoom = Math.max(25, Math.min(500, prevZoom + (clampedDelta < 0 ? 2 : -2)));
+        nextZoom = Math.max(25, Math.min(800, prevZoom + (clampedDelta < 0 ? 2 : -2)));
       }
       if (nextZoom === prevZoom) return;
       const rect = viewport.getBoundingClientRect();
@@ -3887,7 +3887,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               type="button"
               onClick={() => {
                 audioEngine.playStitchClick();
-                setZoom((z) => Math.min(500, z + 20));
+                setZoom((z) => Math.min(800, z + 20));
               }}
               aria-label="Acercar"
               title="Acercar (↑)"
@@ -3965,7 +3965,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               type="button"
               onClick={() => {
                 audioEngine.playStitchClick();
-                setZoom((z) => Math.min(500, z + 20));
+                setZoom((z) => Math.min(800, z + 20));
               }}
               aria-label="Acercar"
               title="Acercar (↑ / Ctrl +)"
@@ -5723,6 +5723,8 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
       if (!drawingDataUrl && !legacyRightDrawingDataUrl) {
         ctx.clearRect(0, 0, canvasW, canvasH);
@@ -5922,6 +5924,8 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
       const resScale = PAGE_W / 460;
       const alpha = Math.max(0.05, Math.min(1, brush.opacity / 100));

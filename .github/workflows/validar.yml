@@ -2,7 +2,7 @@ name: Validar Cuaderno del Artista
 on:
   pull_request:
   push:
-    branches: [main, feature/desktop-focus-final]
+    branches: [main, feature/mejora-visual-premium-v2]
 jobs:
   web:
     runs-on: ubuntu-latest
@@ -11,6 +11,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
       - run: npm run lint
       - run: npm run build
