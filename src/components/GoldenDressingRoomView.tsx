@@ -148,8 +148,9 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   const [rightPanelTab, setRightPanelTab] = useState<'prendas' | 'poses'>('prendas');
   const [activeCategory, setActiveCategory] = useState<DressingRoomCategory | 'Todas'>('Todas');
   const [activeRunwayId, setActiveRunwayId] = useState<string>('todas');
-  const [visibleCount, setVisibleCount] = useState<number>(36);
+  const [visibleCount, setVisibleCount] = useState<number>(160);
   const [activePose2DId, setActivePose2DId] = useState<string>('frontal-pasarela');
+  const [modelScale, setModelScale] = useState<number>(1.0);
   const [copyingTransparent, setCopyingTransparent] = useState<boolean>(false);
   const [justCopiedTransparent, setJustCopiedTransparent] = useState<boolean>(false);
 
@@ -374,7 +375,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
 
   // Reset pagination cleanly when changing category or runway
   useEffect(() => {
-    setVisibleCount(36);
+    setVisibleCount(160);
   }, [activeCategory, activeRunwayId]);
 
   const handleCopyTransparentModelWithRug = useCallback(async () => {
@@ -722,6 +723,15 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     setShowClothing(true);
     setCustomStudioPhotoName(null);
     viewer3DRef.current?.clearCustomPhoto();
+    // Ensure selecting any garment immediately shows it (reset single-photo base poses automatically)
+    if (
+      activePose2DId === 'perfil-izquierdo' ||
+      activePose2DId === 'perfil-derecho' ||
+      activePose2DId === 'espalda-editorial' ||
+      activePose2DId === 'manos-bolsillos'
+    ) {
+      setActivePose2DId('frontal-pasarela');
+    }
     const hasPhotographedModelView = Boolean(
       garment.modelViews && Object.values(garment.modelViews).some(Boolean)
     );
@@ -1110,6 +1120,8 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
               sewingPaused={sewingPaused}
               static2DMode={true}
               activePose2D={activePose2D}
+              modelScale={modelScale}
+              onChangeModelScale={setModelScale}
               onToggleSewingPaused={() => {
                 playSfx(sewingPaused ? 'toggleOn' : 'toggleOff');
                 setSewingPaused((prev) => !prev);
@@ -1154,14 +1166,58 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             />
           </div>
 
-          {/* 1-CLICK TRANSPARENT FIGURE + RUG COPY / DOWNLOAD BAR */}
+          {/* 1-CLICK TRANSPARENT FIGURE + RUG COPY / DOWNLOAD + FREE MODEL RESIZE BAR */}
           {!cleanPhotoMode && (
             <div className="relative z-30 flex flex-wrap items-center justify-center gap-2 pt-1.5 pb-0.5 shrink-0">
+              {/* Free Model Resize Control (55% - 220%) */}
+              <div
+                title="Redimensiona el modelo libremente (también puedes usar la rueda del ratón o arrastrar la manija ⤢)"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#fff6e6]/95 border-2 border-[#cfa16a] text-[#4f260e] shadow-sm"
+              >
+                <button
+                  type="button"
+                  aria-label="Reducir tamaño del modelo"
+                  onClick={() => setModelScale((s) => Math.max(0.55, Number((s - 0.1).toFixed(2))))}
+                  className="w-5 h-5 rounded-full bg-[#f3dfc2] hover:bg-[#e7c697] text-[#4f260e] text-xs font-extrabold flex items-center justify-center cursor-pointer"
+                >
+                  −
+                </button>
+                <input
+                  type="range"
+                  min={55}
+                  max={220}
+                  step={5}
+                  value={Math.round(modelScale * 100)}
+                  onChange={(e) => setModelScale(Number(e.target.value) / 100)}
+                  aria-label="Tamaño del modelo"
+                  className="w-20 sm:w-24 accent-[#c78016] cursor-pointer h-1.5"
+                />
+                <button
+                  type="button"
+                  aria-label="Aumentar tamaño del modelo"
+                  onClick={() => setModelScale((s) => Math.min(2.2, Number((s + 0.1).toFixed(2))))}
+                  className="w-5 h-5 rounded-full bg-[#f3dfc2] hover:bg-[#e7c697] text-[#4f260e] text-xs font-extrabold flex items-center justify-center cursor-pointer"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModelScale(1.0);
+                    viewer3DRef.current?.resetCamera();
+                  }}
+                  title="Restablecer tamaño al 100%"
+                  className="text-[10.5px] font-extrabold font-mono-tab px-1.5 py-0.5 rounded-full hover:bg-[#f3dfc2] cursor-pointer"
+                >
+                  {Math.round(modelScale * 100)}%
+                </button>
+              </div>
+
               <button
                 type="button"
                 disabled={copyingTransparent}
                 onClick={() => void handleCopyTransparentModelWithRug()}
-                title="Copia SOLO el modelo y la alfombra a sus pies con fondo 100% transparente (PNG)"
+                title="Copia SOLO el modelo y la alfombra a sus pies con fondo 100% transparente (PNG 2K)"
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 text-xs sm:text-[13px] font-extrabold shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 ${
                   justCopiedTransparent
                     ? 'bg-[#2c7a4b] border-[#a5e3be] text-white'
@@ -1175,7 +1231,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                 )}
                 <span>
                   {justCopiedTransparent
-                    ? '¡Copiado PNG transparente!'
+                    ? '¡Copiado PNG 2K!'
                     : copyingTransparent
                       ? 'Preparando PNG...'
                       : 'Copiar figura + alfombra (sin fondo)'}
@@ -1186,7 +1242,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                 type="button"
                 disabled={copyingTransparent}
                 onClick={() => void handleDownloadTransparentModelWithRug()}
-                title="Descargar PNG con fondo transparente (solo el modelo y la alfombra)"
+                title="Descargar PNG 2K con fondo transparente (solo el modelo y la alfombra)"
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#fff6e6]/95 hover:bg-white border-2 border-[#cfa16a] text-[#4f260e] text-xs font-bold shadow-sm cursor-pointer transition-colors disabled:opacity-60"
               >
                 <Download className="w-3.5 h-3.5" />

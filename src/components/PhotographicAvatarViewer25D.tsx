@@ -74,6 +74,8 @@ export interface PhotographicAvatarViewerProps {
   sewingPaused?: boolean;
   static2DMode?: boolean;
   activePose2D?: StaticModelPose2D;
+  modelScale?: number;
+  onChangeModelScale?: (nextScale: number) => void;
   onToggleSewingPaused?: () => void;
   onToggleSpin360: () => void;
   onStopSpin360: () => void;
@@ -196,6 +198,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       sewingPaused = false,
       static2DMode = false,
       activePose2D,
+      modelScale,
+      onChangeModelScale,
       onToggleSewingPaused,
       onToggleSpin360,
       onStopSpin360,
@@ -393,7 +397,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         effectiveRawModelSrc,
         activeGarment?.garmentMaskUrl,
         effectiveColorGrade,
-        960
+        1280
       )
         .then((outUrl) => {
           if (alive) setGradedSrc(outUrl);
@@ -689,14 +693,84 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       ]
     );
 
+    // Sync controlled external modelScale smoothly (for free 2D model resizing)
+    useEffect(() => {
+      if (typeof modelScale === 'number' && Number.isFinite(modelScale)) {
+        const clamped = Math.max(0.55, Math.min(2.2, Number(modelScale.toFixed(2))));
+        setZoom(clamped);
+        if (clamped <= 1.04) setPan({ x: 0, y: 0 });
+      }
+    }, [modelScale]);
+
+    const applyScale2D = useCallback(
+      (nextScale: number) => {
+        const clamped = Math.max(0.55, Math.min(2.2, Number(nextScale.toFixed(2))));
+        setZoom(clamped);
+        if (clamped <= 1.04) setPan({ x: 0, y: 0 });
+        onChangeModelScale?.(clamped);
+      },
+      [onChangeModelScale]
+    );
+
+    const resizeHandleRef = useRef<{
+      active: boolean;
+      pointerId: number;
+      startY: number;
+      startX: number;
+      startScale: number;
+    }>({ active: false, pointerId: -1, startY: 0, startX: 0, startScale: 1 });
+
+    const handleResizeHandleDown = useCallback(
+      (e: React.PointerEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        resizeHandleRef.current = {
+          active: true,
+          pointerId: e.pointerId,
+          startY: e.clientY,
+          startX: e.clientX,
+          startScale: zoom,
+        };
+        setIsDragging(true);
+      },
+      [zoom]
+    );
+
+    const handleResizeHandleMove = useCallback(
+      (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (!resizeHandleRef.current.active || resizeHandleRef.current.pointerId !== e.pointerId) {
+          return;
+        }
+        e.stopPropagation();
+        // Dragging up or right makes the model bigger; dragging down or left makes it smaller
+        const deltaPx =
+          (resizeHandleRef.current.startY - e.clientY) * 0.75 +
+          (e.clientX - resizeHandleRef.current.startX) * 0.55;
+        applyScale2D(resizeHandleRef.current.startScale + deltaPx / 260);
+      },
+      [applyScale2D]
+    );
+
+    const handleResizeHandleUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+      if (resizeHandleRef.current.pointerId === e.pointerId) {
+        resizeHandleRef.current.active = false;
+        resizeHandleRef.current.pointerId = -1;
+        setIsDragging(false);
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+    }, []);
+
     const handlePointerDown = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
-        if (static2DMode) return;
         if ((e.target as HTMLElement).closest('button')) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-        // Two-finger pinch-to-zoom & pan on touchscreens
+        // Two-finger pinch-to-resize & pan on touchscreens
         if (activePointersRef.current.size === 2) {
           const pts = Array.from(activePointersRef.current.values());
           const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
@@ -708,6 +782,23 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
             lastMidY: (pts[0].y + pts[1].y) / 2,
           };
           dragRef.current.active = false;
+          setIsDragging(true);
+          return;
+        }
+
+        // In static 2D mode: NEVER rotate — only allow smooth panning when resized > 105%
+        if (static2DMode) {
+          if (zoom <= 1.04) return;
+          dragRef.current = {
+            active: true,
+            mode: 'pan',
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            lastX: e.clientX,
+            lastY: e.clientY,
+            accumulatedDeg: angleDeg,
+          };
           setIsDragging(true);
           return;
         }
@@ -728,26 +819,25 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           onStopSpin360();
         }
       },
-      [zoom, angleDeg, isSpinning360, onStopSpin360]
+      [static2DMode, zoom, angleDeg, isSpinning360, onStopSpin360]
     );
 
     const handlePointerMove = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
-        if (static2DMode) return;
         if (activePointersRef.current.has(e.pointerId)) {
           activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
         }
 
-        // Active two-finger pinch zoom + pan
+        // Active two-finger pinch resize + pan
         if (pinchRef.current.active && activePointersRef.current.size >= 2) {
           const pts = Array.from(activePointersRef.current.values());
           const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
           const ratio = dist / pinchRef.current.startDist;
           const nextZoom = Math.max(
-            0.85,
-            Math.min(2.6, Number((pinchRef.current.startZoom * ratio).toFixed(2)))
+            0.55,
+            Math.min(2.2, Number((pinchRef.current.startZoom * ratio).toFixed(2)))
           );
-          setZoom(nextZoom);
+          applyScale2D(nextZoom);
 
           const midX = (pts[0].x + pts[1].x) / 2;
           const midY = (pts[0].y + pts[1].y) / 2;
@@ -759,8 +849,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           if (nextZoom <= 1.04) {
             setPan({ x: 0, y: 0 });
           } else {
-            const maxPanX = 200 * (nextZoom - 1);
-            const maxPanY = 240 * (nextZoom - 1);
+            const maxPanX = 240 * (nextZoom - 1);
+            const maxPanY = 300 * (nextZoom - 1);
             setPan((prev) => ({
               x: Math.max(-maxPanX, Math.min(maxPanX, prev.x + dmx)),
               y: Math.max(-maxPanY, Math.min(maxPanY, prev.y + dmy)),
@@ -769,7 +859,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           return;
         }
 
-        if (!reducedMotion) {
+        if (!static2DMode && !reducedMotion) {
           const rect = stageRef.current?.getBoundingClientRect();
           if (rect && rect.width > 0 && rect.height > 0) {
             const nx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
@@ -788,13 +878,13 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         dragRef.current.lastY = e.clientY;
 
         if (dragRef.current.mode === 'pan') {
-          const maxPanX = 200 * (zoom - 1);
-          const maxPanY = 240 * (zoom - 1);
+          const maxPanX = 240 * Math.max(0.25, zoom - 1);
+          const maxPanY = 320 * Math.max(0.25, zoom - 1);
           setPan((prev) => ({
             x: Math.max(-maxPanX, Math.min(maxPanX, prev.x + dx)),
             y: Math.max(-maxPanY, Math.min(maxPanY, prev.y + dy)),
           }));
-        } else {
+        } else if (!static2DMode) {
           const degPerPx = 360 / 220;
           dragRef.current.accumulatedDeg = normalizeAngleDeg(
             dragRef.current.accumulatedDeg - dx * degPerPx
@@ -802,7 +892,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           setAngleDeg(dragRef.current.accumulatedDeg);
         }
       },
-      [zoom, reducedMotion]
+      [static2DMode, zoom, reducedMotion, applyScale2D]
     );
 
     const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -832,25 +922,32 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
 
     const handleWheel = useCallback(
       (e: React.WheelEvent<HTMLDivElement>) => {
-        if (static2DMode) return;
         e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const delta = e.deltaY > 0 ? -0.08 : 0.08;
+        if (static2DMode) {
+          applyScale2D(zoom + delta);
+          return;
+        }
         setZoom((prev) => {
           const next = Math.max(0.85, Math.min(2.6, Number((prev + delta).toFixed(2))));
           if (next <= 1.04) setPan({ x: 0, y: 0 });
           return next;
         });
       },
-      [static2DMode]
+      [static2DMode, zoom, applyScale2D]
     );
 
     const handleDoubleClick = useCallback(() => {
-      if (static2DMode) return;
       playClick();
+      if (static2DMode) {
+        applyScale2D(1.0);
+        setPan({ x: 0, y: 0 });
+        return;
+      }
       setZoom(1.0);
       setPan({ x: 0, y: 0 });
       setParallax({ x: 0, y: 0 });
-    }, [playClick, static2DMode]);
+    }, [playClick, static2DMode, applyScale2D]);
 
     const mood = STUDIO_MOOD_MAP[lightPreset] ?? STUDIO_MOOD_MAP.vestidor_lujo;
 
@@ -913,9 +1010,13 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         onPointerLeave={handlePointerLeave}
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
-        className={`relative w-full h-full min-h-[380px] flex flex-col items-center justify-end overflow-hidden select-none touch-none ${
+        className={`group/stage relative w-full h-full min-h-[380px] flex flex-col items-center justify-end overflow-hidden select-none touch-none ${
           static2DMode
-            ? 'cursor-default'
+            ? isDragging
+              ? 'cursor-grabbing'
+              : zoom > 1.04
+                ? 'cursor-move'
+                : 'cursor-default'
             : isDragging
               ? 'cursor-grabbing'
               : zoom > 1.08
@@ -995,6 +1096,25 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         >
           {/* Adaptive Stage Assembly locking Rug, Contact Shadow & Model Feet Anchor */}
           <div className="relative w-full h-full min-h-0 max-w-[520px] flex flex-col items-center justify-end">
+            {/* Direct Drag-to-Resize Brass Handle on the 2D Model Frame */}
+            {static2DMode && !cleanStageMode && (
+              <button
+                type="button"
+                onPointerDown={handleResizeHandleDown}
+                onPointerMove={handleResizeHandleMove}
+                onPointerUp={handleResizeHandleUp}
+                onPointerCancel={handleResizeHandleUp}
+                title="Arrastra para redimensionar libremente el modelo (55% – 220%) · Doble clic para 100%"
+                aria-label="Arrastra para redimensionar el modelo"
+                className="pointer-events-auto absolute top-3 right-3 z-30 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fff6e6]/92 hover:bg-white border-2 border-[#d19a47] text-[#4b240c] text-[10.5px] font-extrabold shadow-md cursor-nesw-resize opacity-85 group-hover/stage:opacity-100 transition-opacity select-none"
+              >
+                <span aria-hidden="true" className="text-xs leading-none">
+                  ⤢
+                </span>
+                <span className="font-mono-tab">{Math.round(zoom * 100)}%</span>
+              </button>
+            )}
+
             {/* LAYER 2: Photorealistic Circular Hand-Crocheted Rug Beneath Model's Feet */}
             <div
               aria-hidden="true"
