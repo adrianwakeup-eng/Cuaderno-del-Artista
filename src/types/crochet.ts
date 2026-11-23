@@ -306,8 +306,11 @@ export interface CrochetTechSheet {
   patternPhotos?: CrochetAttachmentPhoto[];
 }
 
+export type WardrobeSeasonId = 'primavera' | 'verano' | 'otono' | 'invierno';
+
 export interface DressingRoomGarment {
   id: string;
+  season?: WardrobeSeasonId;
   name: string;
   category: DressingRoomCategory;
   garmentSlot?: 'top' | 'bottom';

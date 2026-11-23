@@ -59,6 +59,7 @@ import type {
   PageElement,
   PaperStyle,
   ShapeKind,
+  WardrobeSeasonId,
 } from '../types/crochet';
 import { CROCHET_ALPHABET } from '../data/crochetAlphabet';
 import { CrochetStickerSvg } from './CrochetDecorations';
@@ -133,7 +134,7 @@ interface NotebookSpreadProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onPlayPageFlip: () => void;
-  onEnterDressingRoom?: () => void;
+  onEnterDressingRoom?: (season?: WardrobeSeasonId) => void;
   onNotify?: (msg: string) => void;
   dockedMode?: boolean;
   focusMode?: boolean;
@@ -4718,7 +4719,7 @@ const PageElementItem = memo<{
   onToggleLockElement: (el: PageElement) => void;
   onExtractFigure?: (el: PageElement) => void;
   onRestoreFigure?: (el: PageElement) => void;
-  onEnterDressingRoom?: () => void;
+  onEnterDressingRoom?: (season?: WardrobeSeasonId) => void;
   onReadElement?: (el: PageElement) => void;
   onEditTextDone: () => void;
 }>(
@@ -4822,7 +4823,7 @@ const PageElementItem = memo<{
 
     const hasTextBg = Boolean(el.backgroundColor && el.backgroundColor !== 'transparent');
 
-    // Fixed, large left-side centerpiece wardrobe cleanly positioned on the single sheet
+    // Full-width 4-door Neoclassical Greek Wardrobe spanning the entire sheet width cleanly inside the cm rulers
     if (el.type === 'wardrobe') {
       return (
         <div
@@ -4830,10 +4831,10 @@ const PageElementItem = memo<{
           style={
             unifiedSheet
               ? {
-                  left: '2.5%',
-                  width: '44%',
-                  top: '5%',
-                  bottom: '5.5%',
+                  left: '3.4%',
+                  right: '3.4%',
+                  top: '4.4%',
+                  bottom: '4.6%',
                   opacity: el.opacity ?? 1,
                 }
               : {
@@ -5323,7 +5324,7 @@ interface SinglePageProps {
   onToggleLockElement: (el: PageElement) => void;
   onExtractElementFigure?: (el: PageElement) => void;
   onRestoreElementFigure?: (el: PageElement) => void;
-  onEnterDressingRoom?: () => void;
+  onEnterDressingRoom?: (season?: WardrobeSeasonId) => void;
   readerElementId?: string | null;
   readerIsPlaying?: boolean;
   onReadElement?: (el: PageElement) => void;

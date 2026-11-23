@@ -40,6 +40,7 @@ import type {
   PaperStyle,
   ShapeKind,
   StudioSection,
+  WardrobeSeasonId,
 } from './types/crochet';
 import { audioEngine } from './utils/audioEngine';
 import {
@@ -59,6 +60,7 @@ export default function App() {
   const [bookState, setBookState] = useState<'cover' | 'transitioning' | 'studio'>('cover');
   const [bookOpeningTransition, setBookOpeningTransition] = useState(false);
   const [activeSection, setActiveSection] = useState<StudioSection>('cuaderno');
+  const [vestidorSeason, setVestidorSeason] = useState<WardrobeSeasonId>('primavera');
   const [notebookMode, setNotebookMode] = useState<'book' | 'mandalas'>('book');
   const [currentSpreadIndex, setCurrentSpreadIndex] = useState(() =>
     Math.ceil((CROCHET_ALPHABET.length + DEFAULT_WORKSPACE.patterns.length) / 8)
@@ -991,7 +993,10 @@ export default function App() {
                 onUndo={handleUndo}
                 onRedo={handleRedo}
                 onPlayPageFlip={() => audioEngine.playPageFlip()}
-                onEnterDressingRoom={() => setActiveSection('vestidor')}
+                onEnterDressingRoom={(season) => {
+                  if (season) setVestidorSeason(season);
+                  setActiveSection('vestidor');
+                }}
                 onNotify={showToast}
                 dockedMode={!focusMode}
                 focusMode={focusMode}
@@ -1147,6 +1152,8 @@ export default function App() {
 
             {activeSection === 'vestidor' && (
               <GoldenDressingRoomView
+                activeSeason={vestidorSeason}
+                onChangeSeason={setVestidorSeason}
                 customGarments={workspace.wardrobeItems ?? []}
                 finishedProjects={workspace.projects}
                 onAddCustomGarment={(garment: DressingRoomGarment) => {

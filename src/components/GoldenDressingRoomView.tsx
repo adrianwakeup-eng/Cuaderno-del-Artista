@@ -22,7 +22,13 @@ import type {
   VestidorDecorElement,
   VestidorHistoryEntry,
   VestidorPreferences,
+  WardrobeSeasonId,
 } from '../types/crochet';
+import {
+  WARDROBE_SEASONS,
+  WARDROBE_SEASON_BY_ID,
+  resolveGarmentSeason,
+} from '../utils/wardrobeSeasons';
 import { YARN_BALL_COLORS, type YarnBallColorOption } from '../data/glbAssetManifest';
 import {
   PASARELAS_ALTA_MODA_CATALOG,
@@ -102,6 +108,8 @@ const PINK_PANEL_STYLE: React.CSSProperties = {
 };
 
 interface GoldenDressingRoomViewProps {
+  activeSeason?: WardrobeSeasonId;
+  onChangeSeason?: (season: WardrobeSeasonId) => void;
   customGarments: DressingRoomGarment[];
   finishedProjects: FinishedProject[];
   onAddCustomGarment: (garment: DressingRoomGarment) => void;
@@ -113,6 +121,8 @@ interface GoldenDressingRoomViewProps {
 }
 
 export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
+  activeSeason = 'primavera',
+  onChangeSeason,
   onSelectBrushColor,
   onPinGarmentToNotebook,
   onBackToNotebook,
@@ -146,8 +156,29 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   }));
 
   const [rightPanelTab, setRightPanelTab] = useState<'prendas' | 'poses'>('prendas');
+  const [seasonFilter, setSeasonFilter] = useState<WardrobeSeasonId | 'todas'>(activeSeason);
   const [activeCategory, setActiveCategory] = useState<DressingRoomCategory | 'Todas'>('Todas');
   const [activeRunwayId, setActiveRunwayId] = useState<string>('todas');
+
+  useEffect(() => {
+    setSeasonFilter(activeSeason);
+  }, [activeSeason]);
+
+  const activeSeasonMeta =
+    seasonFilter === 'todas' ? null : WARDROBE_SEASON_BY_ID[seasonFilter];
+
+  const seasonCounts = useMemo(() => {
+    const counts: Record<WardrobeSeasonId, number> = {
+      primavera: 0,
+      verano: 0,
+      otono: 0,
+      invierno: 0,
+    };
+    for (const item of catalogDesigns) {
+      counts[resolveGarmentSeason(item)]++;
+    }
+    return counts;
+  }, [catalogDesigns]);
   const [visibleCount, setVisibleCount] = useState<number>(160);
   const [activePose2DId, setActivePose2DId] = useState<string>('frontal-pasarela');
   const [modelScale, setModelScale] = useState<number>(1.0);
@@ -347,10 +378,13 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     [activePose2DId]
   );
 
-  // Filtered designs by category & runway house
+  // Filtered designs by season, category & runway house
   const categoryDesigns = useMemo(() => {
     return catalogDesigns
       .filter((item) => {
+        if (seasonFilter !== 'todas' && resolveGarmentSeason(item) !== seasonFilter) {
+          return false;
+        }
         if (activeCategory !== 'Todas') {
           if (activeCategory === 'Pulóveres') {
             if (item.category !== 'Pulóveres' && item.category !== 'Suéteres') return false;
@@ -365,7 +399,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
         return true;
       })
       .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
-  }, [catalogDesigns, activeCategory, activeRunwayId]);
+  }, [catalogDesigns, seasonFilter, activeCategory, activeRunwayId]);
 
   const rawCategoryCount = categoryDesigns.length;
   const displayedDesigns = useMemo(
@@ -373,10 +407,10 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
     [categoryDesigns, visibleCount]
   );
 
-  // Reset pagination cleanly when changing category or runway
+  // Reset pagination cleanly when changing season, category or runway
   useEffect(() => {
     setVisibleCount(160);
-  }, [activeCategory, activeRunwayId]);
+  }, [seasonFilter, activeCategory, activeRunwayId]);
 
   const handleCopyTransparentModelWithRug = useCallback(async () => {
     if (copyingTransparent) return;
@@ -452,25 +486,29 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   };
 
   const handleSaveDesign = (saved: DressingRoomGarment) => {
-    const exists = catalogDesigns.some((item) => item.id === saved.id);
+    const taggedSaved: DressingRoomGarment = {
+      ...saved,
+      season: saved.season ?? (seasonFilter !== 'todas' ? seasonFilter : activeSeason),
+    };
+    const exists = catalogDesigns.some((item) => item.id === taggedSaved.id);
     const next = exists
-      ? catalogDesigns.map((item) => (item.id === saved.id ? saved : item))
-      : [{ ...saved, sortOrder: 0 }, ...catalogDesigns.map((d, i) => ({ ...d, sortOrder: i + 1 }))];
+      ? catalogDesigns.map((item) => (item.id === taggedSaved.id ? taggedSaved : item))
+      : [{ ...taggedSaved, sortOrder: 0 }, ...catalogDesigns.map((d, i) => ({ ...d, sortOrder: i + 1 }))];
 
     commitCatalogChange(
       next,
-      exists ? `Editado: ${saved.name}` : `Añadido: ${saved.name}`
+      exists ? `Editado: ${taggedSaved.name}` : `Añadido: ${taggedSaved.name}`
     );
-    setActiveCategory(saved.category);
+    setActiveCategory(taggedSaved.category);
     setEditorModalOpen(false);
     setEditingGarment(null);
 
     setShowClothing(true);
-    if (saved.garmentSlot === 'bottom') {
-      setSelectedBottomId(saved.id);
+    if (taggedSaved.garmentSlot === 'bottom') {
+      setSelectedBottomId(taggedSaved.id);
       setBottomColorOverride(null);
     } else {
-      setSelectedTopId(saved.id);
+      setSelectedTopId(taggedSaved.id);
       setTopColorOverride(null);
     }
     if (saved.availableColorIds?.[0]) {
@@ -590,6 +628,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
         const now = new Date().toISOString();
         created.push({
           id: `design-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          season: seasonFilter !== 'todas' ? seasonFilter : activeSeason,
           name: cleanTitle.slice(0, 48),
           category: catMeta.id,
           garmentSlot: catMeta.slot,
@@ -962,10 +1001,14 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                     'linear-gradient(180deg, #fff7c8 0%, #ffda66 50%, #df981c 100%)',
                 }}
               >
-                El Vestidor Dorado
+                {activeSeasonMeta
+                  ? `Atelier · ${activeSeasonMeta.label}`
+                  : 'El Vestidor Dorado'}
               </h1>
               <p className="mt-0.5 font-editorial italic text-[11px] sm:text-xs lg:text-[14px] text-[#f9e7ca] tracking-wide whitespace-nowrap drop-shadow-[0_1px_3px_rgba(18,7,2,0.85)]">
-                Colección Crochet Fuentes Nazco
+                {activeSeasonMeta
+                  ? `Puerta ${activeSeasonMeta.roman} · ${activeSeasonMeta.fibersNote}`
+                  : 'Colección Crochet Fuentes Nazco'}
               </p>
             </div>
           </div>
@@ -1290,6 +1333,69 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
               }}
               className="flex-1 flex flex-col min-h-0 p-2 sm:p-2.5 overflow-hidden"
             >
+              {/* 4-SEASON GREEK WARDROBE DOORS SWITCHER (Primavera · Verano · Otoño · Invierno) */}
+              <div className="mb-2 shrink-0 space-y-1.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                  {WARDROBE_SEASONS.map((s) => {
+                    const active = seasonFilter === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          playSfx('click');
+                          setSeasonFilter(s.id);
+                          onChangeSeason?.(s.id);
+                        }}
+                        style={active ? { background: s.pillBg } : undefined}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold whitespace-nowrap border transition-all cursor-pointer shrink-0 ${
+                          active
+                            ? 'text-[#fff7e2] border-[#ffe3a3] shadow-sm'
+                            : 'bg-[#fff7ea]/85 hover:bg-white text-[#5d3015] border-[#d7ae7d]'
+                        }`}
+                      >
+                        <img
+                          src={s.doorImage}
+                          alt=""
+                          className="w-4 h-5 rounded-t-full object-cover object-top border border-[#e6be6c]/70 shrink-0"
+                        />
+                        <span>
+                          {s.roman} · {s.label}
+                        </span>
+                        <span className="text-[9.5px] opacity-80 font-mono-tab">
+                          ({seasonCounts[s.id]})
+                        </span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSfx('click');
+                      setSeasonFilter('todas');
+                    }}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap border transition-all cursor-pointer shrink-0 ${
+                      seasonFilter === 'todas'
+                        ? 'bg-[#5c2e14] text-[#fff3d6] border-[#f0c77c] shadow-sm'
+                        : 'bg-[#fff7ea]/75 hover:bg-white text-[#673718] border-[#d7ae7d]'
+                    }`}
+                  >
+                    Todas ({catalogDesigns.length})
+                  </button>
+                </div>
+
+                {activeSeasonMeta && (
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-xl bg-[#fff8ec]/80 border border-[#d6ab77]/75 text-[10.5px] text-[#592d14]">
+                    <span className="truncate font-medium">
+                      <strong className="font-display text-[#3c1b07]">
+                        Apartado {activeSeasonMeta.label}:
+                      </strong>{' '}
+                      {activeSeasonMeta.subtitle}
+                    </span>
+                  </div>
+                )}
+              </div>
+
               {/* CLEAN TOP SWITCH: PRENDAS DE PASARELA vs POSES DEL MODELO */}
               <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
                 <div className="inline-flex items-center p-1 rounded-2xl bg-[#f4e0c8]/90 border border-[#d2a574] shadow-inner">

@@ -10,7 +10,7 @@ import { CrochetStickerSvg } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
 import { MannequinSvg } from './MannequinSvg';
-import { WARDROBE_SPRITE_SRC } from './CrochetWardrobe3D';
+import { WARDROBE_SEASONS } from '../utils/wardrobeSeasons';
 
 const VIRTUAL_PAGE_W = 500;
 const VIRTUAL_SPREAD_W = VIRTUAL_PAGE_W * 2; // 1000
@@ -136,23 +136,39 @@ const MiniElementView: React.FC<{ el: PageElement; unifiedSheet?: boolean }> = (
       <div
         style={{
           position: 'absolute',
-          left: unifiedSheet ? '2.5%' : '4%',
-          top: '3.5%',
-          width: unifiedSheet ? '44%' : '92%',
-          height: '93%',
+          left: unifiedSheet ? '3.5%' : '4%',
+          top: '4.5%',
+          width: unifiedSheet ? '93%' : '92%',
+          height: '91%',
           opacity,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
         }}
+        className="rounded-lg border-[3px] border-[#d69f42] bg-[#2a1506] p-2 flex flex-col gap-1.5 shadow-[0_10px_20px_rgba(8,20,14,0.55)]"
       >
-        <svg
-          viewBox="0 0 686 1004"
-          className="w-full h-full drop-shadow-[0_10px_14px_rgba(32,16,4,0.38)]"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          <image href={WARDROBE_SPRITE_SRC} width="1488" height="1004" />
-        </svg>
+        <div className="h-6 rounded-t bg-gradient-to-b from-[#f7d887] via-[#c78d30] to-[#7c4c10] flex items-center justify-center">
+          <span className="font-display text-[11px] font-bold tracking-[0.2em] text-[#2b1404]">
+            ARMARIO DE LAS CUATRO ESTACIONES
+          </span>
+        </div>
+        <div className="flex-1 grid grid-cols-4 gap-2 min-h-0">
+          {WARDROBE_SEASONS.map((s) => (
+            <div
+              key={s.id}
+              className="rounded border-2 border-[#e3b55a] bg-[#1e0f05] p-1 flex flex-col overflow-hidden"
+            >
+              <div className="flex-1 rounded-t-[45%] overflow-hidden">
+                <img
+                  src={s.doorImage}
+                  alt={s.label}
+                  loading="lazy"
+                  className="w-full h-full object-cover object-top"
+                />
+              </div>
+              <div className="text-center text-[9px] font-display font-bold text-[#ffebc2] pt-0.5 truncate">
+                {s.roman} · {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
