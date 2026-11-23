@@ -173,16 +173,16 @@ function fillCathedralWoodPixels(
       // Subtle warm organic wood tone modulation
       const streak = Math.sin(nx * 14 + Math.sin(ny * 2) * 0.8) * 0.5 + 0.5;
 
-      // Keep grain silky & refined so 3D sculptural shading matches mannequin_front.png
+      // Velvety museum-polished European beechwood grain so sculpted muscles & facial planes shine!
       const darkness = Math.min(
         1,
-        Math.max(0, latewood * 0.24 + (1 - fiberNorm) * 0.24 + streak * 0.14)
+        Math.max(0, latewood * 0.16 + (1 - fiberNorm) * 0.16 + streak * 0.10)
       );
 
       // Rich saturated warm honey-caramel beechwood albedo calibrated to mannequin_front.png
-      const r = Math.round(218 - darkness * 66); // 152..218
-      const g = Math.round(130 - darkness * 60); // 70..130
-      const b = Math.round(66 - darkness * 42);  // 24..66
+      const r = Math.round(220 - darkness * 54); // 166..220
+      const g = Math.round(134 - darkness * 48); // 86..134
+      const b = Math.round(70 - darkness * 34);  // 36..70
 
       const idx = (y * width + x) * 4;
       dImg.data[idx] = r;
