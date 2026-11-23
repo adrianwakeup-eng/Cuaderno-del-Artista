@@ -1,54 +1,104 @@
-import React, { useId } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import mannequinFrontImg from '../assets/images/mannequin_front.png';
 import mannequinBackImg from '../assets/images/mannequin_back.png';
+import {
+  getYawAngleLabel,
+  normalizeYawDeg,
+  renderMannequinToCanvas,
+  renderMannequinToDataUrl,
+  type MannequinGender,
+} from '../utils/mannequin3DWoodRenderer';
 
 interface MannequinSvgProps {
-  view: 'front' | 'back';
-  color?: string; // undefined or 'natural' = photorealistic carved wood + aged brass
+  view?: 'front' | 'back';
+  gender?: MannequinGender;
+  yawDeg?: number;
+  color?: string; // undefined or 'natural' = natural carved wood + aged bronze joints
+  miniature?: boolean;
   className?: string;
 }
 
 export const MannequinSvg: React.FC<MannequinSvgProps> = ({
-  view,
+  view = 'front',
+  gender = 'male',
+  yawDeg,
   color,
+  miniature = false,
   className = '',
 }) => {
-  const uid = useId().replace(/:/g, '');
-  const isTinted = Boolean(color && color !== 'natural');
-  const tintFilterId = `mannequin-tint-${uid}`;
-  const src = view === 'back' ? mannequinBackImg : mannequinFrontImg;
+  const effectiveYaw = normalizeYawDeg(yawDeg ?? (view === 'back' ? 180 : 0));
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [webglFailed, setWebglFailed] = useState(false);
+
+  const miniatureDataUrl = useMemo(() => {
+    if (!miniature) return null;
+    return renderMannequinToDataUrl({
+      gender,
+      yawDeg: effectiveYaw,
+      color,
+      width: 168,
+      height: 384,
+    });
+  }, [miniature, gender, effectiveYaw, color]);
+
+  useEffect(() => {
+    if (miniature) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ok = renderMannequinToCanvas(canvas, {
+      gender,
+      yawDeg: effectiveYaw,
+      color,
+      width: 490,
+      height: 1120,
+    });
+    if (!ok) {
+      setWebglFailed(true);
+    }
+  }, [miniature, gender, effectiveYaw, color]);
+
+  const ariaLabel = `Maniquí ${gender === 'female' ? 'Mujer' : 'Hombre'} 360° (${getYawAngleLabel(effectiveYaw)} · ${effectiveYaw}°)`;
+
+  if (miniature) {
+    if (miniatureDataUrl) {
+      return (
+        <img
+          src={miniatureDataUrl}
+          alt={ariaLabel}
+          draggable={false}
+          className={`block w-full h-auto select-none pointer-events-none ${className}`}
+        />
+      );
+    }
+    return (
+      <img
+        src={view === 'back' ? mannequinBackImg : mannequinFrontImg}
+        alt={ariaLabel}
+        draggable={false}
+        className={`block w-full h-auto select-none pointer-events-none ${className}`}
+      />
+    );
+  }
+
+  if (webglFailed) {
+    return (
+      <img
+        src={view === 'back' ? mannequinBackImg : mannequinFrontImg}
+        alt={ariaLabel}
+        draggable={false}
+        className={`block w-full h-auto select-none pointer-events-none ${className}`}
+      />
+    );
+  }
 
   return (
-    <svg
-      viewBox="0 0 397 986"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-label={view === 'front' ? 'Maniquí de frente' : 'Maniquí de espalda'}
-    >
-      {isTinted && color && (
-        <defs>
-          <filter id={tintFilterId} colorInterpolationFilters="sRGB">
-            <feColorMatrix
-              type="matrix"
-              values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"
-              result="gray"
-            />
-            <feFlood floodColor={color} floodOpacity="0.82" result="tint" />
-            <feBlend in="gray" in2="tint" mode="hard-light" result="tinted" />
-            <feComposite in="tinted" in2="SourceAlpha" operator="in" />
-          </filter>
-        </defs>
-      )}
-
-      <image
-        href={src}
-        x="0"
-        y="0"
-        width="397"
-        height="986"
-        preserveAspectRatio="xMidYMid meet"
-        filter={isTinted ? `url(#${tintFilterId})` : undefined}
-      />
-    </svg>
+    <canvas
+      ref={canvasRef}
+      width={490}
+      height={1120}
+      aria-label={ariaLabel}
+      className={`block w-full h-auto select-none pointer-events-none ${className}`}
+      style={{ aspectRatio: '7 / 16' }}
+    />
   );
 };

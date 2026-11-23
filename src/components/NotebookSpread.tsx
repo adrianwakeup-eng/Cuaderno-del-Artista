@@ -67,6 +67,11 @@ import { CrochetMandalaSvg } from './CrochetMandalaSvg';
 import { CROCHET_MANDALAS } from '../data/crochetMandalas';
 import { MANDALA_GALLERY_PHOTOS } from '../data/mandalaGalleryPhotos';
 import { MannequinSvg } from './MannequinSvg';
+import {
+  getYawAngleLabel,
+  normalizeYawDeg,
+  renderMannequinPngBlob,
+} from '../utils/mannequin3DWoodRenderer';
 import { CrochetWardrobe3D } from './CrochetWardrobe3D';
 import { ImageCropModal } from './ImageCropModal';
 import { MandalaColorStudioModal } from './MandalaColorStudioModal';
@@ -365,6 +370,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     | 'text-color'
     | 'shape-color'
     | 'mannequin-color'
+    | 'mannequin-yaw'
     | 'rotate'
     | 'rotate-all'
     | null
@@ -888,11 +894,71 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
       if (el.type === 'pattern-note' && el.patternData) {
         skipNextPatternSyncRef.current = true;
         onCopyPattern(el.patternData);
+      } else if (el.type === 'mannequin') {
+        const genderLabel =
+          (el.mannequinGender ?? (el.id.includes('back') ? 'female' : 'male')) === 'female'
+            ? 'Mujer'
+            : 'Hombre';
+        const yaw = normalizeYawDeg(
+          el.mannequinYawDeg ?? (el.content === 'back' ? 180 : 0)
+        );
+        onNotify?.(
+          `Maniquí ${genderLabel} (${yaw}°) copiado — Ctrl+V para pegar en esta posición`
+        );
       } else {
         onNotify?.('Objeto copiado (Ctrl+V para pegar)');
       }
     },
     [onCopyPattern, onNotify]
+  );
+
+  const copyMannequinPngInPosition = useCallback(
+    async (el: PageElement) => {
+      if (el.type !== 'mannequin') return;
+      const gender = el.mannequinGender ?? (el.id.includes('back') ? 'female' : 'male');
+      const yaw = normalizeYawDeg(
+        el.mannequinYawDeg ?? (el.content === 'back' ? 180 : 0)
+      );
+      const genderLabel = gender === 'female' ? 'Mujer' : 'Hombre';
+      const blob = await renderMannequinPngBlob({
+        gender,
+        yawDeg: yaw,
+        color: el.color,
+      });
+      if (!blob) {
+        onNotify?.('No se pudo generar el PNG del maniquí');
+        return;
+      }
+      try {
+        if (
+          typeof navigator !== 'undefined' &&
+          navigator.clipboard &&
+          typeof ClipboardItem !== 'undefined'
+        ) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          audioEngine.playYarnPluck(3);
+          onNotify?.(
+            `PNG transparente copiado: Maniquí ${genderLabel} (${yaw}° · ${getYawAngleLabel(yaw)})`
+          );
+          return;
+        }
+      } catch {
+        // Fallback to direct transparent PNG download
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `maniqui-${gender}-${yaw}deg.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      audioEngine.playYarnPluck(3);
+      onNotify?.(
+        `PNG transparente descargado: Maniquí ${genderLabel} (${yaw}°)`
+      );
+    },
+    [onNotify]
   );
 
   const cutSelectedElement = useCallback(
@@ -2155,66 +2221,218 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                 </>
               )}
 
-              {/* Mannequin Controls (Front / Back View, Color / Sketch Tint, Natural Wood) */}
-              {selectedElement.type === 'mannequin' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextView = selectedElement.content === 'back' ? 'front' : 'back';
-                      updateElement(selectedElement.id, {
-                        content: nextView,
-                        title: nextView === 'back' ? 'Maniquí de espalda' : 'Maniquí de frente',
-                      });
-                    }}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
-                    title="Alternar vista de frente o espalda"
-                  >
-                    <span>
-                      {selectedElement.content === 'back' ? 'Vista: Espalda' : 'Vista: Frente'}
-                    </span>
-                  </button>
+              {/* Mannequin 360° Full-Body Controls (Hombre/Mujer, 360° Yaw, Copy in Exact Position & PNG, Color) */}
+              {selectedElement.type === 'mannequin' && (() => {
+                const currentGender =
+                  selectedElement.mannequinGender ??
+                  (selectedElement.id.includes('back') ? 'female' : 'male');
+                const currentYaw = normalizeYawDeg(
+                  selectedElement.mannequinYawDeg ??
+                    (selectedElement.content === 'back' ? 180 : 0)
+                );
+                const setMannequinYaw = (nextRaw: number) => {
+                  const nextYaw = normalizeYawDeg(nextRaw);
+                  const isBackish = nextYaw > 90 && nextYaw < 270;
+                  updateElement(selectedElement.id, {
+                    mannequinYawDeg: nextYaw,
+                    content: isBackish ? 'back' : 'front',
+                  });
+                };
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setEditorSubPanel((p) =>
-                        p === 'mannequin-color' ? null : 'mannequin-color'
-                      )
-                    }
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-pointer ${
-                      editorSubPanel === 'mannequin-color'
-                        ? 'bg-[#6b3d1e] border-[#ebb96a] text-white'
-                        : 'bg-[#361d0e] border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18]'
-                    }`}
-                    title="Colorear o cambiar tono del maniquí"
-                  >
-                    <span
-                      className="w-3 h-3 rounded-full border border-white/60"
-                      style={{
-                        backgroundColor:
-                          selectedElement.color && selectedElement.color !== 'natural'
-                            ? selectedElement.color
-                            : '#D99658',
+                return (
+                  <>
+                    {/* Gender Toggle (Hombre / Mujer) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextGender = currentGender === 'female' ? 'male' : 'female';
+                        updateElement(selectedElement.id, {
+                          mannequinGender: nextGender,
+                          title:
+                            nextGender === 'female'
+                              ? 'Maniquí Mujer 360°'
+                              : 'Maniquí Hombre 360°',
+                        });
+                        audioEngine.playStitchClick();
                       }}
-                    />
-                    <span>Color</span>
-                  </button>
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/45 text-xs text-[#ffebc2] hover:bg-[#522f18] cursor-pointer"
+                      title="Cambiar entre maniquí Hombre y Mujer"
+                    >
+                      <span>{currentGender === 'female' ? '♀ Mujer' : '♂ Hombre'}</span>
+                    </button>
 
-                  {selectedElement.color && selectedElement.color !== 'natural' && (
+                    {/* 360° Rotation Popover Trigger */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditorSubPanel((p) =>
+                            p === 'mannequin-yaw' ? null : 'mannequin-yaw'
+                          )
+                        }
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-pointer ${
+                          editorSubPanel === 'mannequin-yaw'
+                            ? 'bg-[#6b3d1e] border-[#ebb96a] text-white'
+                            : 'bg-[#462511] border-[#e6b35e]/55 text-[#ffebc2] hover:bg-[#5d3318]'
+                        }`}
+                        title="Girar maniquí en 360° (también puedes arrastrar el control 360° debajo del maniquí)"
+                      >
+                        <RotateCw className="w-3.5 h-3.5 text-[#f6cb75]" />
+                        <span className="font-mono-tab">360° · {currentYaw}°</span>
+                      </button>
+
+                      <AnimatePresence>
+                        {editorSubPanel === 'mannequin-yaw' && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute left-0 top-full mt-2 w-72 rounded-xl leather-panel bg-[#221208] p-3 z-50 shadow-[0_22px_50px_rgba(0,0,0,0.94)] text-xs text-[#f5e4c4] space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between border-b border-[#b98241]/25 pb-1.5">
+                              <span className="font-display text-[#ffebc2]">
+                                Girar 360° ({getYawAngleLabel(currentYaw)})
+                              </span>
+                              <span className="font-mono-tab text-[11px] text-[#f5ca79]">
+                                {currentYaw}°
+                              </span>
+                            </div>
+
+                            <div className="space-y-1">
+                              <input
+                                type="range"
+                                min={0}
+                                max={359}
+                                value={currentYaw}
+                                onChange={(e) => setMannequinYaw(Number(e.target.value))}
+                                className="w-full accent-[#e6b35e] h-1.5 bg-[#140a04] rounded cursor-pointer"
+                              />
+                              <div className="flex justify-between text-[10px] text-[#c7a57b] font-mono-tab">
+                                <span>0° Frente</span>
+                                <span>90°</span>
+                                <span>180° Espalda</span>
+                                <span>270°</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-1 text-[11px]">
+                              {[
+                                { deg: 0, label: '0° Frente' },
+                                { deg: 45, label: '45° ¾' },
+                                { deg: 90, label: '90° Perfil' },
+                                { deg: 135, label: '135° ¾' },
+                                { deg: 180, label: '180° Atrás' },
+                                { deg: 225, label: '225° ¾' },
+                                { deg: 270, label: '270° Perfil' },
+                                { deg: 315, label: '315° ¾' },
+                              ].map((preset) => (
+                                <button
+                                  key={preset.deg}
+                                  type="button"
+                                  onClick={() => setMannequinYaw(preset.deg)}
+                                  className={`py-1 px-1 rounded border text-[10px] cursor-pointer transition-colors ${
+                                    Math.abs(currentYaw - preset.deg) <= 5
+                                      ? 'bg-[#73411d] border-[#f3c46c] text-white font-semibold'
+                                      : 'bg-[#361d0e] hover:bg-[#5b331a] border-[#b98241]/30 text-[#f3dcb3]'
+                                  }`}
+                                >
+                                  {preset.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="flex gap-1.5 pt-1 border-t border-[#b98241]/20">
+                              <button
+                                type="button"
+                                onClick={() => setMannequinYaw(currentYaw - 15)}
+                                className="flex-1 py-1 rounded bg-[#361d0e] hover:bg-[#5b331a] border border-[#b98241]/30 text-[11px] font-mono-tab text-[#f3dcb3] cursor-pointer"
+                              >
+                                -15°
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setMannequinYaw(currentYaw + 15)}
+                                className="flex-1 py-1 rounded bg-[#361d0e] hover:bg-[#5b331a] border border-[#b98241]/30 text-[11px] font-mono-tab text-[#f3dcb3] cursor-pointer"
+                              >
+                                +15°
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Copy / Duplicate Mannequin in Exact Current 360° Position */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        copySelectedElement(selectedElement);
+                        duplicateElement(selectedElement);
+                        audioEngine.playYarnPluck(2);
+                        onNotify?.(
+                          `Copiado en ${currentYaw}° (${getYawAngleLabel(currentYaw)}) — también listo en Ctrl+V`
+                        );
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#522e15] hover:bg-[#6e3e1c] border border-[#e6b35e]/55 text-xs text-[#fff0cc] cursor-pointer"
+                      title="Copiar y duplicar el maniquí en esta posición exacta de 360° (y guardarlo en Ctrl+V para otras hojas)"
+                    >
+                      <CopyPlus className="w-3.5 h-3.5 text-[#f7ce7a]" />
+                      <span className="hidden sm:inline">Copiar posición</span>
+                    </button>
+
+                    {/* Copy Transparent PNG in Exact Current 360° Position */}
+                    <button
+                      type="button"
+                      onClick={() => void copyMannequinPngInPosition(selectedElement)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#2e4228] hover:bg-[#3d5835] border border-[#9fd498]/50 text-xs text-[#e9fae7] cursor-pointer"
+                      title="Copiar imagen PNG transparente del maniquí en esta posición exacta"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-[#b7edb0]" />
+                      <span className="hidden md:inline">PNG</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() =>
-                        updateElement(selectedElement.id, { color: 'natural' })
+                        setEditorSubPanel((p) =>
+                          p === 'mannequin-color' ? null : 'mannequin-color'
+                        )
                       }
-                      className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
-                      title="Restaurar madera natural y latón"
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-pointer ${
+                        editorSubPanel === 'mannequin-color'
+                          ? 'bg-[#6b3d1e] border-[#ebb96a] text-white'
+                          : 'bg-[#361d0e] border-[#c99552]/40 text-[#f3dcb3] hover:bg-[#522f18]'
+                      }`}
+                      title="Colorear o cambiar tono del maniquí"
                     >
-                      Madera
+                      <span
+                        className="w-3 h-3 rounded-full border border-white/60"
+                        style={{
+                          backgroundColor:
+                            selectedElement.color && selectedElement.color !== 'natural'
+                              ? selectedElement.color
+                              : '#D99658',
+                        }}
+                      />
+                      <span>Color</span>
                     </button>
-                  )}
-                </>
-              )}
+
+                    {selectedElement.color && selectedElement.color !== 'natural' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateElement(selectedElement.id, { color: 'natural' })
+                        }
+                        className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/40 text-xs text-[#f3dcb3] hover:bg-[#522f18] cursor-pointer"
+                        title="Restaurar madera natural y bronce"
+                      >
+                        Madera
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Common Transform, Free Rotation & Layer Tools */}
               <button
@@ -4428,8 +4646,16 @@ const PageElementItem = memo<{
     onEditTextDone,
   }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [liveMannequinYaw, setLiveMannequinYaw] = useState<number | null>(null);
+    const yawDragRef = useRef<{ startX: number; startYaw: number } | null>(null);
     const isLocked = Boolean(el.locked);
     const isPermanent = isPermanentElement(el);
+    const mannequinGender =
+      el.mannequinGender ?? (el.id.includes('back') ? 'female' : 'male');
+    const committedMannequinYaw = normalizeYawDeg(
+      el.mannequinYawDeg ?? (el.content === 'back' ? 180 : 0)
+    );
+    const activeMannequinYaw = liveMannequinYaw ?? committedMannequinYaw;
     const activeEraseStrokes = liveEraseStrokes ?? el.eraseStrokes;
     const eraseMaskUri = useMemo(
       () => buildEraseMaskDataUri(activeEraseStrokes),
@@ -4813,11 +5039,67 @@ const PageElementItem = memo<{
         {el.type === 'mannequin' && (
           <MannequinSvg
             view={el.content === 'back' ? 'back' : 'front'}
+            gender={mannequinGender}
+            yawDeg={activeMannequinYaw}
             color={el.color}
             className="w-full h-auto drop-shadow-[0_4px_10px_rgba(64,33,12,0.22)] select-none"
           />
         )}
         </div>
+
+        {/* Direct On-Mannequin 360° Drag-to-Spin Control Pill */}
+        {el.type === 'mannequin' && isSelected && !isEditing && !isDrawLocked && (
+          <div
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              yawDragRef.current = {
+                startX: e.clientX,
+                startYaw: activeMannequinYaw,
+              };
+              setLiveMannequinYaw(activeMannequinYaw);
+            }}
+            onPointerMove={(e) => {
+              const drag = yawDragRef.current;
+              if (!drag) return;
+              e.stopPropagation();
+              const dx = e.clientX - drag.startX;
+              const nextYaw = normalizeYawDeg(drag.startYaw + dx * 1.5);
+              setLiveMannequinYaw(nextYaw);
+            }}
+            onPointerUp={(e) => {
+              const drag = yawDragRef.current;
+              if (!drag) return;
+              e.stopPropagation();
+              try {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              } catch {
+                // ignore if pointer already released
+              }
+              const dx = e.clientX - drag.startX;
+              const finalYaw = normalizeYawDeg(drag.startYaw + dx * 1.5);
+              yawDragRef.current = null;
+              setLiveMannequinYaw(null);
+              const isBackish = finalYaw > 90 && finalYaw < 270;
+              onUpdateElement(el.id, {
+                mannequinYawDeg: finalYaw,
+                content: isBackish ? 'back' : 'front',
+              });
+            }}
+            onPointerCancel={() => {
+              yawDragRef.current = null;
+              setLiveMannequinYaw(null);
+            }}
+            title="Arrastra hacia izquierda o derecha para girar el maniquí 360°"
+            className="absolute -bottom-7 left-1/2 -translate-x-1/2 z-30 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#2b160a]/95 hover:bg-[#492510] border border-[#f0c06c]/80 text-[10px] font-mono-tab text-[#ffebc2] shadow-[0_4px_12px_rgba(0,0,0,0.55)] cursor-ew-resize select-none whitespace-nowrap touch-none"
+          >
+            <RotateCw className="w-2.5 h-2.5 text-[#f7ce78]" />
+            <span>
+              {mannequinGender === 'female' ? '♀' : '♂'} {activeMannequinYaw}° ·{' '}
+              {getYawAngleLabel(activeMannequinYaw)}
+            </span>
+          </div>
+        )}
 
         {/* Corner Resize Handle when selected and unlocked */}
         {isSelected && !isEditing && !isDrawLocked && !isLocked && (

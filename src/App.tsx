@@ -1302,23 +1302,26 @@ export default function App() {
                   onRedo={handleRedo}
                   onOpenImageUpload={() => imageUploadRef.current?.click()}
                   onInsertMannequin={(view) => {
+                    const gender = view === 'back' ? 'female' : 'male';
                     insertElementOnCurrentSpread({
-                      side: view === 'front' ? 'left' : 'right',
+                      side: gender === 'male' ? 'left' : 'right',
                       type: 'mannequin',
-                      x: view === 'front' ? 6 : 50,
-                      y: 13,
-                      width: 196,
-                      content: view,
+                      x: gender === 'male' ? 6 : 50,
+                      y: 9,
+                      width: 192,
+                      content: 'front',
+                      mannequinGender: gender,
+                      mannequinYawDeg: 0,
                       color: 'natural',
                       opacity: 1,
-                      title: view === 'front' ? 'Maniquí de frente' : 'Maniquí de espalda',
+                      title: gender === 'male' ? 'Maniquí Hombre 360°' : 'Maniquí Mujer 360°',
                     });
                     setActiveSection('cuaderno');
                     setActiveTool('select');
                     showToast(
-                      view === 'front'
-                        ? 'Maniquí de frente añadido'
-                        : 'Maniquí de espalda añadido'
+                      gender === 'male'
+                        ? 'Maniquí Hombre 360° añadido'
+                        : 'Maniquí Mujer 360° añadido'
                     );
                   }}
                   onInsertWardrobe={() => {
@@ -1458,24 +1461,27 @@ export default function App() {
                         onRedo={handleRedo}
                         onOpenImageUpload={() => imageUploadRef.current?.click()}
                         onInsertMannequin={(view) => {
+                          const gender = view === 'back' ? 'female' : 'male';
                           insertElementOnCurrentSpread({
-                            side: view === 'front' ? 'left' : 'right',
+                            side: gender === 'male' ? 'left' : 'right',
                             type: 'mannequin',
-                            x: view === 'front' ? 6 : 50,
-                            y: 13,
-                            width: 196,
-                            content: view,
+                            x: gender === 'male' ? 6 : 50,
+                            y: 9,
+                            width: 192,
+                            content: 'front',
+                            mannequinGender: gender,
+                            mannequinYawDeg: 0,
                             color: 'natural',
                             opacity: 1,
-                            title: view === 'front' ? 'Maniquí de frente' : 'Maniquí de espalda',
+                            title: gender === 'male' ? 'Maniquí Hombre 360°' : 'Maniquí Mujer 360°',
                           });
                           setActiveSection('cuaderno');
                           setActiveTool('select');
                           setShowMobileDock(false);
                           showToast(
-                            view === 'front'
-                              ? 'Maniquí de frente añadido'
-                              : 'Maniquí de espalda añadido'
+                            gender === 'male'
+                              ? 'Maniquí Hombre 360° añadido'
+                              : 'Maniquí Mujer 360° añadido'
                           );
                         }}
                         onInsertWardrobe={() => {

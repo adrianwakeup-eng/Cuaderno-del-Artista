@@ -184,7 +184,10 @@ const MiniElementView: React.FC<{ el: PageElement }> = ({ el }) => {
       {el.type === 'mannequin' && (
         <MannequinSvg
           view={el.content === 'back' ? 'back' : 'front'}
+          gender={el.mannequinGender ?? (el.id.includes('back') ? 'female' : 'male')}
+          yawDeg={el.mannequinYawDeg}
           color={el.color || 'natural'}
+          miniature
           className="w-full h-auto"
         />
       )}

@@ -70,37 +70,93 @@ function normalizeLoadedWorkspace(raw: Partial<NotebookWorkspaceData>): Notebook
     merged.wardrobeSeededV1 = true;
   }
   if (Array.isArray(merged.spreads)) {
+    const needsFullBody360Migration = !raw.mannequinsFullBody360V1;
+
     merged.spreads = merged.spreads.map((sp) => {
       const isWardrobeSpread =
         sp.id === 'spread-armario' || sp.elements.some((el) => el.type === 'wardrobe');
-      if (!isWardrobeSpread) return sp;
-      let nextElements = sp.elements.map((el) =>
-        el.id === 'el-armario-mannequin-front' || el.id === 'el-armario-mannequin-back'
-          ? { ...el, permanent: true }
-          : el
-      );
-      for (const reqMannequin of INITIAL_ARMARIO_MANNEQUINS) {
-        const exists = nextElements.some(
-          (el) =>
-            el.id === reqMannequin.id ||
-            (el.type === 'mannequin' &&
-              el.side === 'right' &&
-              el.content === reqMannequin.content)
-        );
-        if (!exists) {
-          nextElements = [...nextElements, { ...reqMannequin, permanent: true }];
-        } else {
-          nextElements = nextElements.map((el) =>
-            el.type === 'mannequin' &&
-            el.side === 'right' &&
-            el.content === reqMannequin.content
-              ? { ...el, permanent: true }
-              : el
+
+      let nextElements = sp.elements.map((el) => {
+        if (el.type !== 'mannequin') return el;
+
+        // Upgrade legacy mannequins to full-body 360° male + female pair on first load
+        if (needsFullBody360Migration) {
+          if (el.id === 'el-armario-mannequin-front' || el.id === 'el-mannequin-front') {
+            return {
+              ...el,
+              mannequinGender: 'male' as const,
+              mannequinYawDeg: 0,
+              content: 'front',
+              x: 5,
+              y: 9,
+              width: 192,
+              title: 'Maniquí Hombre 360°',
+              permanent: el.id === 'el-armario-mannequin-front' ? true : el.permanent,
+            };
+          }
+          if (el.id === 'el-armario-mannequin-back' || el.id === 'el-mannequin-back') {
+            return {
+              ...el,
+              mannequinGender: 'female' as const,
+              mannequinYawDeg: 0,
+              content: 'front',
+              x: 50,
+              y: 9,
+              width: 192,
+              title: 'Maniquí Mujer 360°',
+              permanent: el.id === 'el-armario-mannequin-back' ? true : el.permanent,
+            };
+          }
+        }
+
+        // Backfill missing gender / yaw fields for any existing mannequin element
+        const inferredGender =
+          el.mannequinGender ??
+          (el.id.includes('back') || el.title?.toLowerCase().includes('mujer') ? 'female' : 'male');
+        const inferredYaw =
+          typeof el.mannequinYawDeg === 'number'
+            ? el.mannequinYawDeg
+            : el.content === 'back'
+              ? 180
+              : 0;
+
+        const isPermWardrobeMannequin =
+          el.id === 'el-armario-mannequin-front' || el.id === 'el-armario-mannequin-back';
+        return {
+          ...el,
+          mannequinGender: inferredGender,
+          mannequinYawDeg: inferredYaw,
+          ...(isPermWardrobeMannequin ? { permanent: true } : {}),
+        };
+      });
+
+      if (isWardrobeSpread) {
+        for (const reqMannequin of INITIAL_ARMARIO_MANNEQUINS) {
+          const exists = nextElements.some(
+            (el) =>
+              el.id === reqMannequin.id ||
+              (el.type === 'mannequin' &&
+                el.side === 'right' &&
+                el.mannequinGender === reqMannequin.mannequinGender)
           );
+          if (!exists) {
+            nextElements = [...nextElements, { ...reqMannequin, permanent: true }];
+          } else {
+            nextElements = nextElements.map((el) =>
+              el.id === reqMannequin.id
+                ? { ...el, permanent: true }
+                : el
+            );
+          }
         }
       }
+
       return { ...sp, elements: nextElements };
     });
+
+    if (needsFullBody360Migration) {
+      merged.mannequinsFullBody360V1 = true;
+    }
   }
   merged.patterns = merged.patterns.map((p) => {
     if (p.id === 'pat-osito-algodon') {

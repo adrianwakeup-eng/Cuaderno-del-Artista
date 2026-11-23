@@ -120,6 +120,8 @@ export interface PageElement {
   eraseStrokes?: ElementEraseStroke[];
   locked?: boolean;
   permanent?: boolean;
+  mannequinGender?: 'male' | 'female';
+  mannequinYawDeg?: number;
 }
 
 export interface NotebookSpread {
@@ -409,6 +411,7 @@ export interface NotebookWorkspaceData {
   sfxEnabled: boolean;
   deskNotes?: DeskNoteItem[];
   mannequinsSeededV1?: boolean;
+  mannequinsFullBody360V1?: boolean;
   wardrobeSeededV1?: boolean;
   wardrobeItems?: DressingRoomGarment[];
   extractedMandalas?: Record<string, ExtractedMandalaRecord>;

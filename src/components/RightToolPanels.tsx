@@ -1093,7 +1093,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                   className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-[#381d0e] hover:bg-[#592f17] border border-[#d69f56]/45 text-[11px] text-[#f7e2bc] cursor-pointer"
                 >
                   <User className="w-3.5 h-3.5 text-[#f3cf8a]" />
-                  <span>Maniquí Frente</span>
+                  <span>Maniquí Hombre</span>
                 </button>
                 <button
                   type="button"
@@ -1105,7 +1105,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                   className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-[#381d0e] hover:bg-[#592f17] border border-[#d69f56]/45 text-[11px] text-[#f7e2bc] cursor-pointer"
                 >
                   <User className="w-3.5 h-3.5 text-[#f3cf8a]" />
-                  <span>Maniquí Espalda</span>
+                  <span>Maniquí Mujer</span>
                 </button>
                 {onInsertWardrobe && (
                   <button
