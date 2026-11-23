@@ -5,6 +5,7 @@ import type {
   PageElement,
 } from '../types/crochet';
 import { FONT_CSS_MAP } from '../data/calligraphyFonts';
+import { waitForCalligraphyFont } from './calligraphyFontLoader';
 
 export const TARGET_8K_LONG_EDGE = 7680;
 export const UPLOAD_MIN_ULTRAHD_EDGE = 2400;
@@ -862,6 +863,7 @@ export async function exportNotebookSpreadAt8K(
       if (el.rotation) ctx.rotate((el.rotation * Math.PI) / 180);
       drawShapeVector(ctx, el, elW, elH, scale);
     } else if (el.type === 'text' && el.content) {
+      await waitForCalligraphyFont(el.fontFamily);
       const fontSize = (el.fontSize || 20) * scale;
       const lineH = fontSize * 1.42;
       const pad = 10 * scale;

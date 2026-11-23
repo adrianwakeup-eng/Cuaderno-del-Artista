@@ -66,9 +66,12 @@ import { CROCHET_ALPHABET } from '../data/crochetAlphabet';
 import {
   CALLIGRAPHY_CATEGORIES,
   CALLIGRAPHY_FONTS,
-  FONT_CLASS_MAP,
   getFontMeta,
 } from '../data/calligraphyFonts';
+import {
+  ensureCalligraphyFontLoaded,
+  ensureCalligraphyFontsLoaded,
+} from '../utils/calligraphyFontLoader';
 import { CrochetStickerSvg } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
@@ -1251,6 +1254,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
           ? '#F7EED8'
           : brush.color;
       const activeFontMeta = getFontMeta(selectedFont);
+      ensureCalligraphyFontLoaded(activeFontMeta.id);
       const newEl: PageElement = {
         id: `el-${Date.now()}`,
         side,
@@ -1267,7 +1271,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
               ? Math.max(18, Math.round(activeFontMeta.defaultSizePx * 0.82))
               : activeFontMeta.defaultSizePx,
         fontFamily: preset === 'title' && selectedFont === 'lora' ? 'pinyon' : selectedFont,
-        fontWeight: preset === 'title' && activeFontMeta.category === 'clasica' ? 'bold' : 'normal',
+        fontWeight: preset === 'title' && !activeFontMeta.isScript ? 'bold' : 'normal',
         fontStyle: 'normal',
         textDecoration: 'none',
         textAlign: preset === 'title' ? 'center' : 'left',
@@ -1285,6 +1289,17 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
     },
     [activeUserSpread, brush.color, selectedFont, onUpdateSpread, onSelectTool]
   );
+
+  // Dynamically load any of the 235+ calligraphy fonts used on the active sheet or selected font
+  useEffect(() => {
+    const usedIds: Array<string | undefined> = [selectedFont];
+    if (activeUserSpread) {
+      for (const el of activeUserSpread.elements) {
+        if (el.type === 'text' && el.fontFamily) usedIds.push(el.fontFamily);
+      }
+    }
+    ensureCalligraphyFontsLoaded(usedIds);
+  }, [selectedFont, activeUserSpread]);
 
   const handlePlaceElement = useCallback(
     (side: 'left' | 'right', xPct: number, yPct: number) => {
@@ -2220,6 +2235,7 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                     onChange={(e) => {
                       const nextFont = e.target.value as FontChoice;
                       const nextMeta = getFontMeta(nextFont);
+                      ensureCalligraphyFontLoaded(nextFont);
                       const currSize = selectedElement.fontSize || 18;
                       const shouldBoostSize = currSize <= 20 && nextMeta.defaultSizePx >= 28;
                       updateElement(selectedElement.id, {
@@ -2228,10 +2244,13 @@ export const NotebookSpread: React.FC<NotebookSpreadProps> = ({
                       });
                     }}
                     aria-label="Caligrafía y tipografía"
-                    title="Elegir caligrafía real, romántica, de poeta antiguo o clásica"
-                    className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/50 text-xs text-[#ffebc2] focus:outline-none cursor-pointer max-w-[162px]"
+                    title={`Elegir entre ${CALLIGRAPHY_FONTS.length} caligrafías reales, románticas, de poeta y letra corrida`}
+                    style={{ fontFamily: getFontMeta(selectedElement.fontFamily || 'lora').cssFamily }}
+                    className="px-2 py-1 rounded-lg bg-[#361d0e] border border-[#c99552]/50 text-xs text-[#ffebc2] focus:outline-none cursor-pointer max-w-[175px]"
                   >
-                    {CALLIGRAPHY_CATEGORIES.filter((c) => c.id !== 'todas').map((cat) => (
+                    {CALLIGRAPHY_CATEGORIES.filter(
+                      (c) => c.id !== 'todas' && c.id !== 'favoritas'
+                    ).map((cat) => (
                       <optgroup
                         key={cat.id}
                         label={`${cat.badge} ${cat.label}`}
@@ -5132,6 +5151,7 @@ const PageElementItem = memo<{
               onBlur={onEditTextDone}
               rows={2}
               style={{
+                fontFamily: getFontMeta(el.fontFamily || 'lora').cssFamily,
                 color:
                   !hasTextBg &&
                   (!el.color || el.color.toLowerCase() === '#4e2712')
@@ -5144,13 +5164,12 @@ const PageElementItem = memo<{
                 textAlign: el.textAlign || 'left',
                 backgroundColor: hasTextBg ? el.backgroundColor : 'rgba(18, 49, 38, 0.92)',
               }}
-              className={`w-full min-h-[2.2em] resize-none overflow-hidden border-2 border-dashed border-[#e5ba6c] rounded-lg px-2 py-1.5 leading-snug focus:outline-none placeholder:text-[#c7e3d2]/60 placeholder:italic shadow-sm ${
-                FONT_CLASS_MAP[el.fontFamily || 'lora']
-              }`}
+              className="w-full min-h-[2.2em] resize-none overflow-hidden border-2 border-dashed border-[#e5ba6c] rounded-lg px-2 py-1.5 leading-snug focus:outline-none placeholder:text-[#c7e3d2]/60 placeholder:italic shadow-sm"
             />
           ) : (
             <p
               style={{
+                fontFamily: getFontMeta(el.fontFamily || 'lora').cssFamily,
                 color:
                   !hasTextBg &&
                   (!el.color || el.color.toLowerCase() === '#4e2712')
@@ -5165,9 +5184,7 @@ const PageElementItem = memo<{
                 padding: hasTextBg ? '6px 10px' : '2px 4px',
                 borderRadius: hasTextBg ? '8px' : undefined,
               }}
-              className={`whitespace-pre-wrap leading-snug break-words ${
-                FONT_CLASS_MAP[el.fontFamily || 'lora']
-              }`}
+              className="whitespace-pre-wrap leading-snug break-words"
             >
               {el.content || (
                 <span className="italic opacity-55">Doble clic para escribir…</span>

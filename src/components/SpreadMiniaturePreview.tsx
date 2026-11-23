@@ -5,7 +5,7 @@ import type {
   PageElement,
   PaperStyle,
 } from '../types/crochet';
-import { FONT_CLASS_MAP as MINI_FONT_CLASS } from '../data/calligraphyFonts';
+import { getFontMeta } from '../data/calligraphyFonts';
 import { CrochetStickerSvg } from './CrochetDecorations';
 import { DiagramGridSvg, StitchSymbolSvg } from './StitchSymbolSvg';
 import { CrochetMandalaSvg } from './CrochetMandalaSvg';
@@ -235,10 +235,11 @@ const MiniElementView: React.FC<{ el: PageElement; unifiedSheet?: boolean }> = (
             fontStyle: el.fontStyle || 'normal',
             textDecoration: el.textDecoration || 'none',
             textAlign: el.textAlign || 'left',
+            fontFamily: getFontMeta(el.fontFamily || 'lora').cssFamily,
             backgroundColor: el.backgroundColor || 'transparent',
             lineHeight: 1.32,
           }}
-          className={`${MINI_FONT_CLASS[el.fontFamily || 'lora']} whitespace-pre-wrap break-words rounded px-1.5 py-1`}
+          className="whitespace-pre-wrap break-words rounded px-1.5 py-1"
         >
           {el.content}
         </div>

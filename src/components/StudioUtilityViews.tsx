@@ -17,7 +17,12 @@ import {
   CALLIGRAPHY_CATEGORIES,
   CALLIGRAPHY_FONTS,
   type CalligraphyCategory,
+  type CalligraphyFontMeta,
 } from '../data/calligraphyFonts';
+import {
+  ensureCalligraphyFontLoaded,
+  ensureCalligraphyFontsLoaded,
+} from '../utils/calligraphyFontLoader';
 import type { BrushSettings, FontChoice } from '../types/crochet';
 import type { StickerCategory } from '../data/seedData';
 import {
@@ -215,134 +220,327 @@ export const StickersAndImagesView: React.FC<{
   );
 };
 
-/* ---------- 2. Fuentes y Caligrafías Antiguas (Royal & Poetic Calligraphy Studio) ---------- */
+/* ---------- 2. Fuentes y Caligrafías Antiguas (235+ Royal, Romantic & Cursive Fonts) ---------- */
+const FAV_FONTS_KEY = 'cuaderno_fav_fonts_v1';
+
+const CalligraphyCard: React.FC<{
+  font: CalligraphyFontMeta;
+  active: boolean;
+  isFav: boolean;
+  previewText: string;
+  onSelect: () => void;
+  onToggleFav: () => void;
+}> = React.memo(({ font, active, isFav, previewText, onSelect, onToggleFav }) => {
+  const cardRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      ensureCalligraphyFontLoaded(font.id);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          ensureCalligraphyFontLoaded(font.id);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '260px 0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [font.id]);
+
+  const sampleSizePx = font.isScript
+    ? Math.max(28, Math.min(44, Math.round(font.defaultSizePx * 1.08)))
+    : Math.max(20, Math.min(28, font.defaultSizePx));
+
+  return (
+    <div
+      ref={cardRef}
+      className={`relative group rounded-2xl border transition-all overflow-hidden ${
+        active
+          ? 'bg-gradient-to-br from-[#472510] via-[#32190a] to-[#200f05] border-[#ffe08a] ring-2 ring-[#f3bf55]/75 shadow-[0_0_24px_rgba(243,191,85,0.28)]'
+          : 'bg-gradient-to-br from-[#2a160a] via-[#1e0f06] to-[#140903] border-[#c89347]/45 hover:border-[#f0c06c]/85 hover:from-[#361c0d] hover:to-[#1a0c04] shadow-[0_10px_24px_rgba(0,0,0,0.55)]'
+      }`}
+    >
+      {/* Subtle corner gold rivets matching the studio leather aesthetic */}
+      <span className="pointer-events-none absolute top-1.5 left-1.5 w-1.5 h-1.5 rounded-full bg-[#e6b85c]/75" />
+      <span className="pointer-events-none absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#e6b85c]/75" />
+
+      <button
+        type="button"
+        onClick={() => {
+          ensureCalligraphyFontLoaded(font.id);
+          onSelect();
+        }}
+        className="w-full h-full p-4 sm:p-5 text-left cursor-pointer flex flex-col justify-between gap-2.5"
+      >
+        <div className="flex items-center justify-between gap-2 pr-7">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-display text-xs sm:text-[13px] font-bold tracking-wide text-[#ffdfa3] truncate">
+              {font.name}
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-[#4e2a12] border border-[#d6a253]/45 text-[10px] font-medium text-[#f9e1b3] shrink-0">
+              {font.categoryLabel}
+            </span>
+          </div>
+          {active && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f5c451]/20 border border-[#ffe08a]/70 text-[10px] font-bold text-[#ffe9a8] shrink-0">
+              <Check className="w-3 h-3" /> Activa
+            </span>
+          )}
+        </div>
+
+        {/* High-contrast Luminous Ivory-Gold Calligraphy Specimen */}
+        <div className="min-h-[68px] flex items-center py-1.5 px-2.5 rounded-xl bg-[#110702]/70 border border-[#b98241]/25">
+          <p
+            style={{
+              fontFamily: font.cssFamily,
+              fontSize: `${sampleSizePx}px`,
+              lineHeight: font.isScript ? 1.24 : 1.32,
+            }}
+            className="text-[#fff9ea] drop-shadow-[0_1px_8px_rgba(255,214,122,0.22)] break-words w-full"
+          >
+            {previewText || font.sample}
+          </p>
+        </div>
+
+        <p className="text-[11px] leading-snug text-[#dfc397]">{font.desc}</p>
+      </button>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFav();
+        }}
+        aria-label={isFav ? 'Quitar de favoritas' : 'Guardar en favoritas'}
+        title={isFav ? 'Quitar de favoritas' : 'Guardar en favoritas'}
+        className={`absolute top-3 right-3 p-1.5 rounded-full border transition-colors cursor-pointer ${
+          isFav
+            ? 'bg-[#6b1d2b] border-[#ff9fb0] text-[#ffb0be]'
+            : 'bg-[#1a0c04]/85 border-[#b98241]/35 text-[#c8a06d] hover:text-[#ff9fb0] hover:border-[#ff9fb0]/60'
+        }`}
+      >
+        <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
+      </button>
+    </div>
+  );
+});
+CalligraphyCard.displayName = 'CalligraphyCard';
+
 export const FontsView: React.FC<{
   selectedFont: FontChoice;
   onSelectFont: (font: FontChoice) => void;
   onWriteInNotebook?: () => void;
 }> = ({ selectedFont, onSelectFont, onWriteInNotebook }) => {
-  const [category, setCategory] = React.useState<'todas' | CalligraphyCategory>('todas');
-  const [livePreviewText, setLivePreviewText] = React.useState('');
-
-  const filteredFonts = React.useMemo(
-    () =>
-      category === 'todas'
-        ? CALLIGRAPHY_FONTS
-        : CALLIGRAPHY_FONTS.filter((f) => f.category === category),
-    [category]
+  const [category, setCategory] = React.useState<'todas' | 'favoritas' | CalligraphyCategory>(
+    'todas'
   );
+  const [search, setSearch] = React.useState('');
+  const [livePreviewText, setLivePreviewText] = React.useState('');
+  const [visibleCount, setVisibleCount] = React.useState(36);
+  const [favFontIds, setFavFontIds] = React.useState<string[]>(() => {
+    try {
+      const raw = window.localStorage.getItem(FAV_FONTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const favSet = React.useMemo(() => new Set(favFontIds), [favFontIds]);
+
+  const toggleFavFont = React.useCallback((id: string) => {
+    setFavFontIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev];
+      try {
+        window.localStorage.setItem(FAV_FONTS_KEY, JSON.stringify(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }, []);
+
+  React.useEffect(() => {
+    setVisibleCount(36);
+  }, [category, search]);
+
+  const filteredFonts = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = CALLIGRAPHY_FONTS;
+    if (category === 'favoritas') {
+      list = list.filter((f) => favSet.has(f.id));
+    } else if (category !== 'todas') {
+      list = list.filter((f) => f.category === category);
+    }
+    if (q) {
+      list = list.filter(
+        (f) =>
+          f.name.toLowerCase().includes(q) ||
+          f.googleFamily.toLowerCase().includes(q) ||
+          f.categoryLabel.toLowerCase().includes(q) ||
+          f.desc.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [category, search, favSet]);
+
+  const displayedFonts = filteredFonts.slice(0, visibleCount);
+
+  // Immediately load the active font + the first visible batch so fonts render crisply right away
+  React.useEffect(() => {
+    ensureCalligraphyFontsLoaded([
+      selectedFont,
+      ...displayedFonts.slice(0, 24).map((f) => f.id),
+    ]);
+  }, [selectedFont, displayedFonts]);
 
   return (
-    <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(78,44,22,0.45)_0%,rgba(24,13,6,0.94)_85%)]">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
-          <div>
-            <h2 className="font-display text-xl sm:text-2xl text-[#f7e2b9] mb-1">
-              Caligrafías Reales, Románticas y de Poeta Antiguo
-            </h2>
-            <p className="text-xs text-[#d6b688]">
-              Elige cualquier caligrafía ({CALLIGRAPHY_FONTS.length} estilos listos para escribir en
-              tu cuaderno con la herramienta Texto y exportar en 8K / Vector SVG)
-            </p>
+    <div className="flex-1 overflow-y-auto studio-scroll p-4 sm:p-6 bg-[radial-gradient(circle_at_center,rgba(68,36,16,0.48)_0%,rgba(20,10,4,0.97)_85%)]">
+      <div className="max-w-6xl mx-auto space-y-4">
+        {/* Header + Controls Card */}
+        <div className="rounded-2xl leather-panel p-4 sm:p-5 space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl sm:text-2xl text-[#ffebc2] tracking-wide">
+                ✦ {CALLIGRAPHY_FONTS.length} Caligrafías Elegantes, Reales y de Letra Corrida
+              </h2>
+              <p className="text-xs text-[#dfc397] mt-0.5">
+                Caligrafías reales, románticas, de poeta antiguo y cientos de letras corridas listas
+                para escribir en tu cuaderno y exportar en 8K / Vector SVG.
+              </p>
+            </div>
+            {onWriteInNotebook && (
+              <button
+                type="button"
+                onClick={onWriteInNotebook}
+                className="px-4 py-2 rounded-xl bg-gradient-to-b from-[#e0a344] to-[#a06118] border border-[#ffe29b]/65 text-xs font-bold text-[#fffaf0] cursor-pointer shrink-0 shadow hover:brightness-110"
+              >
+                Escribir en el cuaderno
+              </button>
+            )}
           </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <div className="relative w-full sm:w-64">
+
+          {/* Search + Live Verse Tester */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-[#d6aa66] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Buscar entre ${CALLIGRAPHY_FONTS.length} caligrafías (ej: Pinyon, Paris, Love, Royal, Script...)`}
+                className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#140903] border border-[#c99552]/50 text-xs text-[#fff4dc] placeholder:text-[#a88255] focus:outline-none focus:border-[#f5cb73]"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label="Limpiar búsqueda"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#cfa467] hover:text-white cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <Sparkles className="w-3.5 h-3.5 text-[#f5cb73] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={livePreviewText}
                 onChange={(e) => setLivePreviewText(e.target.value)}
-                placeholder="Escribe un verso para probar todas..."
-                className="w-full px-3 py-1.5 rounded-xl bg-[#160a04]/90 border border-[#c99552]/50 text-xs text-[#fff3d6] placeholder:text-[#a88255] focus:outline-none focus:border-[#f5cb73]"
+                placeholder="Escribe un verso o tu nombre para verlo en todas..."
+                className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#140903] border border-[#c99552]/50 text-xs text-[#fff4dc] placeholder:text-[#a88255] focus:outline-none focus:border-[#f5cb73]"
               />
               {livePreviewText && (
                 <button
                   type="button"
                   onClick={() => setLivePreviewText('')}
                   aria-label="Limpiar frase de prueba"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#cfa467] hover:text-white cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#cfa467] hover:text-white cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
-            {onWriteInNotebook && (
-              <button
-                type="button"
-                onClick={onWriteInNotebook}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-b from-[#d1974c] to-[#9b6126] border border-[#f5d290]/55 text-xs font-medium text-white cursor-pointer shrink-0 shadow hover:brightness-110"
-              >
-                Escribir en el cuaderno
-              </button>
-            )}
+          </div>
+
+          {/* Category Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {CALLIGRAPHY_CATEGORIES.map((cat) => {
+              const count =
+                cat.id === 'todas'
+                  ? CALLIGRAPHY_FONTS.length
+                  : cat.id === 'favoritas'
+                    ? favSet.size
+                    : CALLIGRAPHY_FONTS.filter((f) => f.category === cat.id).length;
+              const isActive = category === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-gradient-to-b from-[#d89c46] to-[#985c1d] border-[#ffe3a3] text-white font-semibold shadow'
+                      : 'bg-[#1a0d05] border-[#b98241]/40 text-[#ebcfa2] hover:border-[#e6b868]'
+                  }`}
+                >
+                  <span>{cat.badge}</span>
+                  <span>{cat.label}</span>
+                  <span className="opacity-80 text-[10px]">({count})</span>
+                </button>
+              );
+            })}
+            <span className="ml-auto text-[11px] font-mono-tab text-[#d6b688]">
+              Mostrando {displayedFonts.length} de {filteredFonts.length}
+            </span>
           </div>
         </div>
 
-        {/* Category Filter Tabs */}
-        <div className="flex flex-wrap gap-1.5 mb-5">
-          {CALLIGRAPHY_CATEGORIES.map((cat) => {
-            const count =
-              cat.id === 'todas'
-                ? CALLIGRAPHY_FONTS.length
-                : CALLIGRAPHY_FONTS.filter((f) => f.category === cat.id).length;
-            const isActive = category === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
-                  isActive
-                    ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] border-[#ffe3a3] text-white font-medium shadow'
-                    : 'bg-[#1f1007] border-[#b98241]/35 text-[#e4c89c] hover:border-[#dfaf62]'
-                }`}
-              >
-                <span>{cat.badge}</span>
-                <span>{cat.label}</span>
-                <span className="opacity-75 text-[10px]">({count})</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* High-Contrast Luxury Calligraphy Cards Grid */}
+        {displayedFonts.length === 0 ? (
+          <div className="py-12 px-4 rounded-2xl bg-[#1c0e06] border border-[#b98241]/35 text-center text-sm text-[#dfc397]">
+            {category === 'favoritas'
+              ? 'Todavía no tienes caligrafías favoritas. Toca ♥ en cualquier fuente para guardarla aquí.'
+              : 'No se encontraron caligrafías con ese nombre. Prueba con "Script", "Royal", "Love" o "Paris".'}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {displayedFonts.map((f) => (
+                <CalligraphyCard
+                  key={f.id}
+                  font={f}
+                  active={selectedFont === f.id}
+                  isFav={favSet.has(f.id)}
+                  previewText={livePreviewText.trim()}
+                  onSelect={() => onSelectFont(f.id)}
+                  onToggleFav={() => toggleFavFont(f.id)}
+                />
+              ))}
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filteredFonts.map((f) => {
-            const active = selectedFont === f.id;
-            return (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => onSelectFont(f.id)}
-                className={`p-5 rounded-2xl parchment-page border-2 text-left transition-all cursor-pointer text-[#3e210e] ${
-                  active
-                    ? 'border-[#7a202a] ring-2 ring-[#ebbc6e]/80 shadow-xl'
-                    : 'border-[#a87842]/60 hover:border-[#8e4c2a]'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-display text-sm font-bold text-[#5a2b12] truncate">
-                      {f.name}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-[#e6cf9e]/80 border border-[#b48646]/45 text-[10px] font-medium text-[#683a16] shrink-0">
-                      {f.categoryLabel}
-                    </span>
-                  </div>
-                  {active && (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#7a202a] shrink-0">
-                      <Check className="w-3.5 h-3.5" /> Activa
-                    </span>
-                  )}
-                </div>
-                <p
-                  className={`${f.className} ${f.previewScaleClass} text-[#3b1c0a] my-3 leading-snug break-words`}
+            {filteredFonts.length > visibleCount && (
+              <div className="flex justify-center pt-2 pb-4">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((n) => n + 36)}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-b from-[#4e2a13] to-[#2e1709] hover:from-[#643719] hover:to-[#3b1e0c] border border-[#e0b164]/60 text-xs font-semibold text-[#ffefc8] cursor-pointer shadow-lg transition-all"
                 >
-                  {livePreviewText.trim() || f.sample}
-                </p>
-                <p className="text-xs text-[#734a27]">{f.desc}</p>
-              </button>
-            );
-          })}
-        </div>
+                  Mostrar +36 caligrafías más ({filteredFonts.length - visibleCount} restantes)
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
