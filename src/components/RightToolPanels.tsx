@@ -61,6 +61,7 @@ import type {
   StudioSection,
 } from '../types/crochet';
 import { audioEngine } from '../utils/audioEngine';
+import { COPIC_SEARCH_ENTRIES, RainbowColorWheel } from './RainbowColorWheel';
 import {
   CATALOG_BRUSHES_BY_FAMILY,
   CATALOG_TEXTURE_BRUSHES,
@@ -968,12 +969,26 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
     const q = colorQuery.trim().toLowerCase();
     if (!q) return [];
     const qNoHash = q.replace(/^#/, '');
-    return COLOR_CODE_CATALOG.filter(
+    const fromCatalog = COLOR_CODE_CATALOG.filter(
       (c) =>
         c.hex.toLowerCase().includes(qNoHash) ||
         c.name.toLowerCase().includes(q) ||
         c.tags.toLowerCase().includes(q)
-    ).slice(0, 12);
+    );
+    const fromCopic = COPIC_SEARCH_ENTRIES.filter(
+      (c) =>
+        c.hex.toLowerCase().includes(qNoHash) ||
+        c.name.toLowerCase().includes(q)
+    ).map((c) => ({ ...c, tags: c.name }));
+    const seen = new Set<string>();
+    return [...fromCopic, ...fromCatalog]
+      .filter((c) => {
+        const k = `${c.hex.toUpperCase()}-${c.name}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, 12);
   }, [colorQuery]);
 
   const handleCopyActiveColor = async () => {
@@ -1533,20 +1548,11 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
           <StudioToolTile
             icon={<Flower2 className="w-3.5 h-3.5" />}
             label="Stickers"
-            active={activeSection === 'stickers'}
+            active={activeSection === 'stickers' || activeSection === 'gifs'}
+            className="col-span-2"
             onClick={() => {
               audioEngine.playYarnPluck(5);
               onGoToSection('stickers');
-              setOpenDrawer(null);
-            }}
-          />
-          <StudioToolTile
-            icon={<CrochetGifIcon className="w-3.5 h-3.5" />}
-            label="Stickers HD"
-            active={activeSection === 'gifs'}
-            onClick={() => {
-              audioEngine.playRetroPop(2);
-              onGoToSection('gifs');
               setOpenDrawer(null);
             }}
           />
@@ -2043,35 +2049,12 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                 </div>
               }
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="grid grid-cols-6 gap-1 flex-1">
-                  {BASIC_COLORS.map((c, idx) => {
-                    const selected = brush.color.toUpperCase() === c.toUpperCase();
-                    return (
-                      <motion.button
-                        key={c}
-                        type="button"
-                        whileHover={{ scale: 1.14 }}
-                        whileTap={{ scale: 0.88 }}
-                        onClick={() => {
-                          audioEngine.playYarnPluck(idx);
-                          onSelectColor(c);
-                        }}
-                        aria-label={`Color ${c}`}
-                        title={`Seleccionar ${c}`}
-                        className={`w-full aspect-square rounded-[3px] border cursor-pointer ${
-                          selected
-                            ? 'border-white scale-110 ring-1 ring-[#f4ca76] z-10'
-                            : 'border-[#180c05]'
-                        }`}
-                        style={{ backgroundColor: c }}
-                      />
-                    );
-                  })}
-                </div>
-
-                <ColorWheelPicker color={brush.color} onChange={onSelectColor} />
-              </div>
+              <RainbowColorWheel
+                color={brush.color}
+                onChange={onSelectColor}
+                onCopyHex={() => void handleCopyActiveColor()}
+                copiedHex={copiedColorCode}
+              />
 
               {/* Search or Paste Color Code (#HEX, RGB, or Spanish pigment name) */}
               <div className="mt-2 pt-1.5 border-t border-[#b98241]/25 space-y-1.5">
@@ -2095,7 +2078,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
                           }
                         }
                       }}
-                      placeholder="Buscar #HEX, RGB o color (oro, piel)..."
+                      placeholder="Buscar #HEX, Copic (BG05, Y06, N5) o color..."
                       aria-label="Buscar color por código HEX, RGB o nombre"
                       className="w-full pl-5 pr-5 py-1 rounded-md bg-[#140903] border border-[#b98241]/45 text-[10px] font-mono-tab text-[#fae8c7] placeholder:font-sans placeholder:text-[#9c784d] focus:outline-none focus:border-[#f0c06c]"
                     />
@@ -2866,8 +2849,9 @@ const StudioToolTile: React.FC<{
   label: string;
   active: boolean;
   pillId?: string;
+  className?: string;
   onClick: () => void;
-}> = ({ icon, label, active, pillId = 'studio-active-tool-pill', onClick }) => (
+}> = ({ icon, label, active, pillId = 'studio-active-tool-pill', className = '', onClick }) => (
   <motion.button
     type="button"
     whileHover={{ scale: 1.05, y: -1 }}
@@ -2878,7 +2862,7 @@ const StudioToolTile: React.FC<{
       active
         ? 'border-[#ffe3a3] text-white font-medium shadow-[0_0_12px_rgba(235,181,86,0.35)]'
         : 'bg-[#211007]/85 border-[#8b5d31]/35 text-[#f2d093] hover:bg-[#4c2913] hover:text-white'
-    }`}
+    } ${className}`}
   >
     {active && (
       <motion.span

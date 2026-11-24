@@ -18,7 +18,21 @@ class CrochetAudioEngine {
 
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.value = 0.85;
-      this.masterGain.connect(this.ctx.destination);
+
+      // Global 528 Hz Solfeggio harmonic warmth filter for all studio SFX
+      const warmth528 = this.ctx.createBiquadFilter();
+      warmth528.type = 'peaking';
+      warmth528.frequency.value = 528;
+      warmth528.Q.value = 1.25;
+      warmth528.gain.value = 2.4;
+
+      const airShelf = this.ctx.createBiquadFilter();
+      airShelf.type = 'lowpass';
+      airShelf.frequency.value = 6800;
+
+      this.masterGain.connect(warmth528);
+      warmth528.connect(airShelf);
+      airShelf.connect(this.ctx.destination);
 
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.value = 0.72;
@@ -60,8 +74,8 @@ class CrochetAudioEngine {
     osc.start(now);
     osc.stop(now + 0.18);
 
-    // 2. Ascending crochet lace harp shimmer
-    const notes = [261.63, 329.63, 392.0, 523.25, 659.25];
+    // 2. Ascending crochet lace harp shimmer tuned to 528 Hz Solfeggio harmonic series
+    const notes = [264.0, 330.0, 396.0, 528.0, 660.0];
     notes.forEach((f, idx) => {
       const t = now + 0.12 + idx * 0.09;
       const o = ctx.createOscillator();
@@ -143,7 +157,7 @@ class CrochetAudioEngine {
     const ctx = this.ensureContext();
     if (!ctx || !this.sfxGain) return;
     const now = ctx.currentTime;
-    const base = 523.25 * Math.pow(1.06, pitchBoost); // C5 scaled
+    const base = 528.0 * Math.pow(1.06, pitchBoost); // 528 Hz Solfeggio scaled
 
     [base, base * 1.25].forEach((freq, idx) => {
       const t = now + idx * 0.038;
@@ -174,7 +188,7 @@ class CrochetAudioEngine {
     const ctx = this.ensureContext();
     if (!ctx || !this.sfxGain) return;
     const now = ctx.currentTime;
-    const pentatonic = [392.0, 440.0, 523.25, 587.33, 659.25, 783.99];
+    const pentatonic = [396.0, 444.0, 528.0, 594.0, 660.0, 792.0];
     const freq = pentatonic[Math.abs(seed) % pentatonic.length];
 
     const osc = ctx.createOscillator();
@@ -230,7 +244,7 @@ class CrochetAudioEngine {
     const ctx = this.ensureContext();
     if (!ctx || !this.sfxGain) return;
     const now = ctx.currentTime;
-    const notes = active ? [523.25, 783.99] : [659.25, 440.0];
+    const notes = active ? [528.0, 792.0] : [660.0, 444.0];
 
     notes.forEach((freq, idx) => {
       const t = now + idx * 0.045;

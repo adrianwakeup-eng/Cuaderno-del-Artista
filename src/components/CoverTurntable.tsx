@@ -341,14 +341,33 @@ export const CoverTurntable: React.FC<CoverTurntableProps> = ({ stageRef }) => {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSheetOpen(false)}
-                title="Cerrar partitura (la música sigue sonando en el fondo)"
-                className="p-1 rounded-md text-[#e7c587] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => turntableAudioPlayer.toggleHarmonize528Hz()}
+                  title={
+                    snap.harmonize528Hz
+                      ? 'Armonización 528 Hz activa (sonido cálido y afinado a 528 Hz) · Clic para alternar'
+                      : 'Activar armonización 528 Hz'
+                  }
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold border transition-all cursor-pointer ${
+                    snap.harmonize528Hz
+                      ? 'bg-[#694012]/90 border-[#f6d27a] text-[#fff1be] shadow-[0_0_10px_rgba(246,204,104,0.45)]'
+                      : 'bg-[#1f0e06]/80 border-[#b98a42]/40 text-[#c9ab78] hover:text-[#fae8c2]'
+                  }`}
+                >
+                  <span>✦</span>
+                  <span>528 Hz</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(false)}
+                  title="Cerrar partitura (la música sigue sonando en el fondo)"
+                  className="p-1 rounded-md text-[#e7c587] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Scrollable Parchment Body */}

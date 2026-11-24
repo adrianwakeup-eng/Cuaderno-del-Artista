@@ -23,7 +23,6 @@ import {
   SettingsView,
   StickersAndImagesView,
 } from './components/StudioUtilityViews';
-import { CrochetGifsView } from './components/CrochetGifsView';
 import { FramesGalleryView } from './components/FramesGalleryView';
 import { GoldenDressingRoomView } from './components/GoldenDressingRoomView';
 import { ElectronTitleBar, OfflineIndicator } from './components/WindowsDesktopControls';
@@ -1130,7 +1129,7 @@ export default function App() {
               />
             )}
 
-            {activeSection === 'stickers' && (
+            {(activeSection === 'stickers' || activeSection === 'gifs') && (
               <StickersAndImagesView
                 onInsertSticker={(stickerId) => {
                   const target = getActiveEditableSpread();
@@ -1152,13 +1151,7 @@ export default function App() {
                   audioEngine.playYarnPluck(stickerCount);
                   showToast('Sticker añadido al cuaderno');
                 }}
-                onUploadImageToNotebook={() => imageUploadRef.current?.click()}
-              />
-            )}
-
-            {activeSection === 'gifs' && (
-              <CrochetGifsView
-                onInsertGif={(dataUrl, title) => {
+                onInsertImageSticker={(dataUrl, title) => {
                   const target = getActiveEditableSpread();
                   const imgCount = target
                     ? target.elements.filter((e) => e.type === 'image').length
@@ -1171,14 +1164,15 @@ export default function App() {
                     type: 'image',
                     x: offsetX,
                     y: offsetY,
-                    width: 148,
+                    width: 156,
                     content: dataUrl,
                     title,
                     rotation: 0,
                     frameStyle: 'minimal',
                   });
-                  showToast(`Sticker HD pegado: ${title}`);
+                  showToast(`Sticker realista pegado: ${title}`);
                 }}
+                onUploadImageToNotebook={() => imageUploadRef.current?.click()}
                 onNotify={showToast}
                 onReturnToNotebook={() => setActiveSection('cuaderno')}
               />

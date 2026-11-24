@@ -29,8 +29,12 @@ export interface TurntablePlayerSnapshot {
   isLooping: boolean;
   isRecording: boolean;
   recordingSec: number;
+  harmonize528Hz: boolean;
   statusMessage: string | null;
 }
+
+/** Exact Solfeggio 528 Hz tuning ratio (A=444 Hz / C5=528.00 Hz vs standard A=440 Hz / C5=523.25 Hz) */
+const HARMONIC_528_RATE = 444 / 440;
 
 const DB_NAME = 'CuadernoTurntableAudioDB';
 const DB_VERSION = 1;
@@ -129,7 +133,18 @@ class TurntableAudioPlayer {
   private isLooping = false;
   private isRecording = false;
   private recordingSec = 0;
+  private harmonize528Hz = true;
   private statusMessage: string | null = null;
+
+  // Web Audio API 528 Hz Solfeggio Harmonic Warmth Graph
+  private audioCtx: AudioContext | null = null;
+  private mediaSource: MediaElementAudioSourceNode | null = null;
+  private eq528Node: BiquadFilterNode | null = null;
+  private eq264Node: BiquadFilterNode | null = null;
+  private air4224Node: BiquadFilterNode | null = null;
+  private padGainNode: GainNode | null = null;
+  private padOsc528: OscillatorNode | null = null;
+  private padOsc264: OscillatorNode | null = null;
 
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
@@ -171,8 +186,141 @@ class TurntableAudioPlayer {
       isLooping: this.isLooping,
       isRecording: this.isRecording,
       recordingSec: this.recordingSec,
+      harmonize528Hz: this.harmonize528Hz,
       statusMessage: this.statusMessage,
     };
+  }
+
+  private apply528HzPitch(el: HTMLAudioElement) {
+    const ext = el as HTMLAudioElement & {
+      preservesPitch?: boolean;
+      mozPreservesPitch?: boolean;
+      webkitPreservesPitch?: boolean;
+    };
+    if (this.harmonize528Hz) {
+      // Shift pitch gently (+15.67 cents: A=444 Hz -> C5=528.00 Hz) for natural 528 Hz harmonization
+      ext.preservesPitch = false;
+      ext.mozPreservesPitch = false;
+      ext.webkitPreservesPitch = false;
+      el.playbackRate = HARMONIC_528_RATE;
+    } else {
+      ext.preservesPitch = true;
+      ext.mozPreservesPitch = true;
+      ext.webkitPreservesPitch = true;
+      el.playbackRate = 1.0;
+    }
+  }
+
+  private ensure528HzAudioGraph(el: HTMLAudioElement) {
+    if (typeof window === 'undefined') return;
+    try {
+      if (!this.audioCtx) {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const source = ctx.createMediaElementSource(el);
+
+        // 1. Warm sub-octave 264 Hz body support
+        const eq264 = ctx.createBiquadFilter();
+        eq264.type = 'peaking';
+        eq264.frequency.value = 264;
+        eq264.Q.value = 1.1;
+        eq264.gain.value = this.harmonize528Hz ? 1.7 : 0;
+
+        // 2. 528 Hz Solfeggio resonant warmth peak
+        const eq528 = ctx.createBiquadFilter();
+        eq528.type = 'peaking';
+        eq528.frequency.value = 528;
+        eq528.Q.value = 1.35;
+        eq528.gain.value = this.harmonize528Hz ? 2.6 : 0;
+
+        // 3. Silky harmonic air overtone (528 Hz * 8 = 4224 Hz)
+        const air4224 = ctx.createBiquadFilter();
+        air4224.type = 'highshelf';
+        air4224.frequency.value = 4224;
+        air4224.gain.value = this.harmonize528Hz ? 1.3 : 0;
+
+        // 4. Gentle mastering compressor so audio is always lush, balanced & clip-free
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -14;
+        comp.knee.value = 18;
+        comp.ratio.value = 2.4;
+        comp.attack.value = 0.012;
+        comp.release.value = 0.18;
+
+        source.connect(eq264);
+        eq264.connect(eq528);
+        eq528.connect(air4224);
+        air4224.connect(comp);
+        comp.connect(ctx.destination);
+
+        // 5. Ultra-subtle 528 Hz + 264 Hz crystal shimmer undertone while playing (-39 dB)
+        const padGain = ctx.createGain();
+        padGain.gain.value = 0;
+        const osc528 = ctx.createOscillator();
+        osc528.type = 'sine';
+        osc528.frequency.value = 528;
+        const osc264 = ctx.createOscillator();
+        osc264.type = 'sine';
+        osc264.frequency.value = 264;
+        const g528 = ctx.createGain();
+        g528.gain.value = 0.65;
+        const g264 = ctx.createGain();
+        g264.gain.value = 0.35;
+
+        osc528.connect(g528);
+        osc264.connect(g264);
+        g528.connect(padGain);
+        g264.connect(padGain);
+        padGain.connect(comp);
+        osc528.start();
+        osc264.start();
+
+        this.audioCtx = ctx;
+        this.mediaSource = source;
+        this.eq264Node = eq264;
+        this.eq528Node = eq528;
+        this.air4224Node = air4224;
+        this.padGainNode = padGain;
+        this.padOsc528 = osc528;
+        this.padOsc264 = osc264;
+      }
+
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        void this.audioCtx.resume().catch(() => {});
+      }
+      this.sync528HzNodes();
+    } catch {
+      // Fallback safely to direct playbackRate 528 Hz tuning if Web Audio node creation is restricted
+    }
+  }
+
+  private sync528HzNodes() {
+    if (!this.audioCtx) return;
+    const now = this.audioCtx.currentTime;
+    const on = this.harmonize528Hz;
+    if (this.eq264Node) this.eq264Node.gain.setTargetAtTime(on ? 1.7 : 0, now, 0.08);
+    if (this.eq528Node) this.eq528Node.gain.setTargetAtTime(on ? 2.6 : 0, now, 0.08);
+    if (this.air4224Node) this.air4224Node.gain.setTargetAtTime(on ? 1.3 : 0, now, 0.08);
+    if (this.padGainNode) {
+      const targetPad = on && this.isPlaying ? 0.011 * Math.max(0.2, this.volume) : 0;
+      this.padGainNode.gain.setTargetAtTime(targetPad, now, 0.25);
+    }
+  }
+
+  public toggleHarmonize528Hz(): void {
+    this.harmonize528Hz = !this.harmonize528Hz;
+    if (this.audio) {
+      this.apply528HzPitch(this.audio);
+    }
+    this.sync528HzNodes();
+    this.setStatus(
+      this.harmonize528Hz
+        ? 'Armonización 528 Hz activada.'
+        : 'Reproducción en afinación original (440 Hz).'
+    );
   }
 
   public subscribe(listener: (snap: TurntablePlayerSnapshot) => void): () => void {
@@ -236,11 +384,14 @@ class TurntableAudioPlayer {
 
       el.addEventListener('play', () => {
         this.isPlaying = true;
+        this.apply528HzPitch(el);
+        this.sync528HzNodes();
         this.emit();
       });
 
       el.addEventListener('pause', () => {
         this.isPlaying = false;
+        this.sync528HzNodes();
         this.emit();
       });
 
@@ -296,10 +447,13 @@ class TurntableAudioPlayer {
       this.duration = track.durationSec || 0;
     }
     el.volume = this.volume;
+    this.apply528HzPitch(el);
+    this.ensure528HzAudioGraph(el);
 
     try {
       await el.play();
       this.isPlaying = true;
+      this.sync528HzNodes();
       this.setStatus(null);
     } catch {
       this.isPlaying = false;
@@ -359,6 +513,7 @@ class TurntableAudioPlayer {
     if (this.audio) {
       this.audio.volume = this.volume;
     }
+    this.sync528HzNodes();
     this.emit();
   }
 

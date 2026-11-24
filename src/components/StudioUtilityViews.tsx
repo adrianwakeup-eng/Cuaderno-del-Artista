@@ -38,6 +38,8 @@ import {
   type TextureFamilyId,
 } from '../utils/hyperrealBrushEngine';
 import { CrochetStickerSvg } from './CrochetDecorations';
+import { CrochetGifsView, PHOTO_REAL_CROCHET_STICKERS } from './CrochetGifsView';
+import { CROCHET_GIFS } from '../data/crochetGifs';
 import { LiveTexturePreview, useFavoriteBrushes } from './TextureBrushSwatch';
 import { PWAInstallButton } from './WindowsDesktopControls';
 
@@ -72,12 +74,24 @@ StickerGridCard.displayName = 'StickerGridCard';
 
 export const StickersAndImagesView: React.FC<{
   onInsertSticker: (stickerId: string) => void;
+  onInsertImageSticker?: (dataUrl: string, title: string) => void;
   onUploadImageToNotebook: () => void;
-}> = ({ onInsertSticker, onUploadImageToNotebook }) => {
+  onNotify?: (msg: string) => void;
+  onReturnToNotebook?: () => void;
+}> = ({
+  onInsertSticker,
+  onInsertImageSticker,
+  onUploadImageToNotebook,
+  onNotify,
+  onReturnToNotebook,
+}) => {
+  const [collectionTab, setCollectionTab] = React.useState<'crochet-hd' | 'clasicos'>('crochet-hd');
   const [activeCategory, setActiveCategory] = React.useState<'Todos' | StickerCategory>('Todos');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [visibleLimit, setVisibleLimit] = React.useState(80);
   const sentinelRef = React.useRef<HTMLDivElement | null>(null);
+
+  const hdCount = CROCHET_GIFS.length + PHOTO_REAL_CROCHET_STICKERS.length;
 
   const categoryCounts = React.useMemo(() => {
     const map: Record<string, number> = { Todos: CROCHET_STICKERS.length };
@@ -128,90 +142,137 @@ export const StickersAndImagesView: React.FC<{
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="font-display text-xl text-[#f7e2b9]">
-              Stickers de Crochet, Flores, Perlas y Cuentas ({filteredStickers.length})
+              Stickers Artesanales de Crochet, Atrapasueños y Granny ({hdCount + CROCHET_STICKERS.length})
             </h2>
             <p className="text-xs text-[#d6b688]">
-              Haz clic en cualquier adorno artesanal para pegarlo directamente en la hoja abierta del cuaderno
+              Todos tus stickers reunidos en alta definición sin fondo: fotografías reales, atrapasueños, granny squares, flores, perlas y cuentas
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={onUploadImageToNotebook}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
-          >
-            <ImagePlus className="w-4 h-4" />
-            <span>Insertar Imagen Propia</span>
-          </button>
-        </div>
-
-        {/* Category Filter Tabs + Search */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 mb-5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {STICKER_CATEGORIES.map((cat) => {
-              const count = categoryCounts[cat] ?? 0;
-              const active = activeCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setActiveCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer ${
-                    active
-                      ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] border-[#f4cf8e]/70 text-white font-medium shadow'
-                      : 'bg-[#2a160b]/85 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
-                  }`}
-                >
-                  {cat} <span className="opacity-80 font-mono-tab">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="relative min-w-[210px] sm:w-64">
-            <Search className="w-3.5 h-3.5 text-[#cfa56a] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar flor, perla, ovillo..."
-              className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-[#231208]/90 border border-[#b98241]/40 text-xs text-[#f7e7c8] placeholder:text-[#a8865b] focus:outline-none focus:border-[#ebbc6e]"
-            />
-            {searchQuery && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onUploadImageToNotebook}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-xs font-medium text-white cursor-pointer shadow"
+            >
+              <ImagePlus className="w-4 h-4" />
+              <span>Insertar Imagen Propia</span>
+            </button>
+            {onReturnToNotebook && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#cfa56a] hover:text-white cursor-pointer"
-                title="Limpiar búsqueda"
+                onClick={onReturnToNotebook}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[#3b2110] hover:bg-[#522d17] border border-[#b98241]/45 text-xs font-medium text-[#ffebc2] cursor-pointer shadow"
               >
-                <X className="w-3.5 h-3.5" />
+                <span>Volver</span>
               </button>
             )}
           </div>
         </div>
 
-        {filteredStickers.length === 0 ? (
-          <div className="p-8 rounded-2xl border border-[#b98241]/30 bg-[#2a160b]/70 text-center text-sm text-[#dfc49b]">
-            No hay stickers que coincidan con “{searchQuery}”.
-          </div>
+        {/* Unified Collection Switcher */}
+        <div className="inline-flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-[#1b0d05]/90 border border-[#c8964f]/45 mb-4">
+          <button
+            type="button"
+            onClick={() => setCollectionTab('crochet-hd')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              collectionTab === 'crochet-hd'
+                ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white shadow'
+                : 'text-[#e8cfab] hover:text-white'
+            }`}
+          >
+            ✦ Crochet Realista · Atrapasueños & Granny ({hdCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollectionTab('clasicos')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              collectionTab === 'clasicos'
+                ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white shadow'
+                : 'text-[#e8cfab] hover:text-white'
+            }`}
+          >
+            Flores, Perlas, Hilos y Cuentas ({CROCHET_STICKERS.length})
+          </button>
+        </div>
+
+        {collectionTab === 'crochet-hd' && onInsertImageSticker ? (
+          <CrochetGifsView
+            embedded
+            onInsertGif={onInsertImageSticker}
+            onNotify={onNotify}
+          />
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-              {displayedStickers.map((st) => (
-                <StickerGridCard key={st.id} sticker={st} onInsert={onInsertSticker} />
-              ))}
+            {/* Category Filter Tabs + Search */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 mb-5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {STICKER_CATEGORIES.map((cat) => {
+                  const count = categoryCounts[cat] ?? 0;
+                  const active = activeCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setActiveCategory(cat)}
+                      className={`px-3 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] border-[#f4cf8e]/70 text-white font-medium shadow'
+                          : 'bg-[#2a160b]/85 border-[#b98241]/35 text-[#e8cfab] hover:bg-[#4b2a15]'
+                      }`}
+                    >
+                      {cat} <span className="opacity-80 font-mono-tab">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative min-w-[210px] sm:w-64">
+                <Search className="w-3.5 h-3.5 text-[#cfa56a] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar flor, perla, ovillo..."
+                  className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-[#231208]/90 border border-[#b98241]/40 text-xs text-[#f7e7c8] placeholder:text-[#a8865b] focus:outline-none focus:border-[#ebbc6e]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#cfa56a] hover:text-white cursor-pointer"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {hasMore && (
-              <div ref={sentinelRef} className="mt-6 flex flex-col items-center gap-2 py-2">
-                <button
-                  type="button"
-                  onClick={() => setVisibleLimit(filteredStickers.length)}
-                  className="px-4 py-2 rounded-lg bg-[#381e0f] border border-[#b98241]/50 hover:bg-[#522d17] text-xs text-[#f4d8ab] cursor-pointer transition-colors shadow"
-                >
-                  Mostrar los {filteredStickers.length - displayedStickers.length} stickers restantes
-                </button>
+            {filteredStickers.length === 0 ? (
+              <div className="p-8 rounded-2xl border border-[#b98241]/30 bg-[#2a160b]/70 text-center text-sm text-[#dfc49b]">
+                No hay stickers que coincidan con “{searchQuery}”.
               </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+                  {displayedStickers.map((st) => (
+                    <StickerGridCard key={st.id} sticker={st} onInsert={onInsertSticker} />
+                  ))}
+                </div>
+
+                {hasMore && (
+                  <div ref={sentinelRef} className="mt-6 flex flex-col items-center gap-2 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleLimit(filteredStickers.length)}
+                      className="px-4 py-2 rounded-lg bg-[#381e0f] border border-[#b98241]/50 hover:bg-[#522d17] text-xs text-[#f4d8ab] cursor-pointer transition-colors shadow"
+                    >
+                      Mostrar los {filteredStickers.length - displayedStickers.length} stickers restantes
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
