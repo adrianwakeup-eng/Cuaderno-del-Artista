@@ -138,15 +138,24 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({
   useEffect(() => {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = callSnap.localStream;
+      if (callSnap.localStream) {
+        void localVideoRef.current.play().catch(() => {});
+      }
     }
   }, [callSnap.localStream, callSnap.status, callSnap.mode]);
 
   useEffect(() => {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = callSnap.remoteStream;
+      if (callSnap.remoteStream) {
+        void remoteVideoRef.current.play().catch(() => {});
+      }
     }
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = callSnap.remoteStream;
+      if (callSnap.remoteStream) {
+        void remoteAudioRef.current.play().catch(() => {});
+      }
     }
   }, [callSnap.remoteStream, callSnap.status, callSnap.mode]);
 
@@ -333,10 +342,27 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({
         ? callSnap.manualLocalToken
         : callSnap.roomCode;
     if (!payload) return;
+
+    // On Android / Samsung Galaxy Note 9, also offer native Share sheet (WhatsApp, Telegram, SMS) if available
+    const shareText =
+      callSnap.signalingMode === 'p2p-manual'
+        ? payload
+        : `Únete a mi ${callSnap.mode === 'video' ? 'videollamada' : 'llamada'} en Cuaderno del Artista. Código de sala: ${callSnap.roomCode}`;
+
     try {
       await navigator.clipboard.writeText(payload);
     } catch {
       // ignore
+    }
+    try {
+      if (typeof navigator.share === 'function' && /Android/i.test(navigator.userAgent)) {
+        await navigator.share({
+          title: 'Llamada en Cuaderno del Artista',
+          text: shareText,
+        });
+      }
+    } catch {
+      // user dismissed Android share sheet — code is already copied!
     }
     setCopiedCode(true);
     window.setTimeout(() => setCopiedCode(false), 1800);

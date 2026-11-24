@@ -1,20 +1,9 @@
-// Real-time WebRTC Audio & Video Call Engine for Atelier Members.
-// Uses Firebase Firestore signaling (6-digit room codes) with automatic zero-server P2P invite-code fallback
-// so members can converse by audio or HD video across Android (Samsung Galaxy Note 9), Windows .exe & Web.
+// Real-time APK-to-APK, Desktop & Web Audio/Video Call Engine for Atelier Members.
+// Primary signaling: PeerJS Cloud (0.peerjs.com over secure WSS) using simple 6-digit numeric room codes
+// so two Android APK users (e.g. Samsung Galaxy Note 9 <-> another Android phone) connect in seconds
+// with zero server setup. Automatic fallback: Zero-Server direct WebRTC P2P invite token.
 
-import { getApp, getApps, initializeApp } from 'firebase/app';
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getFirestore,
-  onSnapshot,
-  setDoc,
-  updateDoc,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import Peer, { type MediaConnection } from 'peerjs';
 
 export type CallMode = 'audio' | 'video';
 export type CallStatus =
@@ -35,7 +24,7 @@ export interface CallSnapshot {
   cameraOff: boolean;
   facingMode: 'user' | 'environment';
   screenSharing: boolean;
-  signalingMode: 'firestore' | 'p2p-manual';
+  signalingMode: 'peerjs' | 'p2p-manual';
   manualLocalToken: string;
   statusNote: string | null;
   startedAtMs: number | null;
@@ -43,30 +32,26 @@ export interface CallSnapshot {
   remoteStream: MediaStream | null;
 }
 
+const PEER_ID_PREFIX = 'cuaderno-atelier-';
+
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
     { urls: ['stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302'] },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
   iceCandidatePoolSize: 8,
 };
 
-function getDbSafe() {
-  try {
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    return getFirestore(app);
-  } catch {
-    return null;
-  }
+function generateNumericRoomCode(): string {
+  // 6 easy-to-type numeric digits for Samsung Galaxy Note 9 / mobile keypads (e.g. "482915")
+  const n = Math.floor(100000 + Math.random() * 900000);
+  return String(n);
 }
 
-function generateRoomCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let out = '';
-  for (let i = 0; i < 6; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return out;
+function normalizeRoomCode(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 }
 
 function encodeToken(obj: unknown): string {
@@ -104,10 +89,11 @@ function waitForIceComplete(pc: RTCPeerConnection, timeoutMs = 2400): Promise<vo
 }
 
 export class AtelierWebRtcCallEngine {
-  private pc: RTCPeerConnection | null = null;
+  private peer: Peer | null = null;
+  private activeMediaConn: MediaConnection | null = null;
+  private manualPc: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
-  private remoteStream: MediaStream | null = null;
-  private unsubscribers: Unsubscribe[] = [];
+  private wakeLock: { release?: () => Promise<void> } | null = null;
 
   private state: CallSnapshot = {
     status: 'idle',
@@ -118,7 +104,7 @@ export class AtelierWebRtcCallEngine {
     cameraOff: false,
     facingMode: 'user',
     screenSharing: false,
-    signalingMode: 'firestore',
+    signalingMode: 'peerjs',
     manualLocalToken: '',
     statusNote: null,
     startedAtMs: null,
@@ -146,6 +132,26 @@ export class AtelierWebRtcCallEngine {
     this.listeners.forEach((fn) => fn(snap));
   }
 
+  private async requestWakeLock() {
+    try {
+      const nav = navigator as Navigator & {
+        wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> };
+      };
+      if (nav.wakeLock) {
+        this.wakeLock = await nav.wakeLock.request('screen');
+      }
+    } catch {
+      // ignore if wakeLock unsupported
+    }
+  }
+
+  private releaseWakeLock() {
+    if (this.wakeLock?.release) {
+      void this.wakeLock.release().catch(() => {});
+      this.wakeLock = null;
+    }
+  }
+
   private async acquireMedia(mode: CallMode, facing: 'user' | 'environment'): Promise<MediaStream> {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('Tu dispositivo no permite acceso a cámara o micrófono en este contexto.');
@@ -160,59 +166,99 @@ export class AtelierWebRtcCallEngine {
         mode === 'video'
           ? {
               facingMode: { ideal: facing },
-              width: { ideal: 1280, max: 1920 },
-              height: { ideal: 720, max: 1080 },
-              frameRate: { ideal: 30, max: 30 },
+              width: { ideal: 960, max: 1280 },
+              height: { ideal: 720, max: 960 },
+              frameRate: { ideal: 24, max: 30 },
             }
           : false,
     };
     return navigator.mediaDevices.getUserMedia(constraints);
   }
 
-  private setupPeerConnection(): RTCPeerConnection {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
-    const remote = new MediaStream();
-    this.remoteStream = remote;
-
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => {
-        pc.addTrack(track, this.localStream!);
-      });
+  private getActivePeerConnection(): RTCPeerConnection | null {
+    if (this.activeMediaConn) {
+      return (this.activeMediaConn as unknown as { peerConnection?: RTCPeerConnection })
+        .peerConnection ?? null;
     }
-
-    pc.ontrack = (event) => {
-      event.streams[0]?.getTracks().forEach((track) => {
-        remote.addTrack(track);
-      });
-      this.patch({
-        remoteStream: remote,
-        status: 'connected',
-        startedAtMs: this.state.startedAtMs ?? Date.now(),
-        statusNote: 'Conectado en vivo',
-      });
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
-        this.patch({
-          status: 'connected',
-          startedAtMs: this.state.startedAtMs ?? Date.now(),
-          statusNote: 'Llamada activa en vivo',
-        });
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        this.patch({ statusNote: 'Reconectando señal con el integrante...' });
-      }
-    };
-
-    this.pc = pc;
-    this.patch({ localStream: this.localStream, remoteStream: remote });
-    return pc;
+    return this.manualPc;
   }
 
-  /** Start a new Audio or Video Call room and wait for another member to join */
+  private bindMediaConnection(call: MediaConnection) {
+    this.activeMediaConn = call;
+
+    call.on('stream', (remoteStream) => {
+      // Create a fresh MediaStream wrapper so React & Android WebView ALWAYS detect track arrival & play()!
+      const freshRemote = new MediaStream(remoteStream.getTracks());
+      this.patch({
+        remoteStream: freshRemote,
+        status: 'connected',
+        startedAtMs: this.state.startedAtMs ?? Date.now(),
+        statusNote: 'Conectado en vivo con el integrante',
+      });
+    });
+
+    call.on('close', () => {
+      if (this.state.status !== 'idle') {
+        this.patch({
+          statusNote: 'El otro integrante finalizó la llamada.',
+          remoteStream: null,
+        });
+      }
+    });
+
+    call.on('error', () => {
+      this.patch({
+        statusNote: 'Interrupción de señal con el integrante. Puedes volver a conectar.',
+      });
+    });
+  }
+
+  private createPeerWithTimeout(peerId?: string, timeoutMs = 6500): Promise<Peer> {
+    return new Promise((resolve, reject) => {
+      const peer = peerId
+        ? new Peer(peerId, { secure: true, config: RTC_CONFIG, debug: 0 })
+        : new Peer({ secure: true, config: RTC_CONFIG, debug: 0 });
+
+      let settled = false;
+      const timer = window.setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try {
+            peer.destroy();
+          } catch {
+            // ignore
+          }
+          reject(new Error('PeerJS timeout'));
+        }
+      }, timeoutMs);
+
+      peer.once('open', () => {
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timer);
+          resolve(peer);
+        }
+      });
+
+      peer.once('error', (err) => {
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timer);
+          try {
+            peer.destroy();
+          } catch {
+            // ignore
+          }
+          reject(err);
+        }
+      });
+    });
+  }
+
+  /** Start a new Audio or Video Call room (instant 6-digit code via PeerJS Cloud, automatic P2P fallback) */
   public async startCallRoom(mode: CallMode, peerName: string): Promise<void> {
     this.endCall(false);
-    const code = generateRoomCode();
+    const code = generateNumericRoomCode();
     this.patch({
       status: 'preparing',
       mode,
@@ -222,101 +268,88 @@ export class AtelierWebRtcCallEngine {
       cameraOff: mode === 'audio',
       facingMode: 'user',
       screenSharing: false,
+      signalingMode: 'peerjs',
       manualLocalToken: '',
       statusNote: mode === 'video' ? 'Activando cámara y micrófono...' : 'Activando micrófono...',
       startedAtMs: null,
+      localStream: null,
+      remoteStream: null,
     });
 
     try {
       this.localStream = await this.acquireMedia(mode, 'user');
+      this.patch({ localStream: new MediaStream(this.localStream.getTracks()) });
+      void this.requestWakeLock();
     } catch {
       this.patch({
         status: 'error',
         statusNote:
-          'Permite acceso al micrófono y/o cámara en tu celular o navegador para iniciar la llamada.',
+          'Permite el acceso al micrófono y la cámara en tu celular para iniciar la videollamada.',
       });
       return;
     }
 
-    const pc = this.setupPeerConnection();
-    const db = getDbSafe();
-
+    // 1. Primary Instant Signaling via PeerJS Cloud (works APK <-> APK across any two phones!)
     try {
+      const peer = await this.createPeerWithTimeout(`${PEER_ID_PREFIX}${code}`, 6500);
+      this.peer = peer;
+
+      peer.on('call', (incomingCall) => {
+        if (!this.localStream) return;
+        this.patch({
+          status: 'connecting',
+          statusNote: 'Integrante conectándose a tu sala...',
+        });
+        incomingCall.answer(this.localStream);
+        this.bindMediaConnection(incomingCall);
+      });
+
+      peer.on('disconnected', () => {
+        if (this.peer && !this.peer.destroyed) {
+          try {
+            this.peer.reconnect();
+          } catch {
+            // ignore
+          }
+        }
+      });
+
+      this.patch({
+        status: 'waiting',
+        signalingMode: 'peerjs',
+        statusNote: `Sala ${code} lista en vivo. El otro usuario de la APK solo debe pulsar "Unirse" y escribir ${code}.`,
+      });
+      return;
+    } catch {
+      // PeerJS broker unreachable -> Seamless fallback to zero-server manual P2P invite token!
+    }
+
+    // 2. Fallback: Zero-server direct WebRTC P2P offer token
+    try {
+      const pc = this.setupManualPeerConnection();
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: mode === 'video',
       });
       await pc.setLocalDescription(offer);
-
-      if (db) {
-        try {
-          const roomRef = doc(db, 'atelier_calls', code);
-          const callerCandidates = collection(roomRef, 'callerCandidates');
-          const calleeCandidates = collection(roomRef, 'calleeCandidates');
-
-          pc.onicecandidate = (ev) => {
-            if (ev.candidate) {
-              void addDoc(callerCandidates, ev.candidate.toJSON()).catch(() => {});
-            }
-          };
-
-          await setDoc(roomRef, {
-            mode,
-            hostName: peerName,
-            createdAt: Date.now(),
-            offer: { type: offer.type, sdp: offer.sdp },
-          });
-
-          const unsubRoom = onSnapshot(roomRef, async (snap) => {
-            const data = snap.data();
-            if (data?.answer && !pc.currentRemoteDescription) {
-              await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-            }
-          });
-          const unsubCallee = onSnapshot(calleeCandidates, (snap) => {
-            snap.docChanges().forEach((change) => {
-              if (change.type === 'added') {
-                void pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(() => {});
-              }
-            });
-          });
-          this.unsubscribers.push(unsubRoom, unsubCallee);
-
-          this.patch({
-            status: 'waiting',
-            signalingMode: 'firestore',
-            statusNote: `Sala ${code} lista. Comparte el código con el integrante para conectarse.`,
-          });
-          return;
-        } catch {
-          // Firestore signaling unavailable -> fall back seamlessly to Zero-Server P2P Invite Token
-        }
-      }
-
-      // Zero-server WebRTC direct invite token fallback
       await waitForIceComplete(pc);
-      const token = encodeToken({
-        v: 1,
-        mode,
-        code,
-        sdp: pc.localDescription?.toJSON(),
-      });
+      const token = encodeToken({ v: 1, mode, code, sdp: pc.localDescription?.toJSON() });
       this.patch({
         status: 'waiting',
         signalingMode: 'p2p-manual',
         manualLocalToken: token,
         statusNote:
-          'Sala P2P directa lista. Copia el código de invitación y envíalo al integrante.',
+          'Modo directo sin servidor: copia el código de invitación y envíaselo al otro integrante.',
       });
     } catch {
       this.patch({
         status: 'error',
-        statusNote: 'No se pudo inicializar la conexión WebRTC.',
+        statusNote: 'No se pudo iniciar la conexión WebRTC. Revisa tu conexión a internet.',
       });
     }
   }
 
-  /** Join an existing call room by 6-digit code OR pasted P2P invite token */
+  /** Join an existing call room from another APK / device by typing the 6-digit code (or pasting P2P token) */
   public async joinCall(codeOrToken: string, preferredMode: CallMode, myName: string): Promise<void> {
     const clean = codeOrToken.trim();
     if (!clean) return;
@@ -328,7 +361,7 @@ export class AtelierWebRtcCallEngine {
       : null;
 
     const mode: CallMode = decoded?.mode || preferredMode;
-    const roomCode = decoded?.code || clean.toUpperCase();
+    const roomCode = decoded?.code || normalizeRoomCode(clean);
 
     this.patch({
       status: 'connecting',
@@ -339,26 +372,30 @@ export class AtelierWebRtcCallEngine {
       cameraOff: mode === 'audio',
       facingMode: 'user',
       screenSharing: false,
+      signalingMode: isManualToken ? 'p2p-manual' : 'peerjs',
       manualLocalToken: '',
-      statusNote: 'Conectando a la sala de llamada...',
+      statusNote: `Conectando con la sala ${roomCode}...`,
       startedAtMs: null,
+      localStream: null,
+      remoteStream: null,
     });
 
     try {
       this.localStream = await this.acquireMedia(mode, 'user');
+      this.patch({ localStream: new MediaStream(this.localStream.getTracks()) });
+      void this.requestWakeLock();
     } catch {
       this.patch({
         status: 'error',
-        statusNote: 'Permite el micrófono/cámara para unirte a la llamada.',
+        statusNote: 'Permite el micrófono y la cámara en tu celular para unirte a la llamada.',
       });
       return;
     }
 
-    const pc = this.setupPeerConnection();
-
-    // Branch A: Direct P2P Token
+    // Branch A: Direct Manual P2P Token
     if (decoded?.sdp) {
       try {
+        const pc = this.setupManualPeerConnection();
         await pc.setRemoteDescription(new RTCSessionDescription(decoded.sdp));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -368,91 +405,94 @@ export class AtelierWebRtcCallEngine {
           status: 'waiting',
           signalingMode: 'p2p-manual',
           manualLocalToken: answerToken,
-          statusNote:
-            'Copia este código de respuesta y envíaselo a quien inició la llamada para conectar al instante.',
+          statusNote: 'Envía este código de respuesta a quien creó la sala para enlazar al instante.',
         });
       } catch {
-        this.patch({ status: 'error', statusNote: 'Código de invitación inválido.' });
+        this.patch({ status: 'error', statusNote: 'Código de invitación P2P inválido.' });
       }
       return;
     }
 
-    // Branch B: 6-digit Firestore Room Code
-    const db = getDbSafe();
-    if (!db) {
-      this.patch({
-        status: 'error',
-        statusNote: 'Usa un código de invitación P2P completo para conectar sin servidor.',
-      });
-      return;
-    }
-
+    // Branch B: Instant 6-digit PeerJS Cloud Room Call!
     try {
-      const roomRef = doc(db, 'atelier_calls', roomCode);
-      const roomSnap = await getDoc(roomRef);
-      if (!roomSnap.exists()) {
+      const peer = await this.createPeerWithTimeout(undefined, 6500);
+      this.peer = peer;
+
+      const mediaCall = peer.call(`${PEER_ID_PREFIX}${roomCode}`, this.localStream);
+      if (!mediaCall) {
         this.patch({
           status: 'error',
-          statusNote: `No se encontró la sala "${roomCode}". Verifica el código.`,
+          statusNote: `No se pudo marcar a la sala ${roomCode}. Verifica el número.`,
         });
         return;
       }
 
-      const data = roomSnap.data();
-      const callerCandidates = collection(roomRef, 'callerCandidates');
-      const calleeCandidates = collection(roomRef, 'calleeCandidates');
+      this.bindMediaConnection(mediaCall);
 
-      pc.onicecandidate = (ev) => {
-        if (ev.candidate) {
-          void addDoc(calleeCandidates, ev.candidate.toJSON()).catch(() => {});
+      peer.on('error', (err) => {
+        const msg = String(err?.type || err?.message || '');
+        if (msg.includes('peer-unavailable')) {
+          this.patch({
+            status: 'error',
+            statusNote: `No se encontró la sala ${roomCode}. Pide al otro integrante que verifique el código.`,
+          });
         }
-      };
-
-      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await updateDoc(roomRef, {
-        answer: { type: answer.type, sdp: answer.sdp },
-        guestName: myName,
       });
-
-      const unsubCaller = onSnapshot(callerCandidates, (snap) => {
-        snap.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            void pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(() => {});
-          }
-        });
-      });
-      this.unsubscribers.push(unsubCaller);
 
       this.patch({
-        status: 'connected',
-        signalingMode: 'firestore',
-        startedAtMs: Date.now(),
-        statusNote: `Conectado a la sala ${roomCode}`,
+        status: 'connecting',
+        signalingMode: 'peerjs',
+        statusNote: `Llamando a la sala ${roomCode}...`,
       });
     } catch {
       this.patch({
         status: 'error',
-        statusNote: 'No se pudo conectar a la sala. Intenta con el código de invitación P2P.',
+        statusNote: 'No se pudo conectar al servidor de señalización. Verifica tu conexión a internet.',
       });
     }
   }
 
+  private setupManualPeerConnection(): RTCPeerConnection {
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const remote = new MediaStream();
+
+    if (this.localStream) {
+      this.localStream.getTracks().forEach((track) => {
+        pc.addTrack(track, this.localStream!);
+      });
+    }
+
+    pc.ontrack = (event) => {
+      event.streams[0]?.getTracks().forEach((track) => {
+        if (!remote.getTracks().some((t) => t.id === track.id)) {
+          remote.addTrack(track);
+        }
+      });
+      this.patch({
+        remoteStream: new MediaStream(remote.getTracks()),
+        status: 'connected',
+        startedAtMs: this.state.startedAtMs ?? Date.now(),
+        statusNote: 'Conectado en vivo P2P',
+      });
+    };
+
+    this.manualPc = pc;
+    return pc;
+  }
+
   /** Complete a manual P2P call on the host side by pasting the guest's answer token */
   public async applyManualAnswerToken(answerToken: string): Promise<void> {
-    if (!this.pc) return;
+    if (!this.manualPc) return;
     const decoded = decodeToken<{ sdp?: RTCSessionDescriptionInit }>(answerToken);
     if (!decoded?.sdp) {
       this.patch({ statusNote: 'El código de respuesta no es válido.' });
       return;
     }
     try {
-      await this.pc.setRemoteDescription(new RTCSessionDescription(decoded.sdp));
+      await this.manualPc.setRemoteDescription(new RTCSessionDescription(decoded.sdp));
       this.patch({
-        status: 'connected',
-        startedAtMs: Date.now(),
-        statusNote: 'Conectado en vivo P2P',
+        status: 'connecting',
+        statusNote: 'Enlazando audio y video P2P...',
       });
     } catch {
       this.patch({ statusNote: 'No se pudo aplicar la respuesta P2P.' });
@@ -475,7 +515,7 @@ export class AtelierWebRtcCallEngine {
     this.patch({ cameraOff: next });
   }
 
-  /** Switch between Front & Rear camera (great for showing crochet stitches on Galaxy Note 9!) */
+  /** Switch between Front & Rear camera (great for showing crochet stitches on Samsung Galaxy Note 9!) */
   public async switchCamera(): Promise<void> {
     if (this.state.mode !== 'video' || !this.localStream) return;
     const nextFacing = this.state.facingMode === 'user' ? 'environment' : 'user';
@@ -494,18 +534,23 @@ export class AtelierWebRtcCallEngine {
       this.localStream.addTrack(newTrack);
       newTrack.enabled = !this.state.cameraOff;
 
-      const sender = this.pc?.getSenders().find((s) => s.track?.kind === 'video');
+      const pc = this.getActivePeerConnection();
+      const sender = pc?.getSenders().find((s) => s.track?.kind === 'video');
       if (sender) {
         await sender.replaceTrack(newTrack);
       }
-      this.patch({ facingMode: nextFacing, localStream: new MediaStream(this.localStream.getTracks()) });
+      this.patch({
+        facingMode: nextFacing,
+        localStream: new MediaStream(this.localStream.getTracks()),
+      });
     } catch {
       this.patch({ statusNote: 'Solo hay una cámara disponible en este dispositivo.' });
     }
   }
 
   public async toggleScreenShare(): Promise<void> {
-    if (!this.pc || !this.localStream) return;
+    const pc = this.getActivePeerConnection();
+    if (!pc || !this.localStream) return;
     const mediaDevices = navigator.mediaDevices as MediaDevices & {
       getDisplayMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
     };
@@ -524,7 +569,7 @@ export class AtelierWebRtcCallEngine {
       const screenStream = await mediaDevices.getDisplayMedia({ video: true });
       const screenTrack = screenStream.getVideoTracks()[0];
       if (!screenTrack) return;
-      const sender = this.pc.getSenders().find((s) => s.track?.kind === 'video');
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
       if (sender) {
         await sender.replaceTrack(screenTrack);
       }
@@ -538,28 +583,39 @@ export class AtelierWebRtcCallEngine {
   }
 
   public endCall(resetStatus = true): void {
-    this.unsubscribers.forEach((u) => {
-      try {
-        u();
-      } catch {
-        // ignore
-      }
-    });
-    this.unsubscribers = [];
+    this.releaseWakeLock();
 
-    if (this.pc) {
+    if (this.activeMediaConn) {
       try {
-        this.pc.close();
+        this.activeMediaConn.close();
       } catch {
         // ignore
       }
-      this.pc = null;
+      this.activeMediaConn = null;
     }
+
+    if (this.peer) {
+      try {
+        this.peer.destroy();
+      } catch {
+        // ignore
+      }
+      this.peer = null;
+    }
+
+    if (this.manualPc) {
+      try {
+        this.manualPc.close();
+      } catch {
+        // ignore
+      }
+      this.manualPc = null;
+    }
+
     if (this.localStream) {
       this.localStream.getTracks().forEach((t) => t.stop());
       this.localStream = null;
     }
-    this.remoteStream = null;
 
     if (resetStatus) {
       this.patch({
