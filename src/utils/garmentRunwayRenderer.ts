@@ -177,19 +177,51 @@ export function isGradeIdentity(grade?: RunwayColorGrade | null): boolean {
   );
 }
 
+export interface SkinToneGrade {
+  id: string;
+  targetHex: string;
+  lightScale: number;
+  satScale: number;
+}
+
+/** Smooth YCbCr + RGB human-skin likelihood (0..1), strictly protecting eyes, hair, and white underwear/sneakers. */
+function computeSkinLikelihood(r: number, g: number, b: number): number {
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  const maxC = Math.max(r, g, b);
+  const minC = Math.min(r, g, b);
+  const chroma = maxC - minC;
+  // Protect pure dark hair/beard/eyes and bright neutral white underwear/sneakers
+  if (lum < 44 || (lum > 180 && chroma < 22) || chroma < 14) return 0;
+  if (r < g || g < b - 6) return 0;
+
+  const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+  const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+  if (cb < 74 || cb > 132 || cr < 131 || cr > 180) return 0;
+
+  const cbScore = Math.min(1, Math.min((cb - 74) / 10, (132 - cb) / 10));
+  const crScore = Math.min(1, Math.min((cr - 131) / 9, (180 - cr) / 10));
+  const chromaScore = Math.min(1, (chroma - 14) / 18);
+  const darkGuard = Math.min(1, (lum - 44) / 28);
+  return Math.max(0, Math.min(1, cbScore * crScore * chromaScore * darkGuard));
+}
+
 /**
- * Applies a luxury runway color-grade STRICTLY inside the precomputed garment-only mask
- * so the model's face, hair, glasses, skin, and white sneakers stay 100% untouched.
+ * Applies EXACT, luminance-preserving hyperrealistic yarn recoloring STRICTLY inside the
+ * garment mask AND/OR realistic skin-tone grading ONLY on human skin pixels (preserving
+ * hair, glasses, eyes, muscle shading, underwear, and white sneakers 100% untouched).
  */
 export async function renderSkinSafeRunwayImage(
   srcUrl: string,
   maskUrl: string | undefined,
-  grade: RunwayColorGrade | null | undefined,
-  maxWidth = 1280
+  grade: (RunwayColorGrade & { exactDye?: boolean }) | null | undefined,
+  maxWidth = 1280,
+  skinTone?: SkinToneGrade | null
 ): Promise<string> {
-  if (!srcUrl || isGradeIdentity(grade)) return srcUrl;
+  const hasGarmentGrade = Boolean(grade && !isGradeIdentity(grade));
+  const hasSkinTone = Boolean(skinTone && skinTone.id !== 'natural');
+  if (!srcUrl || (!hasGarmentGrade && !hasSkinTone)) return srcUrl;
 
-  const key = `${srcUrl}|${maskUrl ?? 'all'}|${JSON.stringify(grade)}|${maxWidth}`;
+  const key = `${srcUrl}|${maskUrl ?? 'all'}|${JSON.stringify(grade ?? null)}|${skinTone?.id ?? 'natural'}|${maxWidth}`;
   const cached = gradedDataUrlCache.get(key);
   if (cached) return cached;
 
@@ -208,6 +240,8 @@ export async function renderSkinSafeRunwayImage(
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return srcUrl;
 
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, w, h);
   const imgData = ctx.getImageData(0, 0, w, h);
   const data = imgData.data;
@@ -219,6 +253,8 @@ export async function renderSkinSafeRunwayImage(
     mCanvas.height = h;
     const mCtx = mCanvas.getContext('2d', { willReadFrequently: true });
     if (mCtx) {
+      mCtx.imageSmoothingEnabled = true;
+      mCtx.imageSmoothingQuality = 'high';
       mCtx.drawImage(maskImg, 0, 0, w, h);
       maskData = mCtx.getImageData(0, 0, w, h).data;
     }
@@ -228,51 +264,129 @@ export async function renderSkinSafeRunwayImage(
   const satScale = grade?.satScale ?? 1;
   const lightScale = grade?.lightScale ?? 1;
   const contrastScale = grade?.contrastScale ?? 1;
-  const tintStrength = Math.max(0, Math.min(0.65, grade?.tintStrength ?? 0));
+  const tintStrength = Math.max(0, Math.min(1, grade?.tintStrength ?? 0));
+  const exactDye = Boolean(grade?.exactDye && grade?.tintHex);
   const [tr, tg, tb] = grade?.tintHex ? hexToRgb(grade.tintHex) : [0, 0, 0];
+  const [targetH, targetS, targetL] = grade?.tintHex ? rgbToHsl(tr, tg, tb) : [0, 0, 0.5];
+
+  // Pass 1 (when exact yarn dyeing is active): measure true garment average luminance
+  // so stitch shadows & yarn specular highlights remap cleanly to ANY light, pastel, or dark target color!
+  let garmentMeanLum = 0.52;
+  if (hasGarmentGrade && exactDye) {
+    let sumL = 0;
+    let countL = 0;
+    for (let i = 0; i < data.length; i += 16) {
+      if (data[i + 3] < 40) continue;
+      const mw = maskData ? maskData[i] / 255 : 1;
+      if (mw < 0.6) continue;
+      const l = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) / 255;
+      sumL += l;
+      countL++;
+    }
+    if (countL > 25) {
+      garmentMeanLum = Math.max(0.18, Math.min(0.84, sumL / countL));
+    }
+  }
+
+  const [skinTr, skinTg, skinTb] = skinTone ? hexToRgb(skinTone.targetHex) : [216, 162, 118];
+  const [skinTargetH, skinTargetS, skinTargetL] = rgbToHsl(skinTr, skinTg, skinTb);
 
   for (let i = 0; i < data.length; i += 4) {
     const alpha = data[i + 3];
     if (alpha < 10) continue;
 
-    // Mask weight: 0 = protected skin/face/shoes, 1 = garment yarn
-    const mWeight = maskData ? maskData[i] / 255 : 1;
-    if (mWeight <= 0.02) continue;
+    let r0 = data[i];
+    let g0 = data[i + 1];
+    let b0 = data[i + 2];
 
-    const r0 = data[i];
-    const g0 = data[i + 1];
-    const b0 = data[i + 2];
+    const mWeightRaw = maskData ? maskData[i] / 255 : hasGarmentGrade ? 1 : 0;
 
-    const [h0, s0, l0] = rgbToHsl(r0, g0, b0);
-    const h1 = (h0 + hueShift + 1) % 1;
-    const s1 = Math.max(0, Math.min(1, s0 * satScale));
-    let l1 = Math.max(0, Math.min(1, l0 * lightScale));
-    if (contrastScale !== 1) {
-      l1 = Math.max(0, Math.min(1, (l1 - 0.5) * contrastScale + 0.5));
+    // 1. EXACT HYPERREALISTIC GARMENT YARN DYEING
+    if (hasGarmentGrade && mWeightRaw > 0.02) {
+      // Extra skin-edge guard: prevents even 1-2px of dye bleeding onto wrists, neck, or hands!
+      let mWeight = mWeightRaw;
+      if (maskData && mWeight < 0.78) {
+        const skinEdge = computeSkinLikelihood(r0, g0, b0);
+        mWeight *= 1 - skinEdge * 0.85;
+      }
+
+      if (mWeight > 0.02) {
+        const [h0, s0, l0] = rgbToHsl(r0, g0, b0);
+        let r1: number;
+        let g1: number;
+        let b1: number;
+
+        if (exactDye) {
+          // Exact luminance-preserving fabric dye: preserves every crochet knot shadow & highlight
+          // while hitting the EXACT chosen modern fashion color (even crisp whites & vivid pastels!)
+          const lum0 = (0.299 * r0 + 0.587 * g0 + 0.114 * b0) / 255;
+          const deltaL = lum0 - garmentMeanLum;
+          const reliefGain = targetL > 0.78 ? 0.52 : targetL < 0.22 ? 0.48 : 0.78;
+          const mappedL = Math.max(0.04, Math.min(0.97, targetL + deltaL * reliefGain));
+          // Slightly lift saturation in midtones & preserve crisp neutral whites/blacks
+          const mappedS =
+            targetS < 0.09
+              ? Math.min(0.08, s0 * 0.22)
+              : Math.max(
+                  0.04,
+                  Math.min(0.98, targetS * (0.86 + Math.min(0.24, s0 * 0.32)))
+                );
+          [r1, g1, b1] = hslToRgb(targetH, mappedS, mappedL);
+          // Blend at high precision (tintStrength ~0.92 for exact dye)
+          const dyeAmt = Math.max(0.84, Math.min(0.96, tintStrength));
+          r1 = Math.round(r0 * (1 - dyeAmt) + r1 * dyeAmt);
+          g1 = Math.round(g0 * (1 - dyeAmt) + g1 * dyeAmt);
+          b1 = Math.round(b0 * (1 - dyeAmt) + b1 * dyeAmt);
+        } else {
+          const h1 = (h0 + hueShift + 1) % 1;
+          const s1 = Math.max(0, Math.min(1, s0 * satScale));
+          let l1 = Math.max(0, Math.min(1, l0 * lightScale));
+          if (contrastScale !== 1) {
+            l1 = Math.max(0, Math.min(1, (l1 - 0.5) * contrastScale + 0.5));
+          }
+          [r1, g1, b1] = hslToRgb(h1, s1, l1);
+          if (tintStrength > 0) {
+            const lum = (0.299 * r1 + 0.587 * g1 + 0.114 * b1) / 255;
+            const dyedR = Math.min(255, tr * (0.35 + lum * 0.95));
+            const dyedG = Math.min(255, tg * (0.35 + lum * 0.95));
+            const dyedB = Math.min(255, tb * (0.35 + lum * 0.95));
+            r1 = Math.round(r1 * (1 - tintStrength) + dyedR * tintStrength);
+            g1 = Math.round(g1 * (1 - tintStrength) + dyedG * tintStrength);
+            b1 = Math.round(b1 * (1 - tintStrength) + dyedB * tintStrength);
+          }
+        }
+
+        r0 = Math.round(r0 * (1 - mWeight) + r1 * mWeight);
+        g0 = Math.round(g0 * (1 - mWeight) + g1 * mWeight);
+        b0 = Math.round(b0 * (1 - mWeight) + b1 * mWeight);
+      }
     }
 
-    let [r1, g1, b1] = hslToRgb(h1, s1, l1);
-
-    if (tintStrength > 0) {
-      // Soft luminance-preserving yarn dye blend
-      const lum = (0.299 * r1 + 0.587 * g1 + 0.114 * b1) / 255;
-      const dyedR = Math.min(255, tr * (0.35 + lum * 0.95));
-      const dyedG = Math.min(255, tg * (0.35 + lum * 0.95));
-      const dyedB = Math.min(255, tb * (0.35 + lum * 0.95));
-      r1 = Math.round(r1 * (1 - tintStrength) + dyedR * tintStrength);
-      g1 = Math.round(g1 * (1 - tintStrength) + dyedG * tintStrength);
-      b1 = Math.round(b1 * (1 - tintStrength) + dyedB * tintStrength);
+    // 2. HYPERREALISTIC SKIN TONE PALETTE GRADING (strictly outside garment mask!)
+    if (hasSkinTone && skinTone && (!maskData || mWeightRaw < 0.32)) {
+      const skinW = computeSkinLikelihood(r0, g0, b0) * (maskData ? 1 - mWeightRaw : 1);
+      if (skinW > 0.03) {
+        const [sh0, ss0, sl0] = rgbToHsl(r0, g0, b0);
+        // Smooth hue shift toward target undertone + photographic lightness curve preserving muscle definition
+        const hDiff = ((skinTargetH - sh0 + 1.5) % 1) - 0.5;
+        const sh1 = (sh0 + hDiff * 0.65 + 1) % 1;
+        const ss1 = Math.max(0.06, Math.min(0.76, ss0 * skinTone.satScale * 0.68 + skinTargetS * 0.32));
+        // Gamma-like luminance mapping so skin shadows remain velvety and highlights stay warm & natural
+        const sl1 = Math.max(
+          0.08,
+          Math.min(0.95, Math.pow(sl0, 1 / Math.max(0.45, skinTone.lightScale)) * 0.72 + skinTargetL * (0.28 + (sl0 - 0.55) * 0.35))
+        );
+        const [sr1, sg1, sb1] = hslToRgb(sh1, ss1, sl1);
+        const blend = skinW * 0.88;
+        r0 = Math.round(r0 * (1 - blend) + sr1 * blend);
+        g0 = Math.round(g0 * (1 - blend) + sg1 * blend);
+        b0 = Math.round(b0 * (1 - blend) + sb1 * blend);
+      }
     }
 
-    if (mWeight >= 0.99) {
-      data[i] = r1;
-      data[i + 1] = g1;
-      data[i + 2] = b1;
-    } else {
-      data[i] = Math.round(r0 * (1 - mWeight) + r1 * mWeight);
-      data[i + 1] = Math.round(g0 * (1 - mWeight) + g1 * mWeight);
-      data[i + 2] = Math.round(b0 * (1 - mWeight) + b1 * mWeight);
-    }
+    data[i] = r0;
+    data[i + 1] = g0;
+    data[i + 2] = b0;
   }
 
   ctx.putImageData(imgData, 0, 0);
@@ -308,7 +422,7 @@ export async function composeTransparentModelWithRug(options: {
 }): Promise<TransparentModelWithRugResult | null> {
   const {
     modelSrc,
-    rugSrc = '/vestidor/artisan/crochet-rug.png',
+    rugSrc = '/vestidor/artisan/crochet-rug.webp',
     flipX = false,
     includeRug = true,
     resolution = '8k',
@@ -456,7 +570,74 @@ export async function composeTransparentModelWithRug(options: {
   }
 }
 
-export async function copyPngBlobToClipboard(blob: Blob): Promise<boolean> {
+/**
+ * Renders a crisp HD transparent PNG of any luxury Atelier crochet/lace/macramé curtain panel
+ * so the user can copy it directly to their clipboard and paste it onto notebook pages.
+ */
+export async function composeTransparentCurtainImage(
+  curtainSrc: string
+): Promise<TransparentModelWithRugResult | null> {
+  try {
+    const img = await loadCachedImage(curtainSrc);
+    const w = Math.max(720, Math.min(2048, img.naturalWidth * 2));
+    const h = Math.round((img.naturalHeight / Math.max(1, img.naturalWidth)) * w);
+    const canvas = superRenderImageToCanvas(img, w, h, {
+      sharpness: 0.72,
+      clarity: 0.06,
+      vibrance: 0.05,
+    });
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/png')
+    );
+    if (!blob) return null;
+    return { blob, dataUrl: canvas.toDataURL('image/png') };
+  } catch {
+    return null;
+  }
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('FileReader error'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Copies a PNG image reliably across Windows/macOS/Linux Electron desktop apps (via native IPC
+ * clipboard.writeImage) AND modern Web browsers (Safari/Chrome/Edge ClipboardItem).
+ */
+export async function copyPngBlobToClipboard(
+  blobOrPromise: Blob | Promise<Blob | null>,
+  precomputedDataUrl?: string
+): Promise<boolean> {
+  const electronApi = (
+    typeof window !== 'undefined'
+      ? (window as unknown as {
+          electronAPI?: { writeClipboardImage?: (dataUrl: string) => Promise<boolean> };
+        }).electronAPI
+      : undefined
+  );
+
+  // 1. Native Electron desktop clipboard bridge (100% reliable on Windows .exe, macOS, Linux!)
+  if (electronApi?.writeClipboardImage) {
+    try {
+      let dataUrl = precomputedDataUrl;
+      if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+        const resolvedBlob = await blobOrPromise;
+        if (!resolvedBlob) return false;
+        dataUrl = await blobToDataUrl(resolvedBlob);
+      }
+      const ok = await electronApi.writeClipboardImage(dataUrl);
+      if (ok) return true;
+    } catch {
+      // fall through to Web Clipboard API
+    }
+  }
+
+  // 2. Web Clipboard API — passing Promise<Blob> synchronously inside user gesture preserves Safari/Chrome permission!
   try {
     if (
       typeof navigator !== 'undefined' &&
@@ -464,11 +645,28 @@ export async function copyPngBlobToClipboard(blob: Blob): Promise<boolean> {
       typeof navigator.clipboard.write === 'function' &&
       typeof ClipboardItem !== 'undefined'
     ) {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      if (blobOrPromise instanceof Promise) {
+        const nonNullPromise = blobOrPromise.then((b) => {
+          if (!b) throw new Error('Empty PNG blob');
+          return b;
+        });
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': nonNullPromise })]);
+        return true;
+      }
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobOrPromise })]);
       return true;
     }
   } catch {
-    // Clipboard permission denied or unsupported context — caller falls back to download
+    // Retry once with resolved Blob for Chromium versions that don't accept Promise<Blob>
+    try {
+      const resolved = await blobOrPromise;
+      if (resolved && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': resolved })]);
+        return true;
+      }
+    } catch {
+      // Clipboard blocked — caller falls back cleanly to PNG download
+    }
   }
   return false;
 }

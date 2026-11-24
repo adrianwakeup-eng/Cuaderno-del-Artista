@@ -27,37 +27,37 @@ interface CoverScreenProps {
 
 const NOTE_TONE_STYLES: Record<
   DeskNoteItem['tone'],
-  { paper: string; border: string; ink: string; tape: string }
+  { bg: string; border: string; ink: string; tape: string }
 > = {
   cream: {
-    paper: 'bg-[#fbf1d8] shadow-[0_8px_18px_rgba(0,0,0,0.52)]',
-    border: 'border-[#d6b67c]/85',
-    ink: 'text-[#3e200e]',
-    tape: 'bg-[#e7c98f]/80 border-[#b9914e]/60',
+    bg: 'linear-gradient(145deg, #fffaf0 0%, #f8ebd0 58%, #eedab4 100%)',
+    border: 'border-[#c89f5c]',
+    ink: 'text-[#3a1d0c]',
+    tape: 'bg-[#e6c588]/85 border-[#b1853e]/65',
   },
   ochre: {
-    paper: 'bg-[#f5dfa9] shadow-[0_8px_18px_rgba(0,0,0,0.52)]',
-    border: 'border-[#c89645]/85',
-    ink: 'text-[#3b1d0a]',
-    tape: 'bg-[#d9b26f]/80 border-[#9f7432]/60',
+    bg: 'linear-gradient(145deg, #fff6df 0%, #f6dfaa 58%, #e9c983 100%)',
+    border: 'border-[#be8c3b]',
+    ink: 'text-[#391b09]',
+    tape: 'bg-[#d9b06a]/85 border-[#9c6f2c]/65',
   },
   sage: {
-    paper: 'bg-[#e4ecd8] shadow-[0_8px_18px_rgba(0,0,0,0.52)]',
-    border: 'border-[#9fb387]/85',
-    ink: 'text-[#28361f]',
-    tape: 'bg-[#c5d4b0]/80 border-[#7d9266]/60',
+    bg: 'linear-gradient(145deg, #f5f9ef 0%, #e4eed8 58%, #d1dfc0 100%)',
+    border: 'border-[#8fa576]',
+    ink: 'text-[#23331a]',
+    tape: 'bg-[#c4d5ae]/85 border-[#768c5e]/65',
   },
   rose: {
-    paper: 'bg-[#f6dfe0] shadow-[0_8px_18px_rgba(0,0,0,0.52)]',
-    border: 'border-[#cf979c]/85',
-    ink: 'text-[#491b22]',
-    tape: 'bg-[#e5b8bc]/80 border-[#ac7176]/60',
+    bg: 'linear-gradient(145deg, #fff5f6 0%, #f8dfe2 58%, #ecc6cb 100%)',
+    border: 'border-[#c6888e]',
+    ink: 'text-[#481820]',
+    tape: 'bg-[#e4b3b8]/85 border-[#a86a70]/65',
   },
   linen: {
-    paper: 'bg-[#efe4cf] shadow-[0_8px_18px_rgba(0,0,0,0.52)]',
-    border: 'border-[#c6aa7f]/85',
-    ink: 'text-[#3a2211]',
-    tape: 'bg-[#d7c09b]/80 border-[#9b7c4e]/60',
+    bg: 'linear-gradient(145deg, #fbf6ec 0%, #efe3cc 58%, #e2cfb0 100%)',
+    border: 'border-[#bd9f71]',
+    ink: 'text-[#382010]',
+    tape: 'bg-[#d8c098]/85 border-[#987849]/65',
   },
 };
 
@@ -338,19 +338,51 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
         {/* Luxury 24k Gold Interactive Turntable + Classical Sheet Music Voice-Notes & MP3 Player */}
         <CoverTurntable stageRef={stageRef} />
 
-        {/* Subtle warm vignette & floating golden yarn dust motes */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#160b05]/45 via-transparent to-[#160b05]/15" />
+        {/* Living Atelier Atmosphere: Warm Brass Lamp Radiance, Volumetric Sunbeams & Drifting Golden Dust */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse 42% 38% at 28% 4%, rgba(255, 224, 148, 0.28) 0%, rgba(255, 198, 98, 0.09) 48%, rgba(0, 0, 0, 0) 78%)',
+          }}
+        />
+        <motion.div
+          aria-hidden="true"
+          animate={{ opacity: [0.32, 0.56, 0.32] }}
+          transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="pointer-events-none absolute -top-[8%] left-[12%] w-[46%] h-[58%] rounded-full blur-3xl mix-blend-screen"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(255, 218, 132, 0.34) 0%, rgba(244, 178, 72, 0.12) 48%, rgba(0, 0, 0, 0) 76%)',
+          }}
+        />
+        <motion.div
+          aria-hidden="true"
+          animate={{ opacity: [0.14, 0.28, 0.14], x: ['-2%', '2%', '-2%'] }}
+          transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
+          className="pointer-events-none absolute inset-0 mix-blend-screen"
+          style={{
+            background:
+              'linear-gradient(122deg, rgba(255, 232, 168, 0.16) 0%, rgba(255, 220, 140, 0.04) 26%, transparent 45%, rgba(255, 226, 152, 0.11) 64%, transparent 82%)',
+          }}
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#160b05]/45 via-transparent to-[#160b05]/14" />
         {[
-          { left: '18%', top: '26%', delay: '0s' },
-          { left: '34%', top: '62%', delay: '1.6s' },
-          { left: '48%', top: '34%', delay: '3.1s' },
-          { left: '72%', top: '22%', delay: '2.2s' },
-          { left: '84%', top: '68%', delay: '0.8s' },
+          { left: '14%', top: '22%', size: 'w-2 h-2', delay: '0s' },
+          { left: '26%', top: '44%', size: 'w-1.5 h-1.5', delay: '1.1s' },
+          { left: '34%', top: '62%', size: 'w-2.5 h-2.5', delay: '1.8s' },
+          { left: '46%', top: '28%', size: 'w-1.5 h-1.5', delay: '3.1s' },
+          { left: '53%', top: '50%', size: 'w-2 h-2', delay: '2.5s' },
+          { left: '66%', top: '18%', size: 'w-2 h-2', delay: '0.6s' },
+          { left: '74%', top: '36%', size: 'w-1.5 h-1.5', delay: '2.2s' },
+          { left: '84%', top: '64%', size: 'w-2.5 h-2.5', delay: '0.9s' },
+          { left: '91%', top: '26%', size: 'w-1.5 h-1.5', delay: '3.7s' },
         ].map((mote, i) => (
           <span
             key={i}
             style={{ left: mote.left, top: mote.top, animationDelay: mote.delay }}
-            className="pointer-events-none absolute w-2 h-2 rounded-full bg-[#ffe3aa]/70 blur-[1px] animate-mote"
+            className={`pointer-events-none absolute ${mote.size} rounded-full bg-[#ffebb5]/80 shadow-[0_0_8px_rgba(255,220,126,0.75)] blur-[0.6px] animate-mote`}
           />
         ))}
 
@@ -370,6 +402,11 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
                 style={{
                   left: `${note.x}%`,
                   top: `${note.y}%`,
+                  background: style.bg,
+                  colorScheme: 'light',
+                  boxShadow: isDragging
+                    ? '0 18px 34px rgba(10,4,1,0.72), inset 0 1px 0 rgba(255,255,255,0.65)'
+                    : '0 10px 22px rgba(12,5,2,0.58), inset 0 1px 0 rgba(255,255,255,0.6)',
                   transform: isEditing
                     ? 'rotate(0deg) scale(1.06)'
                     : isDragging
@@ -382,13 +419,13 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
-                className={`pointer-events-auto absolute w-[142px] sm:w-[172px] rounded-md border px-2.5 pt-3 pb-2 select-none touch-none ${
+                className={`pointer-events-auto absolute w-[148px] sm:w-[178px] rounded-md border px-2.5 pt-3 pb-2 select-none touch-none ${
                   isDragging
-                    ? 'z-40 cursor-grabbing shadow-[0_16px_28px_rgba(0,0,0,0.62)] ring-1 ring-[#f3c66f]/80'
+                    ? 'z-40 cursor-grabbing ring-1 ring-[#f3c66f]/85'
                     : isEditing
                       ? 'z-40 ring-2 ring-[#f3c66f] transition-transform duration-150'
                       : 'z-20 cursor-grab hover:z-30 hover:scale-[1.03] transition-transform duration-150'
-                } ${style.paper} ${style.border}`}
+                } ${style.border}`}
               >
                 {/* Craft paper masking-tape / visual drag handle */}
                 <div

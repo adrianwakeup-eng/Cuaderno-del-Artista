@@ -137,7 +137,9 @@ class TurntableAudioPlayer {
   private recordTimer: number | null = null;
   private recordStartMs = 0;
   private hydrated = false;
+  private lastTimeEmitMs = 0;
   private listeners = new Set<(snap: TurntablePlayerSnapshot) => void>();
+  private metaListeners = new Set<(snap: TurntablePlayerSnapshot) => void>();
 
   public async ensureHydrated(): Promise<void> {
     if (this.hydrated) return;
@@ -152,7 +154,7 @@ class TurntableAudioPlayer {
         this.currentTrackId = this.tracks[0].id;
         this.duration = this.tracks[0].durationSec;
       }
-      this.emit();
+      this.emit(true);
     } catch {
       // Fallback to in-memory only if storage is blocked
     }
@@ -160,7 +162,7 @@ class TurntableAudioPlayer {
 
   public getSnapshot(): TurntablePlayerSnapshot {
     return {
-      tracks: [...this.tracks],
+      tracks: this.tracks,
       currentTrackId: this.currentTrackId,
       isPlaying: this.isPlaying,
       currentTime: this.currentTime,
@@ -182,9 +184,23 @@ class TurntableAudioPlayer {
     };
   }
 
-  private emit() {
+  /** Lightweight subscription that fires ONLY on play/pause/track changes (zero timeupdate re-renders!). */
+  public subscribeMeta(listener: (snap: TurntablePlayerSnapshot) => void): () => void {
+    this.metaListeners.add(listener);
+    listener(this.getSnapshot());
+    void this.ensureHydrated();
+    return () => {
+      this.metaListeners.delete(listener);
+    };
+  }
+
+  private emit(includeMeta = true) {
+    if (this.listeners.size === 0 && (!includeMeta || this.metaListeners.size === 0)) return;
     const snap = this.getSnapshot();
     this.listeners.forEach((fn) => fn(snap));
+    if (includeMeta) {
+      this.metaListeners.forEach((fn) => fn(snap));
+    }
   }
 
   private setStatus(msg: string | null) {
@@ -203,7 +219,12 @@ class TurntableAudioPlayer {
         if (Number.isFinite(el.duration) && el.duration > 0) {
           this.duration = el.duration;
         }
-        this.emit();
+        // Throttle progress ticks to ~2.5Hz and NEVER re-render meta-only subscribers while working in the book
+        const now = performance.now();
+        if (this.listeners.size > 0 && now - this.lastTimeEmitMs >= 400) {
+          this.lastTimeEmitMs = now;
+          this.emit(false);
+        }
       });
 
       el.addEventListener('loadedmetadata', () => {

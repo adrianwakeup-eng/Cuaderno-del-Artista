@@ -78,22 +78,110 @@ export const TURNAROUND_CAMERA_VIEWS = [
 ] as const;
 
 /**
- * Authentic crochet yarn-ball palette matching the luxury reference ovillos
- * (Crema, Verde Bosque, Amarillo Girasol, Azul Cobalto, Terracota, Burdeos, Gris, Negro + extras).
+ * Fresh, trendy, youthful & atelier-curated fashion yarn palette for exact hyperrealistic recoloring.
  */
 export const YARN_BALL_COLORS: YarnBallColorOption[] = [
+  { id: 'blanco-nube', name: 'Blanco Nube', hex: '#F7F5F0', trimHex: '#D8CFC2', accentHex: '#E5D8C0' },
   { id: 'crema', name: 'Crema Marfil', hex: '#F0DEC1', trimHex: '#9E7842', accentHex: '#D8A438' },
-  { id: 'bosque', name: 'Verde Bosque', hex: '#28572A', trimHex: '#EFE0C2', accentHex: '#D9A938' },
-  { id: 'girasol', name: 'Amarillo Girasol', hex: '#E3A91C', trimHex: '#254C26', accentHex: '#F7E7C4' },
-  { id: 'cobalto', name: 'Azul Cobalto', hex: '#23499E', trimHex: '#F2E5C9', accentHex: '#D5A23C' },
-  { id: 'terracota', name: 'Terracota Canela', hex: '#B46334', trimHex: '#F2E3C6', accentHex: '#3A2012' },
-  { id: 'burdeos', name: 'Burdeos Vino', hex: '#7D2239', trimHex: '#D9A74B', accentHex: '#F2E4CA' },
-  { id: 'piedra', name: 'Gris Piedra', hex: '#83878E', trimHex: '#31363F', accentHex: '#E9DFCE' },
-  { id: 'onix', name: 'Negro Ónix', hex: '#212226', trimHex: '#C99842', accentHex: '#EAE0CE' },
-  { id: 'oliva', name: 'Verde Oliva', hex: '#5D6B42', trimHex: '#EBDCC0', accentHex: '#C4923B' },
-  { id: 'marino', name: 'Azul Marino', hex: '#1E3152', trimHex: '#EFE2C6', accentHex: '#C9973E' },
-  { id: 'cacao', name: 'Cacao Nogal', hex: '#5E3A24', trimHex: '#D7A44E', accentHex: '#F0E1C6' },
-  { id: 'arena', name: 'Arena Lino', hex: '#D8BC94', trimHex: '#634124', accentHex: '#F6EBD8' },
+  { id: 'mantequilla', name: 'Amarillo Mantequilla', hex: '#F6DF86', trimHex: '#C59F3A', accentHex: '#FFF4C4' },
+  { id: 'menta-matcha', name: 'Menta Matcha', hex: '#92D9B1', trimHex: '#3C7E5A', accentHex: '#E6F9EE' },
+  { id: 'salvia', name: 'Verde Salvia', hex: '#7FA57C', trimHex: '#EFE6D2', accentHex: '#C49B48' },
+  { id: 'azul-cielo', name: 'Azul Cielo', hex: '#74B8EE', trimHex: '#2C6196', accentHex: '#EAF5FF' },
+  { id: 'lavanda', name: 'Lavanda Pastel', hex: '#BBA0EA', trimHex: '#6B4D9E', accentHex: '#F2EAFF' },
+  { id: 'rosa-chicle', name: 'Rosa Melocotón', hex: '#F2A3B7', trimHex: '#A64B65', accentHex: '#FFEAF0' },
+  { id: 'coral-amalfi', name: 'Coral Amalfi', hex: '#EE7B62', trimHex: '#9A3F2B', accentHex: '#FFE8DF' },
+  { id: 'girasol', name: 'Amarillo Girasol', hex: '#E6AE1E', trimHex: '#254C26', accentHex: '#F7E7C4' },
+  { id: 'terracota', name: 'Terracota Canela', hex: '#C25F34', trimHex: '#F2E3C6', accentHex: '#3A2012' },
+  { id: 'cobalto', name: 'Azul Cobalto', hex: '#2653B8', trimHex: '#F2E5C9', accentHex: '#D5A23C' },
+  { id: 'denim', name: 'Denim Índigo', hex: '#3B5C8C', trimHex: '#EFE2C6', accentHex: '#C9973E' },
+  { id: 'bosque', name: 'Verde Bosque', hex: '#225937', trimHex: '#EFE0C2', accentHex: '#D9A938' },
+  { id: 'burdeos', name: 'Burdeos Cereza', hex: '#861F3B', trimHex: '#D9A74B', accentHex: '#F2E4CA' },
+  { id: 'espresso', name: 'Espresso Mocha', hex: '#5D3925', trimHex: '#D7A44E', accentHex: '#F0E1C6' },
+  { id: 'piedra', name: 'Gris Perla', hex: '#9499A1', trimHex: '#31363F', accentHex: '#E9DFCE' },
+  { id: 'onix', name: 'Negro Ónix', hex: '#1F2127', trimHex: '#C99842', accentHex: '#EAE0CE' },
+];
+
+export interface ModelSkinToneOption {
+  id: string;
+  name: string;
+  swatchHex: string;
+  targetHex: string;
+  lightScale: number;
+  satScale: number;
+}
+
+export const MODEL_SKIN_TONES: ModelSkinToneOption[] = [
+  { id: 'natural', name: 'Natural', swatchHex: '#D8A276', targetHex: '#D8A276', lightScale: 1.0, satScale: 1.0 },
+  { id: 'porcelana', name: 'Porcelana', swatchHex: '#F5DBC9', targetHex: '#F3D6C3', lightScale: 1.24, satScale: 0.72 },
+  { id: 'durazno', name: 'Durazno', swatchHex: '#EBC3A6', targetHex: '#E9BE9F', lightScale: 1.13, satScale: 0.86 },
+  { id: 'miel', name: 'Miel Dorada', swatchHex: '#DDA574', targetHex: '#DBA270', lightScale: 1.04, satScale: 1.03 },
+  { id: 'trigueno', name: 'Trigueño', swatchHex: '#C78A5C', targetHex: '#C58657', lightScale: 0.93, satScale: 1.04 },
+  { id: 'bronceado', name: 'Bronceado', swatchHex: '#B17042', targetHex: '#AE6C3E', lightScale: 0.82, satScale: 1.08 },
+  { id: 'canela', name: 'Canela', swatchHex: '#8E532F', targetHex: '#8B502C', lightScale: 0.68, satScale: 1.02 },
+  { id: 'ebano', name: 'Ébano', swatchHex: '#5B341E', targetHex: '#58311C', lightScale: 0.48, satScale: 0.90 },
+];
+
+export interface AtelierCurtainDesign {
+  id: string;
+  name: string;
+  subtitle: string;
+  src: string;
+  swatchHex: string;
+  accentHex: string;
+  showDreamcatcher?: boolean;
+}
+
+export const ATELIER_CURTAIN_DESIGNS: AtelierCurtainDesign[] = [
+  {
+    id: 'macrame-dorado',
+    name: 'Macramé Dorado',
+    subtitle: 'Macramé artesanal en hilos de oro y cuentas',
+    src: '/vestidor/cortinas/macrame-dorado.webp',
+    swatchHex: '#DFBE78',
+    accentHex: '#9E7428',
+    showDreamcatcher: true,
+  },
+  {
+    id: 'encaje-marfil',
+    name: 'Encaje Marfil',
+    subtitle: 'Encaje francés de alta costura calado',
+    src: '/vestidor/cortinas/encaje-marfil-alta-costura.webp',
+    swatchHex: '#F8F0DF',
+    accentHex: '#CBB183',
+  },
+  {
+    id: 'puntilla-oro',
+    name: 'Puntilla Oro 24k',
+    subtitle: 'Puntilla veneciana real con flecos dorados',
+    src: '/vestidor/cortinas/puntilla-veneciana-oro.webp',
+    swatchHex: '#E5B958',
+    accentHex: '#A6721A',
+  },
+  {
+    id: 'encaje-rosa',
+    name: 'Encaje Rosa Antiguo',
+    subtitle: 'Puntilla romántica rosa empolvado de taller',
+    src: '/vestidor/cortinas/encaje-rosa-romantico.webp',
+    swatchHex: '#EBC2C8',
+    accentHex: '#B66F7D',
+  },
+  {
+    id: 'crochet-esmeralda',
+    name: 'Crochet Esmeralda',
+    subtitle: 'Crochet irlandés verde bosque con borlas oro',
+    src: '/vestidor/cortinas/crochet-esmeralda-real.webp',
+    swatchHex: '#3A7B5A',
+    accentHex: '#D8AF52',
+  },
+  {
+    id: 'lino-macrame',
+    name: 'Lino Artesanal',
+    subtitle: 'Macramé bohemio en algodón y lino crudo',
+    src: '/vestidor/cortinas/lino-macrame-artesanal.webp',
+    swatchHex: '#DEC7A4',
+    accentHex: '#9C7A52',
+    showDreamcatcher: true,
+  },
 ];
 
 /**

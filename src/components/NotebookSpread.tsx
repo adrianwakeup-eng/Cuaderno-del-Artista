@@ -193,8 +193,8 @@ const DEFAULT_FILTERS: ImageFilters = {
   blur: 0,
 };
 
-const PAGE_W = 1480;
-const PAGE_H = 1930;
+const PAGE_W = 1280;
+const PAGE_H = 1670;
 const PATTERNS_PER_CATALOG_PAGE = 4; // 4 left + 4 right = 8 patterns per spread
 const MANDALAS_PER_PAGE = 6; // 6 left + 6 right = 12 mandalas per spread
 
@@ -5810,10 +5810,30 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         const stepPx = Math.max(3, eraserDiameterScreenPx * 0.35);
         const steps = Math.max(1, Math.min(48, Math.ceil(distScreen / stepPx)));
 
+        // Protect all UI buttons, toolbars, option menus, and wardrobes from ever being erased!
+        const isPointOverUiControl = (cx: number, cy: number): boolean => {
+          if (typeof document === 'undefined' || !document.elementsFromPoint) return false;
+          const stack = document.elementsFromPoint(cx, cy);
+          for (const node of stack) {
+            if (!(node instanceof HTMLElement)) continue;
+            if (
+              node.closest(
+                'button, input, textarea, select, [role="button"], [data-ui-control="true"], [data-studio-dock="true"]'
+              )
+            ) {
+              return true;
+            }
+          }
+          return false;
+        };
+        if (isPointOverUiControl(x1, y1) || isPointOverUiControl(x2, y2)) {
+          return;
+        }
+
         let touchedAny = false;
 
         for (const el of elements) {
-          if (el.locked || isPermanentElement(el)) continue;
+          if (el.locked || isPermanentElement(el) || el.type === 'wardrobe') continue;
           const isNoteEl = el.type === 'text' || el.type === 'pattern-note';
           if (isNoteEl && !layerVisibility.notes) continue;
           if (!isNoteEl && !layerVisibility.images) continue;
@@ -6000,6 +6020,20 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     const handleCanvasPointerDown = (e: React.PointerEvent) => {
       if (!e.isPrimary || e.button === 1) return;
       if (activeTool === 'draw' || activeTool === 'eraser') {
+        // Never allow the eraser or brush to intercept clicks on buttons, toolbars, or interactive option controls
+        if (typeof document !== 'undefined' && document.elementsFromPoint) {
+          const hitStack = document.elementsFromPoint(e.clientX, e.clientY);
+          const overControl = hitStack.some(
+            (n) =>
+              n instanceof HTMLElement &&
+              Boolean(
+                n.closest(
+                  'button, input, textarea, select, [role="button"], [data-ui-control="true"], [data-studio-dock="true"]'
+                )
+              )
+          );
+          if (overControl) return;
+        }
         e.stopPropagation();
         isDrawingRef.current = true;
         const pt = getCanvasPoint(e);

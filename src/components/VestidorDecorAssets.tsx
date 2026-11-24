@@ -181,11 +181,19 @@ export function getDecorAnimationClass(
  * woven flowers, swaying fringes & independently oscillating suspended dreamcatcher.
  */
 const MacrameCurtainArt: React.FC<{
+  src?: string;
+  showDreamcatcher?: boolean;
   tint?: string;
   animated?: boolean;
   reducedMotion?: boolean;
   mirrored?: boolean;
-}> = ({ animated = true, reducedMotion = false, mirrored = false }) => (
+}> = ({
+  src = '/vestidor/cortinas/macrame-dorado.webp',
+  showDreamcatcher = true,
+  animated = true,
+  reducedMotion = false,
+  mirrored = false,
+}) => (
   <div
     className={`relative w-full h-full select-none ${
       !animated || reducedMotion ? 'atelier-sewing-paused' : ''
@@ -193,20 +201,21 @@ const MacrameCurtainArt: React.FC<{
   >
     <div className="relative w-full h-full atelier-anim-curtain">
       <img
-        src="/vestidor/artisan/macrame-curtain-gold.webp"
-        alt="Cortina dorada artesanal de macramé"
+        src={src}
+        alt="Cortina artesanal de encaje y crochet de alta costura"
         draggable={false}
-        className={`w-full h-full object-contain object-top drop-shadow-[0_10px_18px_rgba(72,40,16,0.28)] ${
+        className={`w-full h-full object-cover object-top drop-shadow-[0_12px_20px_rgba(64,34,12,0.32)] ${
           mirrored ? '-scale-x-100' : ''
         }`}
       />
-      {/* Independently oscillating hanging dreamcatcher accent */}
-      <div
-        className={`pointer-events-none absolute top-[45%] ${
-          mirrored ? 'left-[7%]' : 'right-[7%]'
-        } w-[34%] max-w-[66px] atelier-anim-dreamcatcher`}
-        style={{ animationDelay: mirrored ? '0.95s' : '0.15s' }}
-      >
+      {/* Independently oscillating hanging dreamcatcher accent for macramé designs */}
+      {showDreamcatcher && (
+        <div
+          className={`pointer-events-none absolute top-[45%] ${
+            mirrored ? 'left-[7%]' : 'right-[7%]'
+          } w-[34%] max-w-[66px] atelier-anim-dreamcatcher`}
+          style={{ animationDelay: mirrored ? '0.95s' : '0.15s' }}
+        >
         <svg
           viewBox="0 0 90 190"
           className="w-full h-auto drop-shadow-[0_5px_8px_rgba(74,42,14,0.32)]"
@@ -270,38 +279,73 @@ const MacrameCurtainArt: React.FC<{
           </g>
         </svg>
       </div>
+      )}
     </div>
   </div>
 );
 
 /**
- * Framing Golden Macramé Curtain Pair for El Vestidor Dorado stage
- * Frames both edges gracefully without ever obstructing the central photographic model.
+ * Luxury Haute-Couture Crochet, Lace & Macramé Curtain Pair for El Vestidor Dorado stage.
+ * Glides smoothly open to frame the model OR closed across the atelier stage with a single click.
  */
 export const StageMacrameCurtains: React.FC<{
   isOpen: boolean;
   reducedMotion: boolean;
-}> = ({ isOpen, reducedMotion }) => (
+  curtainSrc?: string;
+  showDreamcatcher?: boolean;
+}> = ({
+  isOpen,
+  reducedMotion,
+  curtainSrc = '/vestidor/cortinas/macrame-dorado.webp',
+  showDreamcatcher = true,
+}) => (
   <>
+    {/* Ornate Gilded Curtain Rod spanning top of atelier stage */}
     <div
       aria-hidden="true"
-      className="pointer-events-none select-none hidden sm:block absolute left-0 top-0 h-[82%] w-[26%] max-w-[186px] min-w-[92px] z-[12] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      className="pointer-events-none select-none absolute inset-x-0 top-0 h-[7px] z-[26] bg-gradient-to-b from-[#fff2be] via-[#cfa044] to-[#6e4610] shadow-[0_3px_8px_rgba(32,14,4,0.45)]"
+    />
+
+    {/* Left Luxury Lace / Crochet Curtain Panel */}
+    <div
+      aria-hidden="true"
+      className="pointer-events-none select-none absolute left-0 top-0 h-[86%] z-[25] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
       style={{
-        transform: isOpen ? 'translateX(-10%)' : 'translateX(10%) scaleX(1.12)',
+        width: isOpen ? '25%' : '55%',
+        maxWidth: isOpen ? '196px' : '56%',
+        minWidth: isOpen ? '84px' : '52%',
+        transform: isOpen ? 'translateX(-6%)' : 'translateX(0%)',
         transformOrigin: 'top left',
       }}
     >
-      <MacrameCurtainArt animated={!reducedMotion} reducedMotion={reducedMotion} mirrored={false} />
+      <MacrameCurtainArt
+        src={curtainSrc}
+        showDreamcatcher={showDreamcatcher}
+        animated={!reducedMotion}
+        reducedMotion={reducedMotion}
+        mirrored={false}
+      />
     </div>
+
+    {/* Right Luxury Lace / Crochet Curtain Panel */}
     <div
       aria-hidden="true"
-      className="pointer-events-none select-none hidden sm:block absolute right-0 top-0 h-[82%] w-[26%] max-w-[186px] min-w-[92px] z-[12] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      className="pointer-events-none select-none absolute right-0 top-0 h-[86%] z-[25] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
       style={{
-        transform: isOpen ? 'translateX(10%)' : 'translateX(-10%) scaleX(1.12)',
+        width: isOpen ? '25%' : '55%',
+        maxWidth: isOpen ? '196px' : '56%',
+        minWidth: isOpen ? '84px' : '52%',
+        transform: isOpen ? 'translateX(6%)' : 'translateX(0%)',
         transformOrigin: 'top right',
       }}
     >
-      <MacrameCurtainArt animated={!reducedMotion} reducedMotion={reducedMotion} mirrored={true} />
+      <MacrameCurtainArt
+        src={curtainSrc}
+        showDreamcatcher={showDreamcatcher}
+        animated={!reducedMotion}
+        reducedMotion={reducedMotion}
+        mirrored={true}
+      />
     </div>
   </>
 );

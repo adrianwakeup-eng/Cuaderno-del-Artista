@@ -15,6 +15,7 @@ import {
   isGradeIdentity,
   measureImageBottomPadFraction,
   renderSkinSafeRunwayImage,
+  type SkinToneGrade,
   type TransparentModelWithRugResult,
 } from '../utils/garmentRunwayRenderer';
 import { fitSafeCanvasSize, superRenderImageToCanvas } from '../utils/ultraHdImageEngine';
@@ -76,6 +77,9 @@ export interface PhotographicAvatarViewerProps {
   reducedMotion?: boolean;
   soundEnabled?: boolean;
   curtainsOpen?: boolean;
+  curtainSrc?: string;
+  curtainShowDreamcatcher?: boolean;
+  skinTone?: SkinToneGrade | null;
   sewingPaused?: boolean;
   static2DMode?: boolean;
   activePose2D?: StaticModelPose2D;
@@ -200,6 +204,9 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       reducedMotion = false,
       soundEnabled = false,
       curtainsOpen = true,
+      curtainSrc,
+      curtainShowDreamcatcher = true,
+      skinTone = null,
       sewingPaused = false,
       static2DMode = false,
       activePose2D,
@@ -395,8 +402,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       return resolved.activeFrame.src;
     }, [customPhoto, static2DMode, activePose2D, activeGarment, resolved.activeFrame.src]);
 
-    // Combine runway couture color grade with optional yarn-ball tint (skin-safe via garmentMaskUrl)
-    const effectiveColorGrade = useMemo<RunwayColorGrade | null>(() => {
+    // Combine runway couture color grade with EXACT hyperrealistic yarn-ball dyeing (strictly skin-safe!)
+    const effectiveColorGrade = useMemo<(RunwayColorGrade & { exactDye?: boolean }) | null>(() => {
       if (!activeGarment || customPhoto?.url) return null;
       if (
         static2DMode &&
@@ -411,10 +418,9 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       const overrideHex = overrideTopPalette?.[0] || overrideBottomPalette?.[0];
       if (overrideHex) {
         return {
-          ...(activeGarment.runwayColorGrade ?? {}),
           tintHex: overrideHex,
-          tintStrength: 0.34,
-          satScale: 1.04,
+          tintStrength: 0.92,
+          exactDye: true,
         };
       }
       return activeGarment.runwayColorGrade ?? null;
@@ -425,16 +431,18 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
     useEffect(() => {
       let alive = true;
       if (!effectiveRawModelSrc) return;
-      if (!effectiveColorGrade || isGradeIdentity(effectiveColorGrade)) {
+      const hasGarmentChange = Boolean(effectiveColorGrade && !isGradeIdentity(effectiveColorGrade));
+      const hasSkinChange = Boolean(skinTone && skinTone.id !== 'natural');
+      if (!hasGarmentChange && !hasSkinChange) {
         setGradedSrc(effectiveRawModelSrc);
         return;
       }
-      // Show raw immediately while cached/rendered graded version resolves (~15ms)
       void renderSkinSafeRunwayImage(
         effectiveRawModelSrc,
         activeGarment?.garmentMaskUrl,
         effectiveColorGrade,
-        1280
+        1280,
+        skinTone
       )
         .then((outUrl) => {
           if (alive) setGradedSrc(outUrl);
@@ -445,7 +453,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       return () => {
         alive = false;
       };
-    }, [effectiveRawModelSrc, activeGarment?.garmentMaskUrl, effectiveColorGrade]);
+    }, [effectiveRawModelSrc, activeGarment?.garmentMaskUrl, effectiveColorGrade, skinTone]);
 
     const targetDisplaySrc = gradedSrc || effectiveRawModelSrc;
 
@@ -712,7 +720,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         if (!modelSrc) return null;
         return composeTransparentModelWithRug({
           modelSrc,
-          rugSrc: '/vestidor/artisan/crochet-rug.png',
+          rugSrc: '/vestidor/artisan/crochet-rug.webp',
           flipX: Boolean(static2DMode && activePose2D?.flipX),
           includeRug: true,
           resolution: options?.resolution ?? '8k',
@@ -1222,7 +1230,12 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         </div>
 
         {/* Framing Golden Macramé Curtains with Dreamcatchers (never obscuring the central model) */}
-        <StageMacrameCurtains isOpen={curtainsOpen} reducedMotion={reducedMotion} />
+        <StageMacrameCurtains
+          isOpen={curtainsOpen}
+          reducedMotion={reducedMotion}
+          curtainSrc={curtainSrc}
+          showDreamcatcher={curtainShowDreamcatcher}
+        />
 
         {/* Background-depth Animated Vintage Cream & Gold Sewing Machine (with Pause/Play) */}
         {onToggleSewingPaused && (

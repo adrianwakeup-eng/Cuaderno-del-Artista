@@ -49,10 +49,12 @@ export const CoverTurntable: React.FC<CoverTurntableProps> = ({ stageRef }) => {
     angularVel: 0, // deg/sec (33.3 RPM = 200 deg/sec; visual luxury 33 RPM ~ 135 deg/sec for crisp groove legibility)
   });
 
-  // Subscribe to persistent background audio player
+  // Subscribe to persistent background audio player (use meta-only when popover is closed for 0Hz re-renders!)
   useEffect(() => {
-    return turntableAudioPlayer.subscribe(setSnap);
-  }, []);
+    return sheetOpen
+      ? turntableAudioPlayer.subscribe(setSnap)
+      : turntableAudioPlayer.subscribeMeta(setSnap);
+  }, [sheetOpen]);
 
   // Lock turntable position strictly to the object-cover desk background image coordinates
   useEffect(() => {
@@ -102,8 +104,11 @@ export const CoverTurntable: React.FC<CoverTurntableProps> = ({ stageRef }) => {
     };
   }, [stageRef]);
 
-  // Smooth physical vinyl motor spin-up & inertial coast-down (360° circular rotation while playing)
+  // Smooth physical vinyl motor spin-up & inertial coast-down (stops RAF completely when idle for 0% CPU!)
   useEffect(() => {
+    if (!snap.isPlaying && Math.abs(spinRef.current.angularVel) < 0.2) {
+      return;
+    }
     let rafId = 0;
     let lastTs = performance.now();
 
@@ -111,12 +116,12 @@ export const CoverTurntable: React.FC<CoverTurntableProps> = ({ stageRef }) => {
       const dt = Math.min(0.05, Math.max(0.001, (now - lastTs) / 1000));
       lastTs = now;
 
-      const targetVel = snap.isPlaying ? 132 : 0; // smooth 33 RPM aesthetic circular rotation
-      const inertiaRate = snap.isPlaying ? 4.2 : 2.6;
+      const targetVel = snap.isPlaying ? 132 : 0;
+      const inertiaRate = snap.isPlaying ? 4.2 : 2.8;
       spinRef.current.angularVel +=
         (targetVel - spinRef.current.angularVel) * (1 - Math.exp(-dt * inertiaRate));
 
-      if (Math.abs(spinRef.current.angularVel) > 0.15) {
+      if (Math.abs(spinRef.current.angularVel) > 0.2) {
         spinRef.current.angleDeg =
           (spinRef.current.angleDeg + spinRef.current.angularVel * dt) % 360;
         if (discImgRef.current) {
@@ -124,9 +129,10 @@ export const CoverTurntable: React.FC<CoverTurntableProps> = ({ stageRef }) => {
             2
           )}deg)`;
         }
+        rafId = window.requestAnimationFrame(tick);
+      } else {
+        spinRef.current.angularVel = 0;
       }
-
-      rafId = window.requestAnimationFrame(tick);
     };
 
     rafId = window.requestAnimationFrame(tick);
@@ -621,7 +627,7 @@ export const BackgroundTurntablePill: React.FC = () => {
   );
 
   useEffect(() => {
-    return turntableAudioPlayer.subscribe(setSnap);
+    return turntableAudioPlayer.subscribeMeta(setSnap);
   }, []);
 
   const currentTrack = snap.tracks.find((t) => t.id === snap.currentTrackId);

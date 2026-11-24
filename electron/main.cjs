@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol, session, shell } = require('electron');
+const { app, BrowserWindow, clipboard, ipcMain, nativeImage, protocol, session, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -339,6 +339,19 @@ ipcMain.on('window:toggle-fullscreen', () => {
   mainWindow.setFullScreen(!mainWindow.isFullScreen());
 });
 ipcMain.handle('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
+ipcMain.handle('clipboard:write-image', (_event, dataUrl) => {
+  try {
+    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+      return false;
+    }
+    const img = nativeImage.createFromDataURL(dataUrl);
+    if (img.isEmpty()) return false;
+    clipboard.writeImage(img);
+    return true;
+  } catch {
+    return false;
+  }
+});
 
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.cuadernodelartista.crochet');

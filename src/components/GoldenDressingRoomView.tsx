@@ -29,13 +29,21 @@ import {
   WARDROBE_SEASON_BY_ID,
   resolveGarmentSeason,
 } from '../utils/wardrobeSeasons';
-import { YARN_BALL_COLORS, type YarnBallColorOption } from '../data/glbAssetManifest';
+import {
+  ATELIER_CURTAIN_DESIGNS,
+  MODEL_SKIN_TONES,
+  YARN_BALL_COLORS,
+  type YarnBallColorOption,
+} from '../data/glbAssetManifest';
 import {
   PASARELAS_ALTA_MODA_CATALOG,
   RUNWAY_HOUSE_EDITIONS,
   RUNWAY_MODEL_POSES,
 } from '../data/pasarelasAltaModaCatalog';
-import { copyPngBlobToClipboard } from '../utils/garmentRunwayRenderer';
+import {
+  composeTransparentCurtainImage,
+  copyPngBlobToClipboard,
+} from '../utils/garmentRunwayRenderer';
 import {
   STUDIO_LIGHT_ORDER,
   STUDIO_LIGHT_PRESETS,
@@ -189,12 +197,11 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   const [dragTargetCardId, setDragTargetCardId] = useState<string | null>(null);
   const [catalogFileDragOver, setCatalogFileDragOver] = useState<boolean>(false);
 
-  // Active worn selection: opens showcasing flagship crochet shirt (click "Quitar ropa" anytime for base 4-view model)
-  const [selectedTopId, setSelectedTopId] = useState<string | null>(
-    'fn-col-camisa-guayabera-terracota'
-  );
+  // Atelier starts cleanly with the underwear base model across all seasons (click any garment to dress him!)
+  const [selectedTopId, setSelectedTopId] = useState<string | null>(null);
   const [selectedBottomId, setSelectedBottomId] = useState<string | null>(null);
   const [showClothing, setShowClothing] = useState<boolean>(true);
+  const [activeSkinToneId, setActiveSkinToneId] = useState<string>('natural');
 
   const [activeYarnColorId, setActiveYarnColorId] = useState<string>('crema');
   const [topColorOverride, setTopColorOverride] = useState<string[] | null>(null);
@@ -230,9 +237,21 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   const [decorItems, setDecorItems] = useState<VestidorDecorElement[]>(() =>
     createDefaultStageDecorations()
   );
-  // Framing Golden Macramé Curtains & Animated Background Vintage Sewing Machine
+  // Framing Luxury Haute-Couture Crochet/Lace/Macramé Curtains & Animated Vintage Sewing Machine
   const [curtainsOpen, setCurtainsOpen] = useState<boolean>(true);
+  const [activeCurtainId, setActiveCurtainId] = useState<string>(ATELIER_CURTAIN_DESIGNS[0].id);
+  const [curtainPickerOpen, setCurtainPickerOpen] = useState<boolean>(false);
+  const [copyingCurtain, setCopyingCurtain] = useState<boolean>(false);
   const [sewingPaused, setSewingPaused] = useState<boolean>(false);
+
+  const activeSkinTone = useMemo(
+    () => MODEL_SKIN_TONES.find((t) => t.id === activeSkinToneId) ?? MODEL_SKIN_TONES[0],
+    [activeSkinToneId]
+  );
+  const activeCurtain = useMemo(
+    () => ATELIER_CURTAIN_DESIGNS.find((c) => c.id === activeCurtainId) ?? ATELIER_CURTAIN_DESIGNS[0],
+    [activeCurtainId]
+  );
 
   const effectiveReducedMotion =
     systemReducedMotion || preferences.reduceMotion || preferences.performanceMode === 'ahorro';
@@ -414,19 +433,28 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
 
   const handleCopyTransparentModelWithRug = useCallback(async () => {
     if (copyingTransparent) return;
+    const viewer = viewer3DRef.current;
+    if (!viewer) {
+      onNotify('El visor del modelo aún se está cargando.');
+      return;
+    }
     setCopyingTransparent(true);
     try {
-      const res = await viewer3DRef.current?.exportTransparentModelWithRug({ resolution: '4k' });
+      // Kick off render synchronously inside the click gesture so Safari/Chrome ClipboardItem stays authorized
+      const renderPromise = viewer.exportTransparentModelWithRug({ resolution: '4k' });
+      const copied = await copyPngBlobToClipboard(
+        renderPromise.then((r) => r?.blob ?? null)
+      );
+      const res = await renderPromise;
       if (!res) {
         onNotify('No se pudo generar el recorte transparente del modelo');
         return;
       }
-      const copied = await copyPngBlobToClipboard(res.blob);
       playSfx('save');
       if (copied) {
         setJustCopiedTransparent(true);
         window.setTimeout(() => setJustCopiedTransparent(false), 2200);
-        onNotify('¡Copiado en Ultra-HD! Figura + alfombra en PNG transparente listo para pegar');
+        onNotify('¡Copiado en Ultra-HD! Figura + alfombra en PNG transparente listo para pegar (Ctrl+V)');
       } else {
         const a = document.createElement('a');
         a.href = res.dataUrl;
@@ -438,6 +466,34 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
       setCopyingTransparent(false);
     }
   }, [copyingTransparent, playSfx, onNotify]);
+
+  const handleCopyActiveCurtain = useCallback(async () => {
+    if (copyingCurtain) return;
+    setCopyingCurtain(true);
+    try {
+      const renderPromise = composeTransparentCurtainImage(activeCurtain.src);
+      const copied = await copyPngBlobToClipboard(
+        renderPromise.then((r) => r?.blob ?? null)
+      );
+      const res = await renderPromise;
+      if (!res) {
+        onNotify('No se pudo generar la imagen de la cortina.');
+        return;
+      }
+      playSfx('save');
+      if (copied) {
+        onNotify(`¡Cortina «${activeCurtain.name}» copiada en PNG transparente!`);
+      } else {
+        const a = document.createElement('a');
+        a.href = res.dataUrl;
+        a.download = `Cortina-${activeCurtain.id}-AltaCostura.png`;
+        a.click();
+        onNotify(`Cortina «${activeCurtain.name}» descargada en PNG transparente`);
+      }
+    } finally {
+      setCopyingCurtain(false);
+    }
+  }, [copyingCurtain, activeCurtain, playSfx, onNotify]);
 
   const selectedTop = useMemo(
     () => (selectedTopId ? catalogDesigns.find((g) => g.id === selectedTopId) ?? null : null),
@@ -1016,8 +1072,8 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             </div>
           </div>
 
-          {/* Clean, Minimal Right Studio Controls */}
-          <div className="flex items-center gap-1.5 shrink-0 md:mr-44 lg:mr-56 xl:mr-64">
+          {/* Clean Studio Controls: Luxury Curtains (Open/Close, Designs, Copy), Sewing & Add */}
+          <div className="relative flex items-center gap-1.5 shrink-0 md:mr-44 lg:mr-56 xl:mr-64">
             <button
               type="button"
               onClick={() => {
@@ -1025,24 +1081,136 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                 setCurtainsOpen((prev) => !prev);
                 onNotify(
                   curtainsOpen
-                    ? 'Cortinas doradas de macramé cerradas parcialmente'
-                    : 'Cortinas doradas de macramé abiertas'
+                    ? `Cortina «${activeCurtain.name}» cerrada`
+                    : `Cortina «${activeCurtain.name}» abierta`
                 );
               }}
-              title={
-                curtainsOpen
-                  ? 'Cerrar ligeramente cortinas de macramé'
-                  : 'Abrir cortinas de macramé'
-              }
-              aria-label="Abrir o cerrar cortinas de macramé"
-              className={`hidden md:flex w-8 h-8 rounded-full border-2 items-center justify-center shadow-md cursor-pointer transition-colors ${
+              title={curtainsOpen ? 'Cerrar cortinas del atelier' : 'Abrir cortinas del atelier'}
+              className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-full border-2 text-[11px] font-bold shadow-md cursor-pointer transition-colors whitespace-nowrap ${
                 !curtainsOpen
                   ? 'bg-[#f8c432] border-[#9c6108] text-[#421f07]'
-                  : 'bg-[#fff5e4]/92 hover:bg-white border-[#c8945e] text-[#683718]'
+                  : 'bg-[#fff5e4]/95 hover:bg-white border-[#c8945e] text-[#5c2f12]'
               }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">
+                {curtainsOpen ? 'Cerrar cortina' : 'Abrir cortina'}
+              </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                playSfx('click');
+                setCurtainPickerOpen((v) => !v);
+              }}
+              title="Cambiar diseño de cortinas de encaje, crochet y macramé"
+              className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border-2 text-[11px] font-bold shadow-md cursor-pointer transition-colors whitespace-nowrap ${
+                curtainPickerOpen
+                  ? 'bg-[#6b3416] border-[#f4c76b] text-[#fff4d4]'
+                  : 'bg-[#fff5e4]/95 hover:bg-white border-[#c8945e] text-[#5c2f12]'
+              }`}
+            >
+              <span
+                className="w-3 h-3 rounded-full border border-[#6e4218]/60 shrink-0"
+                style={{ backgroundColor: activeCurtain.swatchHex }}
+              />
+              <span className="hidden md:inline">Cortinas ({ATELIER_CURTAIN_DESIGNS.length})</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={copyingCurtain}
+              onClick={() => void handleCopyActiveCurtain()}
+              title={`Copiar imagen transparente de la cortina «${activeCurtain.name}»`}
+              className="hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-full border-2 bg-[#fff5e4]/95 hover:bg-white border-[#c8945e] text-[#5c2f12] text-[11px] font-bold shadow-md cursor-pointer transition-colors whitespace-nowrap disabled:opacity-60"
+            >
+              <Copy className="w-3 h-3 shrink-0" />
+              <span className="hidden lg:inline">Copiar cortina</span>
+            </button>
+
+            {curtainPickerOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-10 z-50 w-[300px] sm:w-[340px] rounded-2xl border-2 border-[#d49e52] bg-[#2a1509]/96 text-[#fae7c2] p-3 shadow-[0_18px_42px_rgba(0,0,0,0.72)] backdrop-blur-md space-y-2.5"
+              >
+                <div className="flex items-center justify-between gap-2 border-b border-[#b98241]/40 pb-1.5">
+                  <div>
+                    <p className="font-display text-xs font-bold text-[#ffebc2]">
+                      Cortinas de Encaje y Crochet Alta Costura
+                    </p>
+                    <p className="text-[10px] text-[#d9b885]">
+                      Selecciona un diseño o copia la cortina en PNG transparente
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurtainPickerOpen(false)}
+                    className="p-1 rounded hover:bg-white/10 text-[#e7c587] cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {ATELIER_CURTAIN_DESIGNS.map((curtain) => {
+                    const selected = curtain.id === activeCurtain.id;
+                    return (
+                      <button
+                        key={curtain.id}
+                        type="button"
+                        onClick={() => {
+                          playSfx('click');
+                          setActiveCurtainId(curtain.id);
+                          onNotify(`Cortina cambiada a «${curtain.name}»`);
+                        }}
+                        className={`flex items-center gap-2 p-1.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          selected
+                            ? 'border-[#ffd978] bg-[#522911] ring-1 ring-[#f2c464]'
+                            : 'border-[#9e6f38]/45 bg-[#1b0d05]/85 hover:bg-[#381c0c]'
+                        }`}
+                      >
+                        <img
+                          src={curtain.src}
+                          alt={curtain.name}
+                          className="w-9 h-12 rounded-md object-cover object-top bg-[#f5e6d2]/20 border border-[#d6a25e]/45 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10.5px] font-bold text-[#fff2d2] leading-tight truncate">
+                            {curtain.name}
+                          </p>
+                          <p className="text-[9px] text-[#d5b27e] leading-snug line-clamp-2 mt-0.5">
+                            {curtain.subtitle}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#b98241]/35">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSfx(curtainsOpen ? 'toggleOff' : 'toggleOn');
+                      setCurtainsOpen((v) => !v);
+                    }}
+                    className="flex-1 py-1.5 px-2 rounded-lg bg-[#4a2611] hover:bg-[#613318] border border-[#d6a25e]/55 text-[11px] font-semibold text-[#ffebc2] cursor-pointer"
+                  >
+                    {curtainsOpen ? 'Cerrar cortinas' : 'Abrir cortinas'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={copyingCurtain}
+                    onClick={() => void handleCopyActiveCurtain()}
+                    className="flex-1 py-1.5 px-2 rounded-lg bg-gradient-to-b from-[#e0a83e] to-[#a66d14] hover:brightness-105 border border-[#ffe39a]/75 text-[11px] font-extrabold text-[#2b1204] inline-flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{copyingCurtain ? 'Copiando...' : 'Copiar imagen'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -1163,6 +1331,9 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
               reducedMotion={effectiveReducedMotion}
               soundEnabled={preferences.soundEnabled}
               curtainsOpen={curtainsOpen}
+              curtainSrc={activeCurtain.src}
+              curtainShowDreamcatcher={Boolean(activeCurtain.showDreamcatcher)}
+              skinTone={activeSkinTone}
               sewingPaused={sewingPaused}
               static2DMode={true}
               activePose2D={activePose2D}
@@ -1212,9 +1383,46 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             />
           </div>
 
-          {/* 1-CLICK TRANSPARENT FIGURE + RUG COPY / DOWNLOAD + FREE MODEL RESIZE BAR */}
+          {/* 1-CLICK SKIN TONE PALETTE + TRANSPARENT FIGURE + RUG COPY / DOWNLOAD + FREE MODEL RESIZE BAR */}
           {!cleanPhotoMode && (
-            <div className="relative z-30 flex flex-wrap items-center justify-center gap-2 pt-1.5 pb-0.5 shrink-0">
+            <div className="relative z-30 flex flex-col items-center gap-1.5 pt-1 pb-0.5 shrink-0">
+              {/* Hyperrealistic Skin Tone Palette Selector */}
+              <div
+                title="Cambiar tono de piel hiperrealista del modelo"
+                className="inline-flex flex-wrap items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-[#fff7ea]/95 border border-[#cfa16a] text-[#4f260e] shadow-sm"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6e3a19] mr-0.5">
+                  Tono de piel:
+                </span>
+                {MODEL_SKIN_TONES.map((tone) => {
+                  const selected = tone.id === activeSkinTone.id;
+                  return (
+                    <button
+                      key={tone.id}
+                      type="button"
+                      onClick={() => {
+                        playSfx('click');
+                        setActiveSkinToneId(tone.id);
+                      }}
+                      title={`Piel: ${tone.name}`}
+                      aria-label={`Tono de piel ${tone.name}`}
+                      className={`w-5 h-5 rounded-full border-2 transition-transform cursor-pointer ${
+                        selected
+                          ? 'scale-115 border-[#5a2b0d] ring-2 ring-[#f3be4e] shadow'
+                          : 'border-[#8a5b36]/55 hover:scale-110'
+                      }`}
+                      style={{
+                        background: `radial-gradient(circle at 35% 30%, #ffffff55 0%, ${tone.swatchHex} 58%, #00000028 100%)`,
+                      }}
+                    />
+                  );
+                })}
+                <span className="text-[10px] font-semibold text-[#75401d] ml-0.5">
+                  {activeSkinTone.name}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2">
               {/* Free Model Resize Control (55% - 220%) */}
               <div
                 title="Redimensiona el modelo libremente (también puedes usar la rueda del ratón o arrastrar la manija ⤢)"
@@ -1311,6 +1519,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                   <span>Modelo base</span>
                 </button>
               )}
+              </div>
             </div>
           )}
         </main>
