@@ -9,17 +9,17 @@ const COMPARE_ANGLES: Array<{
   label: string;
   officialSrc: string;
 }> = [
-  { key: 'front', label: 'Frente (0°)', officialSrc: '/vestidor/modelo-oficial/frente.png' },
+  { key: 'front', label: 'Frente (0°)', officialSrc: '/vestidor/modelo-oficial/frente.png?v=hd4' },
   {
     key: 'profileLeft',
     label: 'Perfil Izq. (90°)',
-    officialSrc: '/vestidor/modelo-oficial/perfil-izquierdo.png',
+    officialSrc: '/vestidor/modelo-oficial/perfil-izquierdo.png?v=hd4',
   },
-  { key: 'back', label: 'Espalda (180°)', officialSrc: '/vestidor/modelo-oficial/espalda.png' },
+  { key: 'back', label: 'Espalda (180°)', officialSrc: '/vestidor/modelo-oficial/espalda.png?v=hd4' },
   {
     key: 'profileRight',
     label: 'Perfil Der. (270°)',
-    officialSrc: '/vestidor/modelo-oficial/perfil-derecho.png',
+    officialSrc: '/vestidor/modelo-oficial/perfil-derecho.png?v=hd4',
   },
 ];
 

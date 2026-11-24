@@ -979,7 +979,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   }, [wornGarment]);
 
   const currentFrameInfo = viewer3DRef.current?.getCurrentFrameInfo() ?? {
-    src: '/vestidor/modelo-oficial/frente.png',
+    src: '/vestidor/modelo-oficial/frente.png?v=hd4',
     label: 'Frente (0°)',
     angleDeg: yawDeg,
   };

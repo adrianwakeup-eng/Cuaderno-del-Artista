@@ -119,7 +119,7 @@ export const FLAGSHIP_BOTTOM_ID = 'shorts-crochet-verde-bosque';
 export const FLAGSHIP_OUTFIT_ID = 'cardigan-girasoles-shorts-verdes';
 
 export const VESTIDOR_MANIFEST_PATHS = {
-  model: '/vestidor/modelo-oficial/manifest.json',
+  model: '/vestidor/modelo-oficial/manifest.json?v=hd4',
   poses: '/vestidor/poses/manifest.json',
   outfits: ['/vestidor/conjuntos/cardigan-girasoles-shorts-verdes/manifest.json'],
 } as const;
@@ -197,25 +197,25 @@ export const OFFICIAL_MODEL_MANIFEST: OfficialModelManifest = {
           id: 'frente',
           angleDeg: 0,
           label: 'Frente (0°)',
-          src: '/vestidor/modelo-oficial/frente.png',
+          src: '/vestidor/modelo-oficial/frente.png?v=hd4',
         },
         {
           id: 'perfil-izquierdo',
           angleDeg: 90,
           label: 'Perfil Izquierdo (90°)',
-          src: '/vestidor/modelo-oficial/perfil-izquierdo.png',
+          src: '/vestidor/modelo-oficial/perfil-izquierdo.png?v=hd4',
         },
         {
           id: 'espalda',
           angleDeg: 180,
           label: 'Espalda (180°)',
-          src: '/vestidor/modelo-oficial/espalda.png',
+          src: '/vestidor/modelo-oficial/espalda.png?v=hd4',
         },
         {
           id: 'perfil-derecho',
           angleDeg: 270,
           label: 'Perfil Derecho (270°)',
-          src: '/vestidor/modelo-oficial/perfil-derecho.png',
+          src: '/vestidor/modelo-oficial/perfil-derecho.png?v=hd4',
         },
       ],
     },
@@ -226,13 +226,13 @@ export const OFFICIAL_MODEL_MANIFEST: OfficialModelManifest = {
           id: 'perfil-izquierdo',
           angleDeg: 90,
           label: 'Perfil Izquierdo (90°)',
-          src: '/vestidor/modelo-oficial/perfil-izquierdo.png',
+          src: '/vestidor/modelo-oficial/perfil-izquierdo.png?v=hd4',
         },
         {
           id: 'perfil-derecho',
           angleDeg: 270,
           label: 'Perfil Derecho (270°)',
-          src: '/vestidor/modelo-oficial/perfil-derecho.png',
+          src: '/vestidor/modelo-oficial/perfil-derecho.png?v=hd4',
         },
       ],
     },

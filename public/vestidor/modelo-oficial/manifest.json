@@ -3,10 +3,10 @@
   "name": "Modelo Oficial Fuentes Nazco",
   "description": "Referencia fotográfica oficial de cuatro vistas (Frente, Perfil Izquierdo, Espalda, Perfil Derecho) conservando rostro, gafas, cabello rizado, barba y proporciones anatómicas originales.",
   "canvas": {
-    "width": 640,
-    "height": 1080,
-    "headTopY": 48,
-    "feetBaselineY": 1036
+    "width": 1440,
+    "height": 2430,
+    "headTopY": 107,
+    "feetBaselineY": 2328
   },
   "supportedAngles": 4,
   "supportsMultiAngleSequences": [4, 8, 12, 24],
@@ -18,25 +18,25 @@
           "id": "frente",
           "angleDeg": 0,
           "label": "Frente (0°)",
-          "src": "/vestidor/modelo-oficial/frente.png"
+          "src": "/vestidor/modelo-oficial/frente.png?v=hd4"
         },
         {
           "id": "perfil-izquierdo",
           "angleDeg": 90,
           "label": "Perfil Izquierdo (90°)",
-          "src": "/vestidor/modelo-oficial/perfil-izquierdo.png"
+          "src": "/vestidor/modelo-oficial/perfil-izquierdo.png?v=hd4"
         },
         {
           "id": "espalda",
           "angleDeg": 180,
           "label": "Espalda (180°)",
-          "src": "/vestidor/modelo-oficial/espalda.png"
+          "src": "/vestidor/modelo-oficial/espalda.png?v=hd4"
         },
         {
           "id": "perfil-derecho",
           "angleDeg": 270,
           "label": "Perfil Derecho (270°)",
-          "src": "/vestidor/modelo-oficial/perfil-derecho.png"
+          "src": "/vestidor/modelo-oficial/perfil-derecho.png?v=hd4"
         }
       ]
     },
@@ -47,13 +47,13 @@
           "id": "perfil-izquierdo",
           "angleDeg": 90,
           "label": "Perfil Izquierdo (90°)",
-          "src": "/vestidor/modelo-oficial/perfil-izquierdo.png"
+          "src": "/vestidor/modelo-oficial/perfil-izquierdo.png?v=hd4"
         },
         {
           "id": "perfil-derecho",
           "angleDeg": 270,
           "label": "Perfil Derecho (270°)",
-          "src": "/vestidor/modelo-oficial/perfil-derecho.png"
+          "src": "/vestidor/modelo-oficial/perfil-derecho.png?v=hd4"
         }
       ]
     }

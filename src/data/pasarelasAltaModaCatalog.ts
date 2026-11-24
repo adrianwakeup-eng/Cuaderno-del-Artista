@@ -190,8 +190,8 @@ export const RUNWAY_MODEL_POSES: StaticModelPose2D[] = [
     subtitle: 'Silueta lateral oficial en 2D para estudio de caída',
     badge: 'Perfil',
     framing: 'full',
-    overrideBaseSrc: '/vestidor/modelo-oficial/perfil-izquierdo.png',
-    previewSrc: '/vestidor/modelo-oficial/perfil-izquierdo.png',
+    overrideBaseSrc: '/vestidor/modelo-oficial/perfil-izquierdo.png?v=hd4',
+    previewSrc: '/vestidor/modelo-oficial/perfil-izquierdo.png?v=hd4',
   },
   {
     id: 'perfil-derecho',
@@ -199,8 +199,8 @@ export const RUNWAY_MODEL_POSES: StaticModelPose2D[] = [
     subtitle: 'Silueta lateral contraria en 2D oficial',
     badge: 'Perfil',
     framing: 'full',
-    overrideBaseSrc: '/vestidor/modelo-oficial/perfil-derecho.png',
-    previewSrc: '/vestidor/modelo-oficial/perfil-derecho.png',
+    overrideBaseSrc: '/vestidor/modelo-oficial/perfil-derecho.png?v=hd4',
+    previewSrc: '/vestidor/modelo-oficial/perfil-derecho.png?v=hd4',
   },
   {
     id: 'espalda-editorial',
@@ -208,8 +208,8 @@ export const RUNWAY_MODEL_POSES: StaticModelPose2D[] = [
     subtitle: 'Toma trasera oficial 2D para diseñar espaldas y mangas',
     badge: 'Espalda',
     framing: 'full',
-    overrideBaseSrc: '/vestidor/modelo-oficial/espalda.png',
-    previewSrc: '/vestidor/modelo-oficial/espalda.png',
+    overrideBaseSrc: '/vestidor/modelo-oficial/espalda.png?v=hd4',
+    previewSrc: '/vestidor/modelo-oficial/espalda.png?v=hd4',
   },
 ];
 
