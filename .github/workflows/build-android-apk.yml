@@ -1,0 +1,66 @@
+name: Compilar APK Android (Samsung Galaxy Note 9 y Android 7-15)
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    name: Android APK Universal (Galaxy Note 9 + S Pen)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Descargar código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Configurar Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Instalar dependencias del proyecto
+        run: npm ci
+
+      - name: Verificar TypeScript sin errores
+        run: npx tsc --noEmit
+
+      - name: Compilar aplicación web Ultra-HD
+        run: npm run build
+
+      - name: Sincronizar assets web con Capacitor Android
+        run: npx cap sync android
+
+      - name: Compilar APK instalable para Samsung Galaxy Note 9 y Android
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Preparar archivo APK final
+        run: |
+          mkdir -p release-android
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-android/Cuaderno-del-Artista-Android-Note9.apk
+          ls -lh release-android/Cuaderno-del-Artista-Android-Note9.apk
+
+      - name: Subir APK instalable como Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cuaderno-del-Artista-Android-Note9-APK
+          path: release-android/Cuaderno-del-Artista-Android-Note9.apk
+          retention-days: 30
+          if-no-files-found: error

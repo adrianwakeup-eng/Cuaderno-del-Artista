@@ -644,19 +644,21 @@ export const CrochetWardrobe3D: React.FC<CrochetWardrobe3DProps> = ({
         <GreekKeyFrieze />
       </div>
 
-      {/* 2. MAIN 4-DOOR BAROQUE COLONNADE BODY (Spans Full Width of Sheet!) */}
+      {/* 2. MAIN 4-DOOR BAROQUE COLONNADE BODY
+          - Phone Portrait (< 640px, e.g. Galaxy Note 9 412x846): Lush 2x2 Royal Baroque Arch Grid so every waving hero is large & crisp!
+          - Landscape / Tablet / Desktop (>= 640px): Panoramic 4-Door Versailles Colonnade with Corinthian Pillars! */}
       <div
-        className="relative flex-1 min-h-0 mx-1 sm:mx-2 px-1.5 sm:px-2 py-2 flex items-stretch gap-1 sm:gap-1.5 border-x-[4px] border-[#b57a22] shadow-[inset_0_0_28px_rgba(12,5,1,0.9),0_0_18px_rgba(232,180,72,0.16)]"
+        className="relative flex-1 min-h-0 mx-1 sm:mx-2 px-1.5 sm:px-2 py-2 border-x-[4px] border-[#b57a22] shadow-[inset_0_0_28px_rgba(12,5,1,0.9),0_0_18px_rgba(232,180,72,0.16)]"
         style={{
           background:
             'linear-gradient(180deg, #3c2008 0%, #241104 50%, #1a0b02 100%)',
         }}
       >
-        <CorinthianColumn edge />
-
-        {WARDROBE_SEASONS.map((season, idx) => (
-          <React.Fragment key={season.id}>
+        {/* Mobile Portrait 2x2 Grid */}
+        <div className="sm:hidden grid grid-cols-2 grid-rows-2 gap-2 w-full h-full">
+          {WARDROBE_SEASONS.map((season, idx) => (
             <SeasonalGreekDoor
+              key={`mob-${season.id}`}
               season={season}
               hingeSide={idx % 2 === 0 ? 'left' : 'right'}
               isOpening={openingSeason === season.id}
@@ -665,13 +667,32 @@ export const CrochetWardrobe3D: React.FC<CrochetWardrobe3DProps> = ({
               reducedMotion={Boolean(prefersReducedMotion)}
               onSelect={handleSelectDoor}
             />
-            {idx < WARDROBE_SEASONS.length - 1 && (
-              <CorinthianColumn edge={idx === 1} />
-            )}
-          </React.Fragment>
-        ))}
+          ))}
+        </div>
 
-        <CorinthianColumn edge />
+        {/* Landscape / Desktop 4-Door Colonnade */}
+        <div className="hidden sm:flex items-stretch gap-1.5 w-full h-full">
+          <CorinthianColumn edge />
+
+          {WARDROBE_SEASONS.map((season, idx) => (
+            <React.Fragment key={season.id}>
+              <SeasonalGreekDoor
+                season={season}
+                hingeSide={idx % 2 === 0 ? 'left' : 'right'}
+                isOpening={openingSeason === season.id}
+                isAnyOpening={openingSeason !== null}
+                disabled={disabled}
+                reducedMotion={Boolean(prefersReducedMotion)}
+                onSelect={handleSelectDoor}
+              />
+              {idx < WARDROBE_SEASONS.length - 1 && (
+                <CorinthianColumn edge={idx === 1} />
+              )}
+            </React.Fragment>
+          ))}
+
+          <CorinthianColumn edge />
+        </div>
       </div>
 
       {/* 3. SCULPTED 24K BAROQUE GOLD PLINTH & CARVED ROYAL FEET */}

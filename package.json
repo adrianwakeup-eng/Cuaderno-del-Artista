@@ -15,9 +15,14 @@
     "build:win": "vite build && npx electron-builder --win --config electron-builder.json --publish never",
     "build:win:portable": "vite build && npx electron-builder --win portable zip --x64 --config electron-builder.json --publish never",
     "build:mac": "vite build && npx electron-builder --mac --config electron-builder.json --publish never",
-    "build:linux": "vite build && npx electron-builder --linux --config electron-builder.json --publish never"
+    "build:linux": "vite build && npx electron-builder --linux --config electron-builder.json --publish never",
+    "android:sync": "vite build && npx cap sync android",
+    "build:android": "vite build && npx cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.3",
+    "@capacitor/cli": "^6.2.3",
+    "@capacitor/core": "^6.2.3",
     "@google/genai": "^2.4.0",
     "@imgly/background-removal": "^1.7.0",
     "@tailwindcss/vite": "^4.3.3",

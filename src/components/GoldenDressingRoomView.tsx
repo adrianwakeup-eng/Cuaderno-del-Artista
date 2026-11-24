@@ -1023,7 +1023,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
           TOP CARVED WALNUT WOOD HEADER (hidden in Clean Photo Mode)
       ===================================================================== */}
       {!cleanPhotoMode && (
-        <header className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-5 lg:px-6 pt-1.5 pb-1 shrink-0">
+        <header className="relative z-30 flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-2 px-2 sm:px-5 lg:px-6 pt-1.5 pb-1 safe-top shrink-0">
           {/* Left Carved Wood Plaque: Back to Cuaderno & Royal 4-Season Wardrobe */}
           <div className="flex items-center gap-1.5 sm:ml-10 lg:ml-12 shrink-0">
             <button
@@ -1072,7 +1072,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             <ArtisanYarnHooksEmblem className="w-9 h-9 sm:w-11 sm:h-11" />
             <div className="text-center sm:text-left leading-none">
               <h1
-                className="font-display text-lg sm:text-2xl lg:text-[31px] font-extrabold tracking-[0.03em] bg-clip-text text-transparent drop-shadow-[0_2px_5px_rgba(18,7,2,0.85)] whitespace-nowrap"
+                className="font-display text-sm sm:text-2xl lg:text-[31px] font-extrabold tracking-[0.03em] bg-clip-text text-transparent drop-shadow-[0_2px_5px_rgba(18,7,2,0.85)] whitespace-nowrap"
                 style={{
                   backgroundImage:
                     'linear-gradient(180deg, #fff7c8 0%, #ffda66 50%, #df981c 100%)',
@@ -1082,7 +1082,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                   ? `Atelier · ${activeSeasonMeta.label}`
                   : 'El Vestidor Dorado'}
               </h1>
-              <p className="mt-0.5 font-editorial italic text-[11px] sm:text-xs lg:text-[14px] text-[#f9e7ca] tracking-wide whitespace-nowrap drop-shadow-[0_1px_3px_rgba(18,7,2,0.85)]">
+              <p className="hidden sm:block mt-0.5 font-editorial italic text-[11px] sm:text-xs lg:text-[14px] text-[#f9e7ca] tracking-wide whitespace-nowrap drop-shadow-[0_1px_3px_rgba(18,7,2,0.85)]">
                 {activeSeasonMeta
                   ? `Puerta ${activeSeasonMeta.roman} · ${activeSeasonMeta.fibersNote}`
                   : 'Colección Crochet Fuentes Nazco'}
@@ -1150,7 +1150,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
             {curtainPickerOpen && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-10 z-50 w-[300px] sm:w-[340px] rounded-2xl border-2 border-[#d49e52] bg-[#2a1509]/96 text-[#fae7c2] p-3 shadow-[0_18px_42px_rgba(0,0,0,0.72)] backdrop-blur-md space-y-2.5"
+                className="absolute right-0 top-10 z-50 w-[min(calc(100vw-24px),340px)] rounded-2xl border-2 border-[#d49e52] bg-[#2a1509]/96 text-[#fae7c2] p-3 shadow-[0_18px_42px_rgba(0,0,0,0.72)] backdrop-blur-md space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-2 border-b border-[#b98241]/40 pb-1.5">
                   <div>
@@ -1323,9 +1323,9 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
           Left/Center: Static 2D Model + Crochet Rug + 1-Click Transparent Copy
           Right: Clean High-Fashion Runway Catalog (Prendas & Poses)
       ===================================================================== */}
-      <div className="relative z-20 flex-1 flex flex-col lg:flex-row gap-3 px-2.5 sm:px-4 lg:px-6 pb-3 pt-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="relative z-20 flex-1 flex flex-col lg:flex-row gap-2.5 sm:gap-3 px-2 sm:px-4 lg:px-6 pb-4 pt-1 min-h-0 overflow-y-auto lg:overflow-hidden">
         {/* 1. CENTRAL STATIC 2D MODEL STAGE + TRANSPARENT CUTOUT ACTION BAR */}
-        <main className="relative flex-1 flex flex-col min-w-0 min-h-[460px] lg:min-h-0 overflow-hidden">
+        <main className="relative flex-1 flex flex-col min-w-0 min-h-[390px] h-[54svh] sm:h-[58svh] lg:h-auto lg:min-h-0 overflow-hidden shrink-0 lg:shrink">
           <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
             <VitruvianMan3D
               ref={viewer3DRef}

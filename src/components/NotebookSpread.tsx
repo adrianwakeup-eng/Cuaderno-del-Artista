@@ -5938,7 +5938,8 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
     const drawSegment = (
       p1: { x: number; y: number },
       p2: { x: number; y: number },
-      isErasing: boolean
+      isErasing: boolean,
+      stylusPressure?: number
     ) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -5947,9 +5948,21 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
+      // True Samsung Galaxy Note 9 S Pen 4096-level pressure dynamics
+      const hasPenPressure =
+        typeof stylusPressure === 'number' && Number.isFinite(stylusPressure) && stylusPressure > 0;
+      const penP = hasPenPressure ? Math.max(0.05, Math.min(1, stylusPressure)) : 1;
+      const effectiveBrush = hasPenPressure
+        ? {
+            ...brush,
+            size: Math.max(1, brush.size * (0.38 + penP * 0.98)),
+            opacity: Math.max(6, Math.min(100, Math.round(brush.opacity * (0.55 + penP * 0.50)))),
+          }
+        : brush;
+
       const resScale = PAGE_W / 460;
-      const alpha = Math.max(0.05, Math.min(1, brush.opacity / 100));
-      const size = Math.max(1.5, brush.size * 0.9) * resScale;
+      const alpha = Math.max(0.05, Math.min(1, effectiveBrush.opacity / 100));
+      const size = Math.max(1.5, effectiveBrush.size * 0.9) * resScale;
       ctx.save();
 
       if (isErasing || brush.preset === 'borrador-suave') {
@@ -6008,7 +6021,7 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         p1,
         p2,
         fromPt,
-        brush,
+        effectiveBrush,
         resScale,
         velocity,
         hyperrealStrokeRef.current
@@ -6019,7 +6032,13 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
 
     const handleCanvasPointerDown = (e: React.PointerEvent) => {
       if (!e.isPrimary || e.button === 1) return;
-      if (activeTool === 'draw' || activeTool === 'eraser') {
+      // Samsung Galaxy Note 9 Palm Rejection: ignore wide palm touch contacts on the canvas
+      if (e.pointerType === 'touch' && (e.width > 26 || e.height > 26)) return;
+      const isPen = e.pointerType === 'pen';
+      const isPenBarrelEraser = isPen && ((e.buttons & 32) !== 0 || e.button === 5);
+      const effectiveErasing = activeTool === 'eraser' || isPenBarrelEraser;
+
+      if (activeTool === 'draw' || activeTool === 'eraser' || isPenBarrelEraser) {
         // Never allow the eraser or brush to intercept clicks on buttons, toolbars, or interactive option controls
         if (typeof document !== 'undefined' && document.elementsFromPoint) {
           const hitStack = document.elementsFromPoint(e.clientX, e.clientY);
@@ -6043,11 +6062,11 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         hyperrealStrokeRef.current = createStrokeState();
         lastClientPosRef.current = { x: e.clientX, y: e.clientY };
 
-        if (activeTool === 'eraser') {
+        if (effectiveErasing) {
           activeEraseIndexRef.current = {};
           eraseElementsAlongSegment(e.clientX, e.clientY, e.clientX, e.clientY);
         }
-        drawSegment(pt, pt, activeTool === 'eraser');
+        drawSegment(pt, pt, effectiveErasing, isPen ? e.pressure : undefined);
         try {
           (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
         } catch {
@@ -6181,15 +6200,18 @@ const SingleNotebookPage: React.FC<SinglePageProps> = memo(
         e.isPrimary &&
         isDrawingRef.current &&
         lastPosRef.current &&
-        (activeTool === 'draw' || activeTool === 'eraser')
+        (activeTool === 'draw' || activeTool === 'eraser' || e.pointerType === 'pen')
       ) {
-        if (activeTool === 'eraser') {
+        const isPen = e.pointerType === 'pen';
+        const isPenBarrelEraser = isPen && ((e.buttons & 32) !== 0 || e.button === 5);
+        const effectiveErasing = activeTool === 'eraser' || isPenBarrelEraser;
+        if (effectiveErasing) {
           const prevClient = lastClientPosRef.current || { x: e.clientX, y: e.clientY };
           eraseElementsAlongSegment(prevClient.x, prevClient.y, e.clientX, e.clientY);
           lastClientPosRef.current = { x: e.clientX, y: e.clientY };
         }
         const pt = getCanvasPoint(e);
-        drawSegment(lastPosRef.current, pt, activeTool === 'eraser');
+        drawSegment(lastPosRef.current, pt, effectiveErasing, isPen ? e.pressure : undefined);
         lastPosRef.current = pt;
       } else if (dragElRef.current) {
         updateDraggedTransform(e.clientX, e.clientY, e.shiftKey);

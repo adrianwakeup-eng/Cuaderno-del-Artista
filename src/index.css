@@ -9,6 +9,14 @@
     --font-mono: 'IBM Plex Mono', monospace;
   }
 
+  html,
+  body {
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    height: 100%;
+  }
+
   body {
     font-family: var(--font-body);
     overflow-x: hidden;
@@ -18,7 +26,27 @@
 
   input, textarea, [contenteditable="true"] {
     user-select: text;
+    -webkit-touch-callout: default;
   }
+}
+
+/* Safe-area & Samsung Galaxy Note 9 Infinity Display helpers */
+.safe-top {
+  padding-top: max(0.35rem, env(safe-area-inset-top));
+}
+.safe-bottom {
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+}
+.safe-x {
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+  padding-right: max(0.5rem, env(safe-area-inset-right));
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .font-display {

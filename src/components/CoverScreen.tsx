@@ -237,18 +237,19 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
       onPointerUp={handleStagePointerUp}
       onPointerCancel={handleStagePointerUp}
     >
-      {/* Top Desktop Studio Bar on Cover (only SFX & note creation, zero music) */}
-      <header className="relative z-20 w-full shrink-0 flex items-center justify-between gap-3 px-4 py-2 leather-surface border-b border-[#d6a25e]/35">
-        <div className="flex items-center gap-3 min-w-0">
+      {/* Top Studio Bar on Cover (safe-area aware for Galaxy Note 9 & mobile screens) */}
+      <header className="relative z-20 w-full shrink-0 flex items-center justify-between gap-2 px-2.5 sm:px-4 py-2 safe-top leather-surface border-b border-[#d6a25e]/35">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#7c2029] border border-[#e3b978]/60 shadow shrink-0">
             <BookOpen className="w-3.5 h-3.5 text-[#f7e2b9]" />
           </span>
-          <span className="font-display text-sm sm:text-base tracking-wide text-[#f6e2be] truncate">
-            Cuaderno del Artista · Estudio de Crochet
+          <span className="font-display text-xs sm:text-base tracking-wide text-[#f6e2be] truncate">
+            Cuaderno del Artista
+            <span className="hidden sm:inline"> · Estudio de Crochet</span>
           </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <PWAInstallButton variant="header" />
 
           <button
@@ -326,12 +327,12 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
         ref={stageRef}
         className="relative z-10 flex-1 min-h-0 w-full overflow-hidden book-stage"
       >
-        {/* Crochet Artist Desk Background Photo with Clean Wood Surface for the Luxury Gold Turntable */}
+        {/* Crochet Artist Desk Background Photo — centered on leather book in phone portrait, full desk on landscape/desktop */}
         <img
           src={crochetArtistDeskImg}
           alt="Escritorio de artista del crochet con ovillos, agujas, tijeras, tocadiscos dorado lujoso y cuaderno de cuero"
           referrerPolicy="no-referrer"
-          className="w-full h-full object-cover select-none"
+          className="w-full h-full object-cover object-[78%_50%] md:object-center select-none"
           draggable={false}
         />
 
@@ -386,10 +387,10 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
           />
         ))}
 
-        {/* Free-Drag Editable Motivational Notes across the Entire Left Desk Area (up to book spine) */}
+        {/* Free-Drag Editable Motivational Notes across the Left Desk Area (desktop/landscape) */}
         <div
           ref={notesZoneRef}
-          className="absolute inset-y-0 left-0 w-[56.5%] z-20 pointer-events-none"
+          className="hidden md:block absolute inset-y-0 left-0 w-[56.5%] z-20 pointer-events-none"
         >
           {deskNotes.map((note) => {
             const style = NOTE_TONE_STYLES[note.tone] || NOTE_TONE_STYLES.cream;
@@ -495,7 +496,73 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
           })}
         </div>
 
-        {/* Interactive 3D Book Flap Overlay aligned over the right-hand leather book (book left completely unchanged) */}
+        {/* Mobile / Galaxy Note 9 Portrait Swipeable Notes Strip + Tap-to-Open Book CTA */}
+        <div className="md:hidden absolute inset-x-0 top-2.5 z-30 px-2.5 flex gap-2 overflow-x-auto no-scrollbar">
+          {deskNotes.map((note) => {
+            const style = NOTE_TONE_STYLES[note.tone] || NOTE_TONE_STYLES.cream;
+            const isEditing = editingNoteId === note.id;
+            return (
+              <div
+                key={`mob-${note.id}`}
+                style={{ background: style.bg, colorScheme: 'light' }}
+                onClick={(e) => e.stopPropagation()}
+                className={`shrink-0 w-[168px] rounded-lg border px-2.5 py-2 shadow-lg ${style.border} ${style.ink}`}
+              >
+                {isEditing ? (
+                  <div className="space-y-1">
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      value={draftText}
+                      onChange={(e) => setDraftText(e.target.value)}
+                      className="w-full resize-none rounded bg-white/75 border border-[#b98d4b]/50 px-1.5 py-1 font-hand text-sm leading-tight"
+                    />
+                    <div className="flex items-center justify-between">
+                      {deskNotes.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDeskNote(note.id)}
+                          className="p-1 text-[#7a202a]"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => saveEditingNote(note.id)}
+                        className="px-2 py-0.5 rounded bg-[#6b3a1c] text-[10px] font-semibold text-[#fff6e3]"
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startEditingNote(note)}
+                    className="w-full text-left"
+                  >
+                    <p className="font-hand text-xs leading-snug line-clamp-3">“{note.text}”</p>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Mobile / Note 9 Prominent Tap-to-Open Book Pill in bottom-right beside the Gold Turntable */}
+        <button
+          type="button"
+          onClick={triggerOpen}
+          className="md:hidden absolute right-4 bottom-6 z-30 inline-flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-[#f5d07a] bg-gradient-to-b from-[#7a3f16]/95 to-[#3d1c08]/95 text-[#fff4d6] font-display text-xs font-bold tracking-wider shadow-[0_12px_28px_rgba(0,0,0,0.75)] active:scale-95 transition-transform"
+        >
+          <BookOpen className="w-4 h-4 text-[#ffd978]" />
+          <span>ABRIR CUADERNO</span>
+        </button>
+
+        {/* Interactive 3D Book Flap Overlay aligned over the leather book */}
         <motion.div
           animate={{ rotateY: coverRotateY }}
           transition={{ duration: isOpening ? 0.95 : 0.12, ease: [0.22, 1, 0.36, 1] }}
@@ -511,7 +578,7 @@ export const CoverScreen: React.FC<CoverScreenProps> = ({
             }
           }}
           aria-label="Abrir Cuaderno del Artista"
-          className="absolute right-[8%] top-[4%] bottom-[4%] w-[36%] z-30 cursor-pointer preserve-3d group focus:outline-none rounded-r-xl"
+          className="absolute right-[6%] left-[12%] md:left-auto md:right-[8%] top-[16%] bottom-[22%] md:top-[4%] md:bottom-[4%] md:w-[36%] z-20 md:z-30 cursor-pointer preserve-3d group focus:outline-none rounded-r-xl"
         >
           {/* Circular Crochet_Fuentes-Nazco Logo Medallion below the yarn ball */}
           <div className="pointer-events-none absolute left-[54%] -translate-x-1/2 bottom-[11%] w-[44%] aspect-square flex items-center justify-center">

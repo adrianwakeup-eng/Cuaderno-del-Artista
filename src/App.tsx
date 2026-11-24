@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Minimize2, SlidersHorizontal } from 'lucide-react';
+import {
+  DoorOpen,
+  Eraser,
+  Flower2,
+  Minimize2,
+  PenTool,
+  SlidersHorizontal,
+  Undo2,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { User } from 'firebase/auth';
 import { CoverScreen } from './components/CoverScreen';
@@ -1481,20 +1489,100 @@ export default function App() {
                 />
               </div>
 
-              {/* Mobile / Tablet Compact Drawer Trigger & Slide-Over Dock (< lg) */}
+              {/* Mobile / Samsung Galaxy Note 9 Quick-Action Bottom Dock (< lg) */}
               {!showMobileDock && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playStitchClick();
-                    setShowMobileDock(true);
-                  }}
-                  aria-label="Abrir herramientas"
-                  title="Abrir herramientas"
-                  className="lg:hidden fixed top-2 right-2 z-40 rounded-lg border border-[#d49e58]/70 bg-[#291509]/95 p-2 text-[#f8dcaa] shadow-lg hover:bg-[#543016] cursor-pointer"
+                <nav
+                  aria-label="Barra rápida móvil"
+                  data-ui-control="true"
+                  className="lg:hidden fixed inset-x-2 bottom-2 z-40 safe-bottom flex items-center justify-around gap-1 px-2 py-1.5 rounded-2xl border border-[#d8a457]/70 bg-[#1e0f06]/95 backdrop-blur-md shadow-[0_10px_28px_rgba(0,0,0,0.72)]"
                 >
-                  <SlidersHorizontal size={16} />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playStitchClick();
+                      setShowMobileDock(true);
+                    }}
+                    className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-semibold text-[#fae3b6] active:scale-95"
+                  >
+                    <SlidersHorizontal className="w-4 h-4 text-[#f5c768]" />
+                    <span>Panel</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playYarnPluck(2);
+                      setActiveSection('cuaderno');
+                      handleSelectToolSmart('draw');
+                    }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-xl text-[10px] font-semibold active:scale-95 ${
+                      activeSection === 'cuaderno' && activeTool === 'draw'
+                        ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white shadow'
+                        : 'text-[#e8cfab]'
+                    }`}
+                  >
+                    <div className="relative">
+                      <PenTool className="w-4 h-4" />
+                      <span
+                        className="absolute -right-1 -bottom-0.5 w-2 h-2 rounded-full border border-white"
+                        style={{ backgroundColor: brush.color }}
+                      />
+                    </div>
+                    <span>S Pen</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playStitchClick();
+                      setActiveSection('cuaderno');
+                      handleSelectToolSmart('eraser');
+                    }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-semibold active:scale-95 ${
+                      activeSection === 'cuaderno' && activeTool === 'eraser'
+                        ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white shadow'
+                        : 'text-[#e8cfab]'
+                    }`}
+                  >
+                    <Eraser className="w-4 h-4" />
+                    <span>Goma</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleUndo}
+                    disabled={undoStack.length === 0}
+                    className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-semibold text-[#e8cfab] disabled:opacity-40 active:scale-95"
+                  >
+                    <Undo2 className="w-4 h-4" />
+                    <span>Atrás</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playYarnPluck(5);
+                      setActiveSection(activeSection === 'stickers' ? 'cuaderno' : 'stickers');
+                    }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-semibold active:scale-95 ${
+                      activeSection === 'stickers'
+                        ? 'bg-gradient-to-b from-[#d1974c] to-[#9b6126] text-white shadow'
+                        : 'text-[#e8cfab]'
+                    }`}
+                  >
+                    <Flower2 className="w-4 h-4" />
+                    <span>Stickers</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenVestidorWithMagic}
+                    className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-xl bg-gradient-to-b from-[#7a4518] to-[#4a260a] border border-[#f2c56e]/65 text-[10px] font-semibold text-[#ffefc8] shadow active:scale-95"
+                  >
+                    <DoorOpen className="w-4 h-4 text-[#ffd97d]" />
+                    <span>Vestidor</span>
+                  </button>
+                </nav>
               )}
 
               <AnimatePresence>

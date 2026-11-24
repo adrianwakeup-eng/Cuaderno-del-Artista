@@ -66,6 +66,17 @@ export const CoverTurntable: React.FC<CoverTurntableProps> = ({ stageRef }) => {
       const sh = stageEl.clientHeight;
       if (sw <= 0 || sh <= 0) return;
 
+      // Mobile / Samsung Galaxy Note 9 Portrait layout: anchor 24k Gold Turntable cleanly in bottom-left thumb zone
+      if (sw < 768 && sh > sw) {
+        const size = Math.max(108, Math.min(144, Math.round(sw * 0.33)));
+        setBoxRect({
+          left: Math.round(sw * 0.05),
+          top: Math.max(12, Math.round(sh - size - 16)),
+          size,
+        });
+        return;
+      }
+
       const imgAspect = DESK_NAT_W / DESK_NAT_H;
       const stageAspect = sw / sh;
       let renderedW = sw;
@@ -316,7 +327,7 @@ export const CoverTurntable: React.FC<CoverTurntableProps> = ({ stageRef }) => {
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            className="absolute left-3 sm:left-6 bottom-3 sm:bottom-5 z-[48] w-[min(92vw,386px)] max-h-[calc(100%-24px)] flex flex-col rounded-xl border-2 border-[#c89a4e] bg-gradient-to-b from-[#fbf1d6] via-[#f5e6c0] to-[#ebd4a0] text-[#351b0b] shadow-[0_24px_60px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,235,178,0.65)_inset] overflow-hidden"
+            className="absolute left-2.5 right-2.5 sm:left-6 sm:right-auto bottom-2.5 sm:bottom-5 z-[48] sm:w-[min(92vw,386px)] max-h-[calc(100%-20px)] flex flex-col rounded-xl border-2 border-[#c89a4e] bg-gradient-to-b from-[#fbf1d6] via-[#f5e6c0] to-[#ebd4a0] text-[#351b0b] shadow-[0_24px_60px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,235,178,0.65)_inset] overflow-hidden"
           >
             {/* Subtle etched antique 5-line musical staves behind the parchment */}
             <div

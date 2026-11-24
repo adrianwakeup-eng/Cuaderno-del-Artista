@@ -235,8 +235,13 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [downloadedInstant, setDownloadedInstant] = useState(false);
 
-  // Suppress header button when already running as an installed Windows / standalone app
-  if (isInstalled && variant === 'header') {
+  const isNativeAndroidOrMobile =
+    typeof window !== 'undefined' &&
+    (Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) ||
+      /Android/i.test(navigator.userAgent));
+
+  // Suppress Windows header download button on Android / Capacitor APK or installed standalone apps
+  if ((isInstalled || isNativeAndroidOrMobile) && variant === 'header') {
     return null;
   }
 

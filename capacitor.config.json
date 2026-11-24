@@ -1,0 +1,15 @@
+{
+  "appId": "com.cuadernodelartista.crochet",
+  "appName": "Cuaderno del Artista",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "backgroundColor": "#1b1109",
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

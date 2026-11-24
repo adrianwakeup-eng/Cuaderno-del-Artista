@@ -64,8 +64,8 @@ export const RoyalWardrobeRoomView: React.FC<RoyalWardrobeRoomViewProps> = ({
         />
       ))}
 
-      {/* Discreet Palace Top Bar */}
-      <header className="relative z-20 shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 pt-3 pb-1.5">
+      {/* Discreet Palace Top Bar (safe-top for Android status bar / Galaxy Note 9) */}
+      <header className="relative z-20 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 pt-2.5 sm:pt-3 pb-1.5 safe-top">
         <button
           type="button"
           onClick={() => {
