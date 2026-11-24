@@ -1441,15 +1441,15 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2">
-              {/* Free Model Resize Control (55% - 220%) */}
+              {/* Free Model Resize Control (55% - 340% head-to-toe inspection) */}
               <div
-                title="Redimensiona el modelo libremente (también puedes usar la rueda del ratón o arrastrar la manija ⤢)"
+                title="Aumenta el cuerpo del modelo hasta 340% y arrastra o usa la barra lateral para verlo desde la cabeza hasta los pies"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#fff6e6]/95 border-2 border-[#cfa16a] text-[#4f260e] shadow-sm"
               >
                 <button
                   type="button"
                   aria-label="Reducir tamaño del modelo"
-                  onClick={() => setModelScale((s) => Math.max(0.55, Number((s - 0.1).toFixed(2))))}
+                  onClick={() => setModelScale((s) => Math.max(0.55, Number((s - 0.15).toFixed(2))))}
                   className="w-5 h-5 rounded-full bg-[#f3dfc2] hover:bg-[#e7c697] text-[#4f260e] text-xs font-extrabold flex items-center justify-center cursor-pointer"
                 >
                   −
@@ -1457,17 +1457,17 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
                 <input
                   type="range"
                   min={55}
-                  max={220}
+                  max={340}
                   step={5}
                   value={Math.round(modelScale * 100)}
                   onChange={(e) => setModelScale(Number(e.target.value) / 100)}
                   aria-label="Tamaño del modelo"
-                  className="w-20 sm:w-24 accent-[#c78016] cursor-pointer h-1.5"
+                  className="w-20 sm:w-28 accent-[#c78016] cursor-pointer h-1.5"
                 />
                 <button
                   type="button"
                   aria-label="Aumentar tamaño del modelo"
-                  onClick={() => setModelScale((s) => Math.min(2.2, Number((s + 0.1).toFixed(2))))}
+                  onClick={() => setModelScale((s) => Math.min(3.4, Number((s + 0.15).toFixed(2))))}
                   className="w-5 h-5 rounded-full bg-[#f3dfc2] hover:bg-[#e7c697] text-[#4f260e] text-xs font-extrabold flex items-center justify-center cursor-pointer"
                 >
                   +

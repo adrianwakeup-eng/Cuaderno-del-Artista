@@ -112,13 +112,13 @@ export interface ModelSkinToneOption {
 
 export const MODEL_SKIN_TONES: ModelSkinToneOption[] = [
   { id: 'natural', name: 'Natural', swatchHex: '#D8A276', targetHex: '#D8A276', lightScale: 1.0, satScale: 1.0 },
-  { id: 'porcelana', name: 'Porcelana', swatchHex: '#F5DBC9', targetHex: '#F3D6C3', lightScale: 1.24, satScale: 0.72 },
-  { id: 'durazno', name: 'Durazno', swatchHex: '#EBC3A6', targetHex: '#E9BE9F', lightScale: 1.13, satScale: 0.86 },
-  { id: 'miel', name: 'Miel Dorada', swatchHex: '#DDA574', targetHex: '#DBA270', lightScale: 1.04, satScale: 1.03 },
-  { id: 'trigueno', name: 'Trigueño', swatchHex: '#C78A5C', targetHex: '#C58657', lightScale: 0.93, satScale: 1.04 },
-  { id: 'bronceado', name: 'Bronceado', swatchHex: '#B17042', targetHex: '#AE6C3E', lightScale: 0.82, satScale: 1.08 },
-  { id: 'canela', name: 'Canela', swatchHex: '#8E532F', targetHex: '#8B502C', lightScale: 0.68, satScale: 1.02 },
-  { id: 'ebano', name: 'Ébano', swatchHex: '#5B341E', targetHex: '#58311C', lightScale: 0.48, satScale: 0.90 },
+  { id: 'porcelana', name: 'Porcelana', swatchHex: '#F4DACB', targetHex: '#F2D5C5', lightScale: 1.28, satScale: 0.72 },
+  { id: 'durazno', name: 'Marfil Cálido', swatchHex: '#EBC4A8', targetHex: '#E9C0A3', lightScale: 1.15, satScale: 0.86 },
+  { id: 'miel', name: 'Miel Dorada', swatchHex: '#DDA576', targetHex: '#DBA272', lightScale: 1.04, satScale: 1.02 },
+  { id: 'trigueno', name: 'Trigueño', swatchHex: '#C78D5E', targetHex: '#C58A5B', lightScale: 0.92, satScale: 1.04 },
+  { id: 'bronceado', name: 'Bronceado', swatchHex: '#AE6F43', targetHex: '#AB6C40', lightScale: 0.80, satScale: 1.06 },
+  { id: 'canela', name: 'Canela', swatchHex: '#884F2D', targetHex: '#864C2A', lightScale: 0.64, satScale: 1.00 },
+  { id: 'ebano', name: 'Ébano', swatchHex: '#57321E', targetHex: '#55301C', lightScale: 0.46, satScale: 0.88 },
 ];
 
 export interface AtelierCurtainDesign {

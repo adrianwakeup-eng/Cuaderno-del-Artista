@@ -441,7 +441,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         effectiveRawModelSrc,
         activeGarment?.garmentMaskUrl,
         effectiveColorGrade,
-        1280,
+        1800,
         skinTone
       )
         .then((outUrl) => {
@@ -786,23 +786,68 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
       ]
     );
 
-    // Sync controlled external modelScale smoothly (for free 2D model resizing)
+    const getPanLimits = useCallback((z: number) => {
+      const sh = stageRef.current?.clientHeight || 640;
+      const maxPanY = Math.round(Math.max(120, sh * Math.max(0.24, (z - 0.6) * 0.62)));
+      const maxPanX = Math.round(Math.max(80, 260 * Math.max(0.25, z - 0.65)));
+      return { maxPanX, maxPanY };
+    }, []);
+
+    // Sync controlled external modelScale smoothly (55% - 340% full head-to-toe inspection)
     useEffect(() => {
       if (typeof modelScale === 'number' && Number.isFinite(modelScale)) {
-        const clamped = Math.max(0.55, Math.min(2.2, Number(modelScale.toFixed(2))));
+        const clamped = Math.max(0.55, Math.min(3.4, Number(modelScale.toFixed(2))));
         setZoom(clamped);
-        if (clamped <= 1.04) setPan({ x: 0, y: 0 });
+        if (clamped <= 0.85) {
+          setPan({ x: 0, y: 0 });
+        } else {
+          const { maxPanX, maxPanY } = getPanLimits(clamped);
+          setPan((prev) => ({
+            x: Math.max(-maxPanX, Math.min(maxPanX, prev.x)),
+            y: Math.max(-maxPanY, Math.min(maxPanY, prev.y)),
+          }));
+        }
       }
-    }, [modelScale]);
+    }, [modelScale, getPanLimits]);
 
     const applyScale2D = useCallback(
       (nextScale: number) => {
-        const clamped = Math.max(0.55, Math.min(2.2, Number(nextScale.toFixed(2))));
+        const clamped = Math.max(0.55, Math.min(3.4, Number(nextScale.toFixed(2))));
         setZoom(clamped);
-        if (clamped <= 1.04) setPan({ x: 0, y: 0 });
+        if (clamped <= 0.85) {
+          setPan({ x: 0, y: 0 });
+        } else {
+          const { maxPanX, maxPanY } = getPanLimits(clamped);
+          setPan((prev) => ({
+            x: Math.max(-maxPanX, Math.min(maxPanX, prev.x)),
+            y: Math.max(-maxPanY, Math.min(maxPanY, prev.y)),
+          }));
+        }
         onChangeModelScale?.(clamped);
       },
-      [onChangeModelScale]
+      [onChangeModelScale, getPanLimits]
+    );
+
+    const focusBodyZone = useCallback(
+      (zone: 'full' | 'head' | 'torso' | 'feet') => {
+        playClick();
+        const sh = stageRef.current?.clientHeight || 640;
+        if (zone === 'full') {
+          applyScale2D(1.0);
+          setPan({ x: 0, y: 0 });
+          return;
+        }
+        const targetZoom = zone === 'head' ? 2.25 : zone === 'torso' ? 2.0 : 2.1;
+        applyScale2D(targetZoom);
+        const yOffset =
+          zone === 'head'
+            ? Math.round(sh * 0.44)
+            : zone === 'torso'
+              ? Math.round(sh * 0.14)
+              : Math.round(-sh * 0.42);
+        setPan({ x: 0, y: yOffset });
+      },
+      [playClick, applyScale2D]
     );
 
     const resizeHandleRef = useRef<{
@@ -879,9 +924,8 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           return;
         }
 
-        // In static 2D mode: NEVER rotate — only allow smooth panning when resized > 105%
+        // In static 2D mode: allow smooth vertical & horizontal head-to-toe panning at any zoom!
         if (static2DMode) {
-          if (zoom <= 1.04) return;
           dragRef.current = {
             active: true,
             mode: 'pan',
@@ -928,7 +972,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           const ratio = dist / pinchRef.current.startDist;
           const nextZoom = Math.max(
             0.55,
-            Math.min(2.2, Number((pinchRef.current.startZoom * ratio).toFixed(2)))
+            Math.min(3.4, Number((pinchRef.current.startZoom * ratio).toFixed(2)))
           );
           applyScale2D(nextZoom);
 
@@ -939,16 +983,11 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           pinchRef.current.lastMidX = midX;
           pinchRef.current.lastMidY = midY;
 
-          if (nextZoom <= 1.04) {
-            setPan({ x: 0, y: 0 });
-          } else {
-            const maxPanX = 240 * (nextZoom - 1);
-            const maxPanY = 300 * (nextZoom - 1);
-            setPan((prev) => ({
-              x: Math.max(-maxPanX, Math.min(maxPanX, prev.x + dmx)),
-              y: Math.max(-maxPanY, Math.min(maxPanY, prev.y + dmy)),
-            }));
-          }
+          const { maxPanX, maxPanY } = getPanLimits(nextZoom);
+          setPan((prev) => ({
+            x: Math.max(-maxPanX, Math.min(maxPanX, prev.x + dmx)),
+            y: Math.max(-maxPanY, Math.min(maxPanY, prev.y + dmy)),
+          }));
           return;
         }
 
@@ -971,8 +1010,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
         dragRef.current.lastY = e.clientY;
 
         if (dragRef.current.mode === 'pan') {
-          const maxPanX = 240 * Math.max(0.25, zoom - 1);
-          const maxPanY = 320 * Math.max(0.25, zoom - 1);
+          const { maxPanX, maxPanY } = getPanLimits(zoom);
           setPan((prev) => ({
             x: Math.max(-maxPanX, Math.min(maxPanX, prev.x + dx)),
             y: Math.max(-maxPanY, Math.min(maxPanY, prev.y + dy)),
@@ -985,7 +1023,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
           setAngleDeg(dragRef.current.accumulatedDeg);
         }
       },
-      [static2DMode, zoom, reducedMotion, applyScale2D]
+      [static2DMode, zoom, reducedMotion, applyScale2D, getPanLimits]
     );
 
     const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -1016,18 +1054,28 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
     const handleWheel = useCallback(
       (e: React.WheelEvent<HTMLDivElement>) => {
         e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.08 : 0.08;
+        // When zoomed in, wheel scrolls smoothly head-to-toe (hold Ctrl/Meta to zoom; at 100% wheel zooms directly!)
         if (static2DMode) {
+          if (zoom > 1.05 && !e.ctrlKey && !e.metaKey) {
+            const { maxPanY } = getPanLimits(zoom);
+            setPan((prev) => ({
+              ...prev,
+              y: Math.max(-maxPanY, Math.min(maxPanY, prev.y - e.deltaY * 0.72)),
+            }));
+            return;
+          }
+          const delta = e.deltaY > 0 ? -0.1 : 0.1;
           applyScale2D(zoom + delta);
           return;
         }
+        const delta = e.deltaY > 0 ? -0.08 : 0.08;
         setZoom((prev) => {
-          const next = Math.max(0.85, Math.min(2.6, Number((prev + delta).toFixed(2))));
-          if (next <= 1.04) setPan({ x: 0, y: 0 });
+          const next = Math.max(0.85, Math.min(3.4, Number((prev + delta).toFixed(2))));
+          if (next <= 0.95) setPan({ x: 0, y: 0 });
           return next;
         });
       },
-      [static2DMode, zoom, applyScale2D]
+      [static2DMode, zoom, applyScale2D, getPanLimits]
     );
 
     const handleDoubleClick = useCallback(() => {
@@ -1261,7 +1309,7 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
             transform: hasStageZoomOrPan
               ? `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`
               : undefined,
-            transformOrigin: '50% 90%',
+            transformOrigin: '50% 50%',
             transition: isDragging ? 'none' : 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
@@ -1270,23 +1318,74 @@ export const PhotographicAvatarViewer25D = React.forwardRef<
             ref={stageAssemblyRef}
             className="relative w-full h-full min-h-0 max-w-[540px]"
           >
-            {/* Direct Drag-to-Resize Brass Handle on the 2D Model Frame */}
+            {/* Direct Drag-to-Resize Brass Handle + Quick Head-to-Toe Vertical Navigator */}
             {static2DMode && !cleanStageMode && (
-              <button
-                type="button"
-                onPointerDown={handleResizeHandleDown}
-                onPointerMove={handleResizeHandleMove}
-                onPointerUp={handleResizeHandleUp}
-                onPointerCancel={handleResizeHandleUp}
-                title="Arrastra para redimensionar libremente el modelo (55% – 220%) · Doble clic para 100%"
-                aria-label="Arrastra para redimensionar el modelo"
-                className="pointer-events-auto absolute top-3 right-3 z-30 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fff6e6]/92 hover:bg-white border-2 border-[#d19a47] text-[#4b240c] text-[10.5px] font-extrabold shadow-md cursor-nesw-resize opacity-85 group-hover/stage:opacity-100 transition-opacity select-none"
+              <div
+                onPointerDown={(e) => e.stopPropagation()}
+                className="pointer-events-auto absolute top-3 right-2.5 z-30 flex flex-col items-end gap-1.5 select-none"
               >
-                <span aria-hidden="true" className="text-xs leading-none">
-                  ⤢
-                </span>
-                <span className="font-mono-tab">{Math.round(zoom * 100)}%</span>
-              </button>
+                <button
+                  type="button"
+                  onPointerDown={handleResizeHandleDown}
+                  onPointerMove={handleResizeHandleMove}
+                  onPointerUp={handleResizeHandleUp}
+                  onPointerCancel={handleResizeHandleUp}
+                  title="Arrastra para aumentar el cuerpo del modelo (55% – 340%) · Doble clic para 100%"
+                  aria-label="Arrastra para redimensionar el modelo"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fff6e6]/94 hover:bg-white border-2 border-[#d19a47] text-[#4b240c] text-[10.5px] font-extrabold shadow-md cursor-nesw-resize"
+                >
+                  <span aria-hidden="true" className="text-xs leading-none">
+                    ⤢
+                  </span>
+                  <span className="font-mono-tab">{Math.round(zoom * 100)}%</span>
+                </button>
+
+                {/* Quick Body Focus Pills (Head -> Torso -> Feet -> Full Body) */}
+                <div className="flex flex-col gap-1 p-1 rounded-2xl bg-[#fff7ea]/90 border border-[#cfa064]/80 shadow-md backdrop-blur-xs">
+                  {(
+                    [
+                      { id: 'full', label: 'Todo' },
+                      { id: 'head', label: 'Rostro' },
+                      { id: 'torso', label: 'Torso' },
+                      { id: 'feet', label: 'Pies' },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => focusBodyZone(item.id)}
+                      title={`Enfocar: ${item.label}`}
+                      className="px-2 py-0.5 rounded-full text-[9.5px] font-bold text-[#52280f] hover:bg-[#f2d6a6] transition-colors cursor-pointer text-center"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+
+                  {/* Vertical Head-to-Toe Pan Slider (active whenever zoomed or exploring body) */}
+                  <div className="flex flex-col items-center pt-1 pb-0.5 border-t border-[#d8b07b]/55">
+                    <span className="text-[8px] font-bold text-[#7c461f] leading-none">▲</span>
+                    <input
+                      type="range"
+                      min={-getPanLimits(Math.max(1.2, zoom)).maxPanY}
+                      max={getPanLimits(Math.max(1.2, zoom)).maxPanY}
+                      step={4}
+                      value={pan.y}
+                      onChange={(e) => {
+                        const nextY = Number(e.target.value);
+                        setPan((prev) => ({ ...prev, y: nextY }));
+                      }}
+                      aria-label="Desplazar modelo de la cabeza hasta los pies"
+                      title="Desliza para recorrer el modelo desde la cabeza hasta los pies"
+                      style={{
+                        writingMode: 'vertical-lr',
+                        direction: 'rtl',
+                      }}
+                      className="h-24 w-4 accent-[#c78016] cursor-ns-resize my-1"
+                    />
+                    <span className="text-[8px] font-bold text-[#7c461f] leading-none">▼</span>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* UNIFIED FIGURE + RUG UNIT: Both rug and model scale together across all poses */}

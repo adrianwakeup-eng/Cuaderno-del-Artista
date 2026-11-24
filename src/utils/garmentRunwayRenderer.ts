@@ -214,7 +214,7 @@ export async function renderSkinSafeRunwayImage(
   srcUrl: string,
   maskUrl: string | undefined,
   grade: (RunwayColorGrade & { exactDye?: boolean }) | null | undefined,
-  maxWidth = 1280,
+  maxWidth = 1800,
   skinTone?: SkinToneGrade | null
 ): Promise<string> {
   const hasGarmentGrade = Boolean(grade && !isGradeIdentity(grade));
@@ -288,8 +288,31 @@ export async function renderSkinSafeRunwayImage(
     }
   }
 
+  // Normalized chromaticity ratio of the target skin tone for natural subsurface scattering
   const [skinTr, skinTg, skinTb] = skinTone ? hexToRgb(skinTone.targetHex) : [216, 162, 118];
-  const [skinTargetH, skinTargetS, skinTargetL] = rgbToHsl(skinTr, skinTg, skinTb);
+  const skinTargetLum = Math.max(0.12, (0.299 * skinTr + 0.587 * skinTg + 0.114 * skinTb) / 255);
+  const skinRatioR = (skinTr / 255) / skinTargetLum;
+  const skinRatioG = (skinTg / 255) / skinTargetLum;
+  const skinRatioB = (skinTb / 255) / skinTargetLum;
+
+  // Compute source skin mean luminance once when skin grading is active so melanin remapping is 100% photographic
+  let srcSkinMeanLum = 0.58;
+  if (hasSkinTone) {
+    let sSum = 0;
+    let sCnt = 0;
+    for (let i = 0; i < data.length; i += 20) {
+      if (data[i + 3] < 80) continue;
+      if (maskData && maskData[i] > 80) continue;
+      const sw = computeSkinLikelihood(data[i], data[i + 1], data[i + 2]);
+      if (sw > 0.45) {
+        sSum += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) / 255;
+        sCnt++;
+      }
+    }
+    if (sCnt > 30) {
+      srcSkinMeanLum = Math.max(0.32, Math.min(0.78, sSum / sCnt));
+    }
+  }
 
   for (let i = 0; i < data.length; i += 4) {
     const alpha = data[i + 3];
@@ -303,11 +326,20 @@ export async function renderSkinSafeRunwayImage(
 
     // 1. EXACT HYPERREALISTIC GARMENT YARN DYEING
     if (hasGarmentGrade && mWeightRaw > 0.02) {
-      // Extra skin-edge guard: prevents even 1-2px of dye bleeding onto wrists, neck, or hands!
+      // Protect skin near edges AND protect crisp white cotton undershirts inside open crochet shirts!
       let mWeight = mWeightRaw;
-      if (maskData && mWeight < 0.78) {
+      if (maskData && mWeight < 0.80) {
         const skinEdge = computeSkinLikelihood(r0, g0, b0);
-        mWeight *= 1 - skinEdge * 0.85;
+        mWeight *= 1 - skinEdge * 0.88;
+      }
+      if (exactDye && targetL < 0.78) {
+        const lumCheck = (0.299 * r0 + 0.587 * g0 + 0.114 * b0) / 255;
+        const chromaCheck = Math.max(r0, g0, b0) - Math.min(r0, g0, b0);
+        // Smoothly protect pure bright white inner tank/undershirt cotton pixels while dyeing crochet yarn
+        if (lumCheck > 0.84 && chromaCheck < 16) {
+          const whiteProtect = Math.min(1, (lumCheck - 0.84) / 0.09) * (1 - chromaCheck / 16);
+          mWeight *= 1 - whiteProtect * 0.82;
+        }
       }
 
       if (mWeight > 0.02) {
@@ -317,23 +349,22 @@ export async function renderSkinSafeRunwayImage(
         let b1: number;
 
         if (exactDye) {
-          // Exact luminance-preserving fabric dye: preserves every crochet knot shadow & highlight
-          // while hitting the EXACT chosen modern fashion color (even crisp whites & vivid pastels!)
+          // Exact luminance-preserving fabric dye with crisp crochet yarn stitch relief & specular sheen
           const lum0 = (0.299 * r0 + 0.587 * g0 + 0.114 * b0) / 255;
-          const deltaL = lum0 - garmentMeanLum;
-          const reliefGain = targetL > 0.78 ? 0.52 : targetL < 0.22 ? 0.48 : 0.78;
-          const mappedL = Math.max(0.04, Math.min(0.97, targetL + deltaL * reliefGain));
-          // Slightly lift saturation in midtones & preserve crisp neutral whites/blacks
+          const deltaL = (lum0 - garmentMeanLum) * 1.08;
+          const reliefGain = targetL > 0.80 ? 0.56 : targetL < 0.22 ? 0.52 : 0.84;
+          const mappedL = Math.max(0.035, Math.min(0.975, targetL + deltaL * reliefGain));
+          // Natural yarn fiber specular highlight roll-off (bright highlights subtly desaturate like real cotton!)
+          const specRoll = mappedL > 0.78 ? 1 - (mappedL - 0.78) * 1.15 : 1;
           const mappedS =
             targetS < 0.09
-              ? Math.min(0.08, s0 * 0.22)
+              ? Math.min(0.07, s0 * 0.2)
               : Math.max(
-                  0.04,
-                  Math.min(0.98, targetS * (0.86 + Math.min(0.24, s0 * 0.32)))
+                  0.03,
+                  Math.min(0.98, targetS * specRoll * (0.88 + Math.min(0.24, s0 * 0.30)))
                 );
           [r1, g1, b1] = hslToRgb(targetH, mappedS, mappedL);
-          // Blend at high precision (tintStrength ~0.92 for exact dye)
-          const dyeAmt = Math.max(0.84, Math.min(0.96, tintStrength));
+          const dyeAmt = Math.max(0.88, Math.min(0.97, tintStrength));
           r1 = Math.round(r0 * (1 - dyeAmt) + r1 * dyeAmt);
           g1 = Math.round(g0 * (1 - dyeAmt) + g1 * dyeAmt);
           b1 = Math.round(b0 * (1 - dyeAmt) + b1 * dyeAmt);
@@ -362,22 +393,44 @@ export async function renderSkinSafeRunwayImage(
       }
     }
 
-    // 2. HYPERREALISTIC SKIN TONE PALETTE GRADING (strictly outside garment mask!)
-    if (hasSkinTone && skinTone && (!maskData || mWeightRaw < 0.32)) {
+    // 2. PHOTOGRAPHIC MELANIN-CURVE + SUBSURFACE SCATTERING SKIN TONE ENGINE
+    if (hasSkinTone && skinTone && (!maskData || mWeightRaw < 0.30)) {
       const skinW = computeSkinLikelihood(r0, g0, b0) * (maskData ? 1 - mWeightRaw : 1);
       if (skinW > 0.03) {
-        const [sh0, ss0, sl0] = rgbToHsl(r0, g0, b0);
-        // Smooth hue shift toward target undertone + photographic lightness curve preserving muscle definition
-        const hDiff = ((skinTargetH - sh0 + 1.5) % 1) - 0.5;
-        const sh1 = (sh0 + hDiff * 0.65 + 1) % 1;
-        const ss1 = Math.max(0.06, Math.min(0.76, ss0 * skinTone.satScale * 0.68 + skinTargetS * 0.32));
-        // Gamma-like luminance mapping so skin shadows remain velvety and highlights stay warm & natural
-        const sl1 = Math.max(
-          0.08,
-          Math.min(0.95, Math.pow(sl0, 1 / Math.max(0.45, skinTone.lightScale)) * 0.72 + skinTargetL * (0.28 + (sl0 - 0.55) * 0.35))
+        const yOrig = (0.299 * r0 + 0.587 * g0 + 0.114 * b0) / 255;
+        // Preserve organic specular skin sheen on shoulders, cheekbones & collarbones
+        const specSheen = Math.max(0, Math.min(1, (yOrig - 0.66) / 0.28));
+        // Melanin perceptual luminance mapping centered around actual source skin mean
+        const relShade = (yOrig - srcSkinMeanLum) / Math.max(0.22, srcSkinMeanLum);
+        const yGamma = Math.pow(Math.max(0.02, yOrig), 1 / Math.max(0.42, skinTone.lightScale));
+        const yMapped = Math.max(
+          0.05,
+          Math.min(
+            0.96,
+            skinTargetLum * (1 + relShade * (skinTargetLum < 0.38 ? 0.58 : 0.72)) * 0.56 +
+              yGamma * 0.44 +
+              specSheen * (skinTargetLum < 0.45 ? 0.085 : 0.04)
+          )
         );
-        const [sr1, sg1, sb1] = hslToRgb(sh1, ss1, sl1);
-        const blend = skinW * 0.88;
+
+        // Reconstruct natural human undertone with warm subsurface shadow glow & neutral specular lift
+        const subWarmR = (1 - yMapped) * 0.055;
+        const subCoolB = specSheen * 0.045;
+        const srFloat = yMapped * (skinRatioR + subWarmR) * (1 - specSheen * 0.14) + yMapped * specSheen * 0.14;
+        const sgFloat = yMapped * skinRatioG * (1 - specSheen * 0.12) + yMapped * specSheen * 0.12;
+        const sbFloat = yMapped * (skinRatioB + subCoolB) * (1 - specSheen * 0.10) + yMapped * specSheen * 0.10;
+
+        // Blend chromaticity smoothly so natural skin micro-variations (blush, joints, veins, pores) remain alive!
+        const origLumSafe = Math.max(0.05, yOrig);
+        const microR = (r0 / 255 / origLumSafe - skinRatioR) * 0.24;
+        const microG = (g0 / 255 / origLumSafe - skinRatioG) * 0.24;
+        const microB = (b0 / 255 / origLumSafe - skinRatioB) * 0.24;
+
+        const sr1 = Math.max(0, Math.min(255, Math.round((srFloat + yMapped * microR) * 255)));
+        const sg1 = Math.max(0, Math.min(255, Math.round((sgFloat + yMapped * microG) * 255)));
+        const sb1 = Math.max(0, Math.min(255, Math.round((sbFloat + yMapped * microB) * 255)));
+
+        const blend = skinW * 0.92;
         r0 = Math.round(r0 * (1 - blend) + sr1 * blend);
         g0 = Math.round(g0 * (1 - blend) + sg1 * blend);
         b0 = Math.round(b0 * (1 - blend) + sb1 * blend);
