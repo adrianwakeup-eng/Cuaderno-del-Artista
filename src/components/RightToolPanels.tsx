@@ -180,6 +180,7 @@ export interface RightStudioDockProps {
   notebookMode?: 'book' | 'mandalas';
   onOpenMandalasSection?: () => void;
   onOpenBookSection?: () => void;
+  onOpenVestidor?: () => void;
   onToggleLayerVisibility: (layer: keyof LayerVisibility) => void;
   onCyclePaperStyle: () => void;
   onLayerAction: (action: LayerAction) => void;
@@ -910,6 +911,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
   notebookMode = 'book',
   onOpenMandalasSection,
   onOpenBookSection,
+  onOpenVestidor,
   onToggleLayerVisibility,
   onCyclePaperStyle,
   onLayerAction,
@@ -1219,8 +1221,8 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
           </div>
         </div>
 
-        {/* Merged Navigation Strip (formerly on far-right rail) */}
-        <div className="grid grid-cols-5 gap-1 pt-0.5 border-t border-[#b98241]/25">
+        {/* Merged Navigation Strip (Libro + Vestidor Real + Patrones + Fuentes + Mandala + Ajustes) */}
+        <div className="grid grid-cols-6 gap-0.5 pt-0.5 border-t border-[#b98241]/25">
           <StudioToolTile
             pillId="studio-nav-pill"
             icon={<BookOpen className="w-3.5 h-3.5" />}
@@ -1230,6 +1232,20 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
               audioEngine.playStitchClick();
               onOpenBookSection?.();
               onGoToSection('cuaderno');
+            }}
+          />
+          <StudioToolTile
+            pillId="studio-nav-pill"
+            icon={<DoorOpen className="w-3.5 h-3.5 text-[#ffd878]" />}
+            label="Vestidor"
+            active={activeSection === 'armario' || activeSection === 'vestidor'}
+            onClick={() => {
+              if (onOpenVestidor) {
+                onOpenVestidor();
+              } else {
+                audioEngine.playWardrobeDoor(true);
+                onGoToSection('armario');
+              }
             }}
           />
           <StudioToolTile

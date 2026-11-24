@@ -41,14 +41,24 @@ function normalizeLoadedWorkspace(raw: Partial<NotebookWorkspaceData>): Notebook
     merged.deskNotes = INITIAL_DESK_NOTES;
   }
   merged.mannequinsSeededV1 = true;
-  if (!raw.wardrobeSeededV1 && Array.isArray(merged.spreads)) {
-    const alreadyHasWardrobe = merged.spreads.some((sp) =>
-      sp.elements.some((el) => el.type === 'wardrobe')
-    );
-    if (!alreadyHasWardrobe) {
-      merged.spreads = [INITIAL_WARDROBE_SPREAD, ...merged.spreads];
-    }
-    merged.wardrobeSeededV1 = true;
+  merged.wardrobeSeededV1 = true;
+  // Migrate legacy embedded notebook wardrobe into the dedicated full-screen "Vestidor" section
+  if (!raw.wardrobeMovedToSectionV1 && Array.isArray(merged.spreads)) {
+    const cleaned = merged.spreads
+      .map((sp) => ({
+        ...sp,
+        elements: sp.elements.filter((el) => el.type !== 'wardrobe'),
+      }))
+      .filter((sp) => {
+        if (sp.id === 'spread-armario') {
+          const hasUserContent =
+            sp.elements.length > 0 || Boolean(sp.leftDrawingDataUrl) || Boolean(sp.rightDrawingDataUrl);
+          return hasUserContent;
+        }
+        return true;
+      });
+    merged.spreads = cleaned.length > 0 ? cleaned : [...DEFAULT_WORKSPACE.spreads];
+    merged.wardrobeMovedToSectionV1 = true;
   }
   if (!raw.removedDefaultMannequinsV1 && Array.isArray(merged.spreads)) {
     merged.spreads = merged.spreads.map((sp) => {

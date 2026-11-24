@@ -5,6 +5,8 @@ import type { User } from 'firebase/auth';
 import { CoverScreen } from './components/CoverScreen';
 import { BackgroundTurntablePill } from './components/CoverTurntable';
 import { CrochetTransition } from './components/CrochetTransition';
+import { CrochetVestidorTransition } from './components/CrochetVestidorTransition';
+import { RoyalWardrobeRoomView } from './components/RoyalWardrobeRoomView';
 import {
   RightStudioDock,
   type LayerAction,
@@ -66,7 +68,15 @@ export default function App() {
   // View state: 'cover' -> 'studio' with full-screen yarn-burst transition overlay
   const [bookState, setBookState] = useState<'cover' | 'transitioning' | 'studio'>('cover');
   const [bookOpeningTransition, setBookOpeningTransition] = useState(false);
+  const [vestidorTransitionActive, setVestidorTransitionActive] = useState(false);
   const [activeSection, setActiveSection] = useState<StudioSection>('cuaderno');
+
+  const handleOpenVestidorWithMagic = useCallback(() => {
+    if (vestidorTransitionActive) return;
+    audioEngine.playMagicChime(true);
+    setShowMobileDock(false);
+    setVestidorTransitionActive(true);
+  }, [vestidorTransitionActive]);
   const [vestidorSeason, setVestidorSeason] = useState<WardrobeSeasonId>('primavera');
   const [notebookMode, setNotebookMode] = useState<'book' | 'mandalas'>('book');
   const [currentSpreadIndex, setCurrentSpreadIndex] = useState(() =>
@@ -1240,6 +1250,16 @@ export default function App() {
               />
             )}
 
+            {activeSection === 'armario' && (
+              <RoyalWardrobeRoomView
+                onSelectSeason={(season) => {
+                  setVestidorSeason(season);
+                  setActiveSection('vestidor');
+                }}
+                onBackToNotebook={() => setActiveSection('cuaderno')}
+              />
+            )}
+
             {activeSection === 'vestidor' && (
               <GoldenDressingRoomView
                 activeSeason={vestidorSeason}
@@ -1308,6 +1328,7 @@ export default function App() {
                   showToast(`Prenda y ficha llevadas al cuaderno: ${garment.name}`);
                 }}
                 onBackToNotebook={() => setActiveSection('cuaderno')}
+                onBackToWardrobe={() => setActiveSection('armario')}
                 onNotify={showToast}
               />
             )}
@@ -1330,8 +1351,8 @@ export default function App() {
             )}
           </main>
 
-          {/* UNIFIED RIGHT STUDIO DOCK (Desktop inline + Mobile slide drawer — hidden in Vestidor Dorado) */}
-          {!focusMode && activeSection !== 'vestidor' && (
+          {/* UNIFIED RIGHT STUDIO DOCK (hidden in full-screen Royal Wardrobe & Atelier Vestidor) */}
+          {!focusMode && activeSection !== 'vestidor' && activeSection !== 'armario' && (
             <>
               {/* Desktop Unified Right Studio Dock */}
               <div className="relative z-30 hidden lg:flex h-full shrink-0">
@@ -1378,6 +1399,7 @@ export default function App() {
                     setActiveSection('cuaderno');
                     setNotebookMode('book');
                   }}
+                  onOpenVestidor={handleOpenVestidorWithMagic}
                   onToggleLayerVisibility={(layer) =>
                     setLayerVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))
                   }
@@ -1539,6 +1561,7 @@ export default function App() {
                           setActiveSection('cuaderno');
                           setNotebookMode('book');
                         }}
+                        onOpenVestidor={handleOpenVestidorWithMagic}
                         onToggleLayerVisibility={(layer) =>
                           setLayerVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))
                         }
@@ -1656,6 +1679,12 @@ export default function App() {
         }}
         onInsertDriveImage={handleNotebookImageFile}
         onNotify={showToast}
+      />
+
+      <CrochetVestidorTransition
+        active={vestidorTransitionActive}
+        onRevealWardrobe={() => setActiveSection('armario')}
+        onComplete={() => setVestidorTransitionActive(false)}
       />
 
       {bookState !== 'cover' && <BackgroundTurntablePill />}

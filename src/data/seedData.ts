@@ -146,7 +146,6 @@ export const INITIAL_WARDROBE_SPREAD: NotebookSpread = {
 };
 
 export const INITIAL_SPREADS: NotebookSpread[] = [
-  INITIAL_WARDROBE_SPREAD,
   {
     id: 'spread-1',
     title: 'Portada Interior y Notas de Encaje',

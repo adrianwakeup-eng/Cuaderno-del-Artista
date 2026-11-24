@@ -8,6 +8,7 @@ export type StudioSection =
   | 'marcos'
   | 'fuentes'
   | 'pinceles'
+  | 'armario'
   | 'vestidor'
   | 'configuracion';
 
@@ -450,6 +451,7 @@ export interface NotebookWorkspaceData {
   mannequinsFullBody360V1?: boolean;
   removedDefaultMannequinsV1?: boolean;
   wardrobeSeededV1?: boolean;
+  wardrobeMovedToSectionV1?: boolean;
   wardrobeItems?: DressingRoomGarment[];
   extractedMandalas?: Record<string, ExtractedMandalaRecord>;
   hiddenCatalogSpreadIds?: string[];

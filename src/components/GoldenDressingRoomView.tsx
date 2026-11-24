@@ -125,6 +125,7 @@ interface GoldenDressingRoomViewProps {
   onSelectBrushColor: (hex: string) => void;
   onPinGarmentToNotebook: (garment: DressingRoomGarment) => void;
   onBackToNotebook: () => void;
+  onBackToWardrobe?: () => void;
   onNotify: (msg: string) => void;
 }
 
@@ -134,6 +135,7 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
   onSelectBrushColor,
   onPinGarmentToNotebook,
   onBackToNotebook,
+  onBackToWardrobe,
   onNotify,
 }) => {
   const rootStageRef = useRef<HTMLDivElement>(null);
@@ -1022,29 +1024,45 @@ export const GoldenDressingRoomView: React.FC<GoldenDressingRoomViewProps> = ({
       ===================================================================== */}
       {!cleanPhotoMode && (
         <header className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-5 lg:px-6 pt-1.5 pb-1 shrink-0">
-          {/* Left Carved Wood Plaque: Back to Cuaderno del Artista Crochet */}
-          <button
-            type="button"
-            onClick={() => {
-              playSfx('doorClose');
-              onBackToNotebook();
-            }}
-            title="Volver al Cuaderno del Artista"
-            style={WOOD_PLAQUE_STYLE}
-            className="group relative flex items-center gap-2 px-2 sm:px-3 py-0.5 cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none sm:ml-10 lg:ml-12 shrink-0"
-          >
-            <span className="w-5 h-5 rounded-full bg-[#361808]/75 group-hover:bg-[#8a4d24] border border-[#f5d28c]/75 flex items-center justify-center text-[#ffe9b4] shrink-0 transition-colors">
-              <ArrowLeft className="w-3 h-3" />
-            </span>
-            <div className="leading-tight text-left">
-              <p className="font-editorial italic text-xs sm:text-sm lg:text-[15px] font-bold text-[#fff4dc] group-hover:text-white whitespace-nowrap drop-shadow-[0_2px_4px_rgba(20,8,2,0.85)]">
-                Cuaderno del Artista
-              </p>
-              <p className="font-editorial italic text-[11px] sm:text-xs text-[#f7dbb0] -mt-0.5 text-center drop-shadow-[0_1px_3px_rgba(20,8,2,0.85)]">
-                Crochet
-              </p>
-            </div>
-          </button>
+          {/* Left Carved Wood Plaque: Back to Cuaderno & Royal 4-Season Wardrobe */}
+          <div className="flex items-center gap-1.5 sm:ml-10 lg:ml-12 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                playSfx('doorClose');
+                onBackToNotebook();
+              }}
+              title="Volver al Cuaderno del Artista"
+              style={WOOD_PLAQUE_STYLE}
+              className="group relative flex items-center gap-2 px-2 sm:px-3 py-0.5 cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none shrink-0"
+            >
+              <span className="w-5 h-5 rounded-full bg-[#361808]/75 group-hover:bg-[#8a4d24] border border-[#f5d28c]/75 flex items-center justify-center text-[#ffe9b4] shrink-0 transition-colors">
+                <ArrowLeft className="w-3 h-3" />
+              </span>
+              <div className="leading-tight text-left">
+                <p className="font-editorial italic text-xs sm:text-sm lg:text-[15px] font-bold text-[#fff4dc] group-hover:text-white whitespace-nowrap drop-shadow-[0_2px_4px_rgba(20,8,2,0.85)]">
+                  Cuaderno del Artista
+                </p>
+                <p className="font-editorial italic text-[11px] sm:text-xs text-[#f7dbb0] -mt-0.5 text-center drop-shadow-[0_1px_3px_rgba(20,8,2,0.85)]">
+                  Crochet
+                </p>
+              </div>
+            </button>
+
+            {onBackToWardrobe && (
+              <button
+                type="button"
+                onClick={() => {
+                  playSfx('doorClose');
+                  onBackToWardrobe();
+                }}
+                title="Volver al Armario Real de las Cuatro Estaciones"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border-2 border-[#c8945e] bg-[#4a2611]/92 hover:bg-[#623318] text-[#ffecc2] text-[11px] font-bold shadow-md cursor-pointer transition-colors whitespace-nowrap"
+              >
+                <span>Armario</span>
+              </button>
+            )}
+          </div>
 
           {/* Center Carved Wood Plaque: El Vestidor Dorado / Colección Crochet Fuentes Nazco */}
           <div
