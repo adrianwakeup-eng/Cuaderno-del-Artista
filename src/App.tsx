@@ -1177,7 +1177,7 @@ export default function App() {
                     rotation: 0,
                     frameStyle: 'minimal',
                   });
-                  showToast(`GIF animado pegado: ${title}`);
+                  showToast(`Sticker HD pegado: ${title}`);
                 }}
                 onNotify={showToast}
                 onReturnToNotebook={() => setActiveSection('cuaderno')}

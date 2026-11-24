@@ -1492,6 +1492,872 @@ export function renderCrochetGifFrame({
       break;
     }
 
+    case 'crochet-sweater': {
+      ctx.save();
+      ctx.translate(C, C + 4);
+      // Sleeves + body silhouette
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = 'rgba(42,18,8,0.55)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-22, -40);
+      ctx.lineTo(22, -40);
+      ctx.lineTo(54, -18);
+      ctx.lineTo(44, 24);
+      ctx.lineTo(28, 20);
+      ctx.lineTo(28, 42);
+      ctx.lineTo(-28, 42);
+      ctx.lineTo(-28, 20);
+      ctx.lineTo(-44, 24);
+      ctx.lineTo(-54, -18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Ribbed collar & hem
+      ctx.fillStyle = c2;
+      ctx.beginPath();
+      ctx.roundRect(-20, -44, 40, 11, 5);
+      ctx.roundRect(-28, 35, 56, 9, 3);
+      ctx.fill();
+      ctx.stroke();
+      // Cable-knit diamonds down chest
+      ctx.strokeStyle = c4;
+      ctx.lineWidth = 2.4;
+      for (let row = -20; row <= 22; row += 14) {
+        for (const col of [-14, 0, 14]) {
+          ctx.beginPath();
+          ctx.moveTo(col, row - 5);
+          ctx.lineTo(col + 5, row);
+          ctx.lineTo(col, row + 5);
+          ctx.lineTo(col - 5, row);
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'granny-cardigan': {
+      ctx.save();
+      ctx.translate(C, C + 4);
+      // Cardigan body + open sleeves
+      ctx.fillStyle = c4;
+      ctx.strokeStyle = 'rgba(42,18,8,0.55)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-24, -40);
+      ctx.lineTo(24, -40);
+      ctx.lineTo(52, -16);
+      ctx.lineTo(44, 28);
+      ctx.lineTo(30, 24);
+      ctx.lineTo(30, 44);
+      ctx.lineTo(-30, 44);
+      ctx.lineTo(-30, 24);
+      ctx.lineTo(-44, 28);
+      ctx.lineTo(-52, -16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // 2x3 Granny square patchwork grid
+      const sqCols = [c1, c2, c3, c2, c3, c1];
+      let idx = 0;
+      for (const gy of [-24, -2, 20]) {
+        for (const gx of [-22, 6]) {
+          ctx.fillStyle = sqCols[idx % sqCols.length];
+          ctx.fillRect(gx, gy, 16, 16);
+          ctx.strokeStyle = c4;
+          ctx.lineWidth = 1.6;
+          ctx.strokeRect(gx, gy, 16, 16);
+          ctx.fillStyle = c2;
+          ctx.beginPath();
+          ctx.arc(gx + 8, gy + 8, 3.6, 0, TAU);
+          ctx.fill();
+          idx++;
+        }
+      }
+      // Center placket & buttons
+      ctx.fillStyle = c1;
+      ctx.fillRect(-3.5, -40, 7, 84);
+      for (const by of [-24, -6, 12, 30]) {
+        ctx.fillStyle = c2;
+        ctx.beginPath();
+        ctx.arc(0, by, 2.8, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'bucket-hat': {
+      ctx.save();
+      ctx.translate(C, C + 6);
+      // Wide ruffled brim
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = 'rgba(42,18,8,0.55)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.ellipse(0, 18, 52, 18, 0, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      // Crown dome
+      ctx.beginPath();
+      ctx.moveTo(-34, 14);
+      ctx.lineTo(-27, -26);
+      ctx.quadraticCurveTo(0, -36, 27, -26);
+      ctx.lineTo(34, 14);
+      ctx.quadraticCurveTo(0, 24, -34, 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Contrast crochet stripe band + mini flower
+      ctx.fillStyle = c2;
+      ctx.beginPath();
+      ctx.moveTo(-32, 0);
+      ctx.quadraticCurveTo(0, 9, 32, 0);
+      ctx.lineTo(34, 12);
+      ctx.quadraticCurveTo(0, 21, -34, 12);
+      ctx.closePath();
+      ctx.fill();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU;
+        ctx.fillStyle = c4;
+        ctx.beginPath();
+        ctx.arc(14 + Math.cos(a) * 5.5, 8 + Math.sin(a) * 5.5, 3.2, 0, TAU);
+        ctx.fill();
+      }
+      ctx.fillStyle = c3;
+      ctx.beginPath();
+      ctx.arc(14, 8, 3.2, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+
+    case 'crochet-tote': {
+      ctx.save();
+      ctx.translate(C, C + 6);
+      // Braided handles
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 6.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, -18, 22, Math.PI, 0);
+      ctx.stroke();
+      ctx.strokeStyle = c4;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(0, -18, 22, Math.PI, 0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Bag body
+      ctx.fillStyle = c2;
+      ctx.strokeStyle = 'rgba(42,18,8,0.55)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.roundRect(-38, -18, 76, 62, [6, 6, 16, 16]);
+      ctx.fill();
+      ctx.stroke();
+      // Woven crochet stripes
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 2;
+      for (let y = -6; y <= 34; y += 10) {
+        ctx.beginPath();
+        ctx.moveTo(-34, y);
+        ctx.lineTo(34, y);
+        ctx.stroke();
+      }
+      // Center granny flower patch
+      for (let i = 0; i < 8; i++) {
+        drawFlowerPetal(ctx, (i / 8) * TAU, 12, 8, 4.5, c1, c3);
+      }
+      ctx.fillStyle = c4;
+      ctx.beginPath();
+      ctx.arc(0, 12, 6, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+
+    case 'baby-booties': {
+      ctx.save();
+      ctx.translate(C, C + 8);
+      // Sole
+      ctx.fillStyle = c4;
+      ctx.strokeStyle = 'rgba(42,18,8,0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-42, 16, 84, 14, 7);
+      ctx.fill();
+      ctx.stroke();
+      // Bootie body
+      ctx.fillStyle = c1;
+      ctx.beginPath();
+      ctx.moveTo(-36, 18);
+      ctx.lineTo(-34, -26);
+      ctx.lineTo(6, -26);
+      ctx.lineTo(10, -4);
+      ctx.quadraticCurveTo(42, -4, 42, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Folded knit cuff
+      ctx.fillStyle = c2;
+      ctx.beginPath();
+      ctx.roundRect(-38, -32, 48, 16, 6);
+      ctx.fill();
+      ctx.stroke();
+      // Strap & golden button
+      ctx.fillStyle = c2;
+      ctx.beginPath();
+      ctx.roundRect(-8, -2, 26, 9, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = c3;
+      ctx.beginPath();
+      ctx.arc(12, 2.5, 4.5, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+
+    case 'cozy-scarf': {
+      ctx.save();
+      ctx.translate(C, C);
+      // Draping scarf tails
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = 'rgba(42,18,8,0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-34, -14, 24, 58, 6);
+      ctx.roundRect(8, -14, 24, 48, 6);
+      ctx.fill();
+      ctx.stroke();
+      // Contrast stripes on tails
+      ctx.fillStyle = c2;
+      ctx.fillRect(-33, 8, 22, 9);
+      ctx.fillRect(9, 4, 22, 9);
+      ctx.fillStyle = c3;
+      ctx.fillRect(-33, 22, 22, 8);
+      ctx.fillRect(9, 17, 22, 8);
+      // Wrapped neck loop
+      ctx.fillStyle = c1;
+      ctx.beginPath();
+      ctx.roundRect(-40, -34, 80, 26, 13);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = c4;
+      ctx.lineWidth = 2;
+      for (let x = -28; x <= 28; x += 14) {
+        ctx.beginPath();
+        ctx.moveTo(x, -32);
+        ctx.lineTo(x + 4, -10);
+        ctx.stroke();
+      }
+      // Fringe tassels
+      ctx.strokeStyle = c2;
+      ctx.lineWidth = 2.4;
+      for (let x = -31; x <= -13; x += 6) {
+        ctx.beginPath();
+        ctx.moveTo(x, 44);
+        ctx.lineTo(x, 54);
+        ctx.stroke();
+      }
+      for (let x = 11; x <= 29; x += 6) {
+        ctx.beginPath();
+        ctx.moveTo(x, 34);
+        ctx.lineTo(x, 44);
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'knit-beanie': {
+      ctx.save();
+      ctx.translate(C, C + 10);
+      // Fluffy pom-pom
+      ctx.fillStyle = c3;
+      ctx.strokeStyle = 'rgba(42,18,8,0.45)';
+      ctx.lineWidth = 1.8;
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * TAU;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * 6, -42 + Math.sin(a) * 6, 7.5, 0, TAU);
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(0, -42, 10, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      // Dome
+      ctx.fillStyle = c1;
+      ctx.beginPath();
+      ctx.arc(0, 10, 42, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Knit ribs
+      ctx.strokeStyle = c2;
+      ctx.lineWidth = 2;
+      for (const rx of [-26, -13, 0, 13, 26]) {
+        ctx.beginPath();
+        ctx.moveTo(rx * 0.45, -28);
+        ctx.quadraticCurveTo(rx * 1.1, -8, rx, 10);
+        ctx.stroke();
+      }
+      // Folded brim
+      ctx.fillStyle = c2;
+      ctx.beginPath();
+      ctx.roundRect(-45, 6, 90, 22, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 2;
+      for (let x = -34; x <= 34; x += 10) {
+        ctx.beginPath();
+        ctx.moveTo(x, 8);
+        ctx.lineTo(x, 26);
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'crochet-mittens': {
+      ctx.save();
+      ctx.translate(C, C + 4);
+      // Mitten silhouette
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = 'rgba(42,18,8,0.55)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.roundRect(-24, -44, 46, 68, [23, 23, 8, 8]);
+      ctx.fill();
+      ctx.stroke();
+      // Thumb
+      ctx.beginPath();
+      ctx.ellipse(26, -4, 15, 9, -0.55, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      // Ribbed cuff
+      ctx.fillStyle = c3;
+      ctx.beginPath();
+      ctx.roundRect(-27, 20, 52, 20, 6);
+      ctx.fill();
+      ctx.stroke();
+      // Embroidered heart
+      drawHeart(ctx, -2, -10, 22, c2);
+      ctx.restore();
+      break;
+    }
+
+    case 'crochet-dress': {
+      ctx.save();
+      ctx.translate(C, C + 2);
+      // Straps
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 4.5;
+      ctx.beginPath();
+      ctx.moveTo(-14, -46);
+      ctx.lineTo(-14, -28);
+      ctx.moveTo(14, -46);
+      ctx.lineTo(14, -28);
+      ctx.stroke();
+      // Bodice + flared lace skirt
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = 'rgba(42,18,8,0.52)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-20, -28);
+      ctx.lineTo(20, -28);
+      ctx.lineTo(15, -4);
+      ctx.lineTo(44, 44);
+      ctx.quadraticCurveTo(0, 52, -44, 44);
+      ctx.lineTo(-15, -4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Waist ribbon
+      ctx.fillStyle = c3;
+      ctx.fillRect(-16, -7, 32, 7);
+      // Scallop crochet tiers on skirt
+      ctx.strokeStyle = c2;
+      ctx.lineWidth = 2.2;
+      for (const [ty, hw] of [
+        [12, 24],
+        [28, 34],
+        [41, 41],
+      ] as Array<[number, number]>) {
+        ctx.beginPath();
+        for (let x = -hw; x < hw; x += 10) {
+          ctx.arc(x + 5, ty, 5, 0, Math.PI);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'crochet-bikini-top': {
+      ctx.save();
+      ctx.translate(C, C + 8);
+      // Neck & back ties
+      ctx.strokeStyle = c3;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-22, -26);
+      ctx.lineTo(-10, -48);
+      ctx.moveTo(22, -26);
+      ctx.lineTo(10, -48);
+      ctx.moveTo(-46, 12);
+      ctx.lineTo(46, 12);
+      ctx.stroke();
+      // Left & right crochet triangles
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = 'rgba(42,18,8,0.5)';
+      ctx.lineWidth = 2;
+      for (const sx of [-22, 22]) {
+        ctx.beginPath();
+        ctx.moveTo(sx, -28);
+        ctx.lineTo(sx + 21, 14);
+        ctx.lineTo(sx - 21, 14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Scallop shell rows
+        ctx.strokeStyle = c2;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(sx, -4, 9, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(42,18,8,0.5)';
+      }
+      // Hanging fringe tassels
+      ctx.strokeStyle = c3;
+      ctx.lineWidth = 2.4;
+      for (let x = -36; x <= 36; x += 9) {
+        ctx.beginPath();
+        ctx.moveTo(x, 14);
+        ctx.lineTo(x, 28 + (Math.abs(x) % 18 === 0 ? 5 : 0));
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'dreamcatcher': {
+      ctx.save();
+      ctx.translate(C, C - 12);
+      // Outer wooden-wrapped hoop
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 32, 0, TAU);
+      ctx.stroke();
+      // Radial crochet web
+      ctx.strokeStyle = c2;
+      ctx.lineWidth = 1.4;
+      for (let i = 0; i < 12; i++) {
+        const a1 = (i / 12) * TAU;
+        const a2 = ((i + 5) / 12) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a1) * 30, Math.sin(a1) * 30);
+        ctx.lineTo(Math.cos(a2) * 30, Math.sin(a2) * 30);
+        ctx.stroke();
+      }
+      ctx.fillStyle = c4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 5.5, 0, TAU);
+      ctx.fill();
+      // 3 hanging feathers with beads
+      for (const [fx, fy, len, col] of [
+        [-20, 26, 30, c3],
+        [0, 32, 38, c4],
+        [20, 26, 30, c3],
+      ] as Array<[number, number, number, string]>) {
+        ctx.strokeStyle = c1;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx, fy + len);
+        ctx.stroke();
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(fx, fy + len - 6, 5.5, 11, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = c2;
+        ctx.beginPath();
+        ctx.arc(fx, fy + 7, 3.2, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'macrame-wall': {
+      ctx.save();
+      ctx.translate(C, C);
+      // Hanging cord
+      ctx.strokeStyle = c4;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-36, -34);
+      ctx.lineTo(0, -52);
+      ctx.lineTo(36, -34);
+      ctx.stroke();
+      // Natural wooden dowel
+      ctx.fillStyle = c1;
+      ctx.beginPath();
+      ctx.roundRect(-48, -38, 96, 8, 4);
+      ctx.fill();
+      // Knotted macramé diamond tapestry
+      ctx.fillStyle = c2;
+      ctx.strokeStyle = c4;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(-36, -30);
+      ctx.lineTo(36, -30);
+      ctx.lineTo(36, 4);
+      ctx.lineTo(0, 34);
+      ctx.lineTo(-36, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Diamond lattice knots
+      ctx.strokeStyle = c3;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -24);
+      ctx.lineTo(18, -6);
+      ctx.lineTo(0, 12);
+      ctx.lineTo(-18, -6);
+      ctx.closePath();
+      ctx.stroke();
+      // Fringe cords
+      ctx.strokeStyle = c2;
+      ctx.lineWidth = 2.4;
+      for (let x = -32; x <= 32; x += 8) {
+        const startY = 34 - Math.abs(x) * 0.85;
+        ctx.beginPath();
+        ctx.moveTo(x, startY);
+        ctx.lineTo(x, startY + 20);
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'wooden-buttons': {
+      ctx.save();
+      ctx.translate(C, C);
+      const btns: Array<[number, number, number, string, string]> = [
+        [-20, -14, 24, c1, c3],
+        [24, -4, 21, c2, c1],
+        [-4, 24, 19, c3, c4],
+      ];
+      for (const [bx, by, br, fill, rim] of btns) {
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = rim;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(bx, by, br, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(bx, by, br - 5.5, 0, TAU);
+        ctx.stroke();
+        // 4 button holes
+        ctx.fillStyle = '#2a1208';
+        for (const [hx, hy] of [
+          [-4.5, -4.5],
+          [4.5, -4.5],
+          [-4.5, 4.5],
+          [4.5, 4.5],
+        ]) {
+          ctx.beginPath();
+          ctx.arc(bx + hx, by + hy, 2.3, 0, TAU);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'yarn-skein': {
+      ctx.save();
+      ctx.translate(C, C);
+      ctx.rotate(-0.28);
+      // Elongated skein body
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = 'rgba(42,18,8,0.52)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 48, 25, 0, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      // Strand texture lines
+      ctx.strokeStyle = c2;
+      ctx.lineWidth = 2;
+      for (let y = -15; y <= 15; y += 6) {
+        ctx.beginPath();
+        ctx.moveTo(-42, y);
+        ctx.quadraticCurveTo(0, y + (y > 0 ? 4 : -4), 42, y);
+        ctx.stroke();
+      }
+      // Gold atelier paper band
+      ctx.fillStyle = c3;
+      ctx.strokeStyle = '#5c3016';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.roundRect(-15, -26, 30, 52, 4);
+      ctx.fill();
+      ctx.stroke();
+      drawHeart(ctx, 0, 2, 13, c4);
+      ctx.restore();
+      break;
+    }
+
+    case 'vintage-sewing': {
+      ctx.save();
+      ctx.translate(C, C + 6);
+      // Base platform
+      ctx.fillStyle = c1;
+      ctx.strokeStyle = c2;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.roundRect(-48, 22, 96, 16, 6);
+      ctx.fill();
+      ctx.stroke();
+      // Sewing machine arch arm
+      ctx.beginPath();
+      ctx.moveTo(36, 22);
+      ctx.lineTo(36, -16);
+      ctx.quadraticCurveTo(36, -34, 14, -34);
+      ctx.lineTo(-26, -34);
+      ctx.lineTo(-34, -22);
+      ctx.lineTo(-34, 0);
+      ctx.lineTo(-20, 0);
+      ctx.lineTo(-16, -14);
+      ctx.lineTo(14, -14);
+      ctx.lineTo(14, 22);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Handwheel & spool on top
+      ctx.fillStyle = c2;
+      ctx.beginPath();
+      ctx.arc(38, -8, 12, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = c3;
+      ctx.beginPath();
+      ctx.roundRect(10, -48, 10, 14, 3);
+      ctx.fill();
+      // Needle
+      ctx.strokeStyle = c4;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-27, 0);
+      ctx.lineTo(-27, 20);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+
+    case 'crescent-moon': {
+      ctx.save();
+      ctx.translate(C, C);
+      // Crescent body
+      ctx.fillStyle = c2;
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 44, 0.55, TAU - 0.55);
+      ctx.arc(16, -4, 34, TAU - 0.85, 0.85, true);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Lace dots inside moon
+      ctx.fillStyle = c4;
+      for (const [dx, dy] of [
+        [-28, -14],
+        [-32, 4],
+        [-24, 22],
+        [-10, 32],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(dx, dy, 3.2, 0, TAU);
+        ctx.fill();
+      }
+      // Hanging golden stars
+      drawSparkle(ctx, 20, -24, 10, c3);
+      drawSparkle(ctx, 32, 4, 8, c2);
+      drawSparkle(ctx, 18, 26, 7, c4);
+      ctx.restore();
+      break;
+    }
+
+    case 'lavender-bouquet': {
+      ctx.save();
+      ctx.translate(C, C + 6);
+      // Stems
+      ctx.strokeStyle = c3;
+      ctx.lineWidth = 2.6;
+      const angles = [-0.32, -0.15, 0, 0.15, 0.32];
+      for (const a of angles) {
+        ctx.save();
+        ctx.rotate(a);
+        ctx.beginPath();
+        ctx.moveTo(0, 42);
+        ctx.lineTo(0, -44);
+        ctx.stroke();
+        // Lavender florets along top half
+        for (let y = -44; y <= -10; y += 7) {
+          ctx.fillStyle = y % 14 === 0 ? c1 : c2;
+          ctx.beginPath();
+          ctx.ellipse(-4, y, 3.8, 2.6, -0.5, 0, TAU);
+          ctx.ellipse(4, y + 2, 3.8, 2.6, 0.5, 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      // Satin ribbon bow tying stems
+      ctx.fillStyle = c4;
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(-11, 18, 11, 6, -0.3, 0, TAU);
+      ctx.ellipse(11, 18, 11, 6, 0.3, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 18, 5, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+
+    case 'cherry-blossom': {
+      ctx.save();
+      ctx.translate(C, C);
+      // 5 notched sakura petals
+      for (let i = 0; i < 5; i++) {
+        ctx.save();
+        ctx.rotate((i / 5) * TAU - Math.PI / 2);
+        ctx.fillStyle = i % 2 === 0 ? c1 : c2;
+        ctx.strokeStyle = c4;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(0, -6);
+        ctx.bezierCurveTo(-22, -20, -20, -48, -4, -46);
+        ctx.lineTo(0, -40);
+        ctx.lineTo(4, -46);
+        ctx.bezierCurveTo(20, -48, 22, -20, 0, -6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Golden stamens
+      ctx.strokeStyle = c3;
+      ctx.lineWidth = 1.8;
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * 16, Math.sin(a) * 16);
+        ctx.stroke();
+        ctx.fillStyle = c3;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * 17, Math.sin(a) * 17, 2.6, 0, TAU);
+        ctx.fill();
+      }
+      ctx.fillStyle = c4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 6.5, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+
+    case 'lotus-mandala': {
+      ctx.save();
+      ctx.translate(C, C);
+      // Outer lotus layer (12 petals)
+      for (let i = 0; i < 12; i++) {
+        drawFlowerPetal(ctx, (i / 12) * TAU, 36, 18, 9, i % 2 === 0 ? c1 : c2, c3);
+      }
+      // Mid lotus layer (8 petals)
+      for (let i = 0; i < 8; i++) {
+        drawFlowerPetal(ctx, (i / 8) * TAU + Math.PI / 8, 22, 13, 7, c4, c3);
+      }
+      // Inner jewel core
+      ctx.fillStyle = c3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawSparkle(ctx, 0, 0, 8, '#fff8e6');
+      ctx.restore();
+      break;
+    }
+
+    case 'artisan-tag': {
+      ctx.save();
+      ctx.translate(C, C + 4);
+      ctx.rotate(-0.14);
+      // Jute string loop
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, -44, 10, Math.PI * 0.65, Math.PI * 2.35);
+      ctx.stroke();
+      // Kraft tag body
+      ctx.fillStyle = c2;
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(-26, -24);
+      ctx.lineTo(-14, -38);
+      ctx.lineTo(14, -38);
+      ctx.lineTo(26, -24);
+      ctx.lineTo(26, 40);
+      ctx.lineTo(-26, 40);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Inner dashed stitch border
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(-20, -18, 40, 52);
+      ctx.setLineDash([]);
+      // Eyelet ring
+      ctx.fillStyle = c4;
+      ctx.beginPath();
+      ctx.arc(0, -28, 4.2, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      // Heart emblem + handcrafted lines
+      drawHeart(ctx, 0, 0, 20, c3);
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-12, 20);
+      ctx.lineTo(12, 20);
+      ctx.moveTo(-8, 26);
+      ctx.lineTo(8, 26);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+
     case 'floral-seal':
     default: {
       ctx.save();

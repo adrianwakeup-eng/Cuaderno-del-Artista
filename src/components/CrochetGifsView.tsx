@@ -13,40 +13,84 @@ import {
   type CrochetGifCategory,
   type CrochetGifDef,
 } from '../data/crochetGifs';
-import { encodeCrochetGif } from '../utils/crochetGifEncoder';
 import { renderCrochetGifFrame } from '../utils/crochetGifScenes';
+import { copyPngBlobToClipboard } from '../utils/garmentRunwayRenderer';
 import { audioEngine } from '../utils/audioEngine';
 
-const GIF_CATEGORIES: Array<'Todos' | CrochetGifCategory> = [
+const STILL_HERO_PROGRESS = 0.25;
+
+const STICKER_CATEGORIES: Array<'Todos' | CrochetGifCategory> = [
   'Todos',
+  'Prendas y Accesorios',
+  'Boho y Macramé',
   'Puntos y Ganchillo',
-  'Mandalas Animados',
+  'Mandalas de Taller',
   'Granny y Tapetes',
   'Flores Tejidas',
   'Amigurumi',
   'Notas del Cuaderno',
 ];
 
-const GifPreviewCanvas: React.FC<{
+const stillPngCache = new Map<string, string>();
+
+function renderStillStickerDataUrl(gif: CrochetGifDef, size = 512): string {
+  const key = `${gif.id}:${size}`;
+  const cached = stillPngCache.get(key);
+  if (cached) return cached;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    renderCrochetGifFrame(
+      {
+        scene: gif.scene,
+        colors: gif.colors,
+        variant: gif.variant ?? 0,
+        progress: STILL_HERO_PROGRESS,
+        size,
+        transparentBg: true,
+      },
+      ctx
+    );
+  }
+  const dataUrl = canvas.toDataURL('image/png');
+  if (stillPngCache.size > 160) {
+    const first = stillPngCache.keys().next().value;
+    if (first) stillPngCache.delete(first);
+  }
+  stillPngCache.set(key, dataUrl);
+  return dataUrl;
+}
+
+function renderStillStickerBlob(gif: CrochetGifDef, size = 512): Promise<Blob | null> {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return Promise.resolve(null);
+  renderCrochetGifFrame(
+    {
+      scene: gif.scene,
+      colors: gif.colors,
+      variant: gif.variant ?? 0,
+      progress: STILL_HERO_PROGRESS,
+      size,
+      transparentBg: true,
+    },
+    ctx
+  );
+  return new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
+}
+
+const StillStickerCanvas: React.FC<{
   gif: CrochetGifDef;
   size?: number;
   className?: string;
 }> = memo(({ gif, size = 140, className = '' }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        setIsVisible(entries.some((e) => e.isIntersecting));
-      },
-      { rootMargin: '120px' }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
+  const backingSize = size * 2; // Crisp Retina / 4K still sticker rendering
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -54,66 +98,32 @@ const GifPreviewCanvas: React.FC<{
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const prefersReduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-    if (prefersReduced || !isVisible) {
-      renderCrochetGifFrame(
-        {
-          scene: gif.scene,
-          colors: gif.colors,
-          variant: gif.variant ?? 0,
-          progress: 0.15,
-          size,
-          transparentBg: true,
-        },
-        ctx
-      );
-      return;
-    }
-
-    let rafId = 0;
-    let lastDraw = 0;
-    const frameIntervalMs = (gif.delayCs ?? 8) * 10; // match encoded GIF cadence
-    const cycleMs = frameIntervalMs * 12;
-
-    const tick = (now: number) => {
-      if (now - lastDraw >= frameIntervalMs) {
-        lastDraw = now;
-        const progress = (now % cycleMs) / cycleMs;
-        renderCrochetGifFrame(
-          {
-            scene: gif.scene,
-            colors: gif.colors,
-            variant: gif.variant ?? 0,
-            progress,
-            size,
-            transparentBg: true,
-          },
-          ctx
-        );
-      }
-      rafId = window.requestAnimationFrame(tick);
-    };
-
-    rafId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [gif, isVisible, size]);
+    renderCrochetGifFrame(
+      {
+        scene: gif.scene,
+        colors: gif.colors,
+        variant: gif.variant ?? 0,
+        progress: STILL_HERO_PROGRESS,
+        size: backingSize,
+        transparentBg: true,
+      },
+      ctx
+    );
+  }, [gif, backingSize]);
 
   return (
     <canvas
       ref={canvasRef}
-      width={size}
-      height={size}
+      width={backingSize}
+      height={backingSize}
       className={className}
       aria-label={gif.name}
     />
   );
 });
-GifPreviewCanvas.displayName = 'GifPreviewCanvas';
+StillStickerCanvas.displayName = 'StillStickerCanvas';
 
-const GifGridCard = memo<{
+const StickerGridCard = memo<{
   gif: CrochetGifDef;
   isCopied: boolean;
   onInsert: (gif: CrochetGifDef) => void;
@@ -126,15 +136,15 @@ const GifGridCard = memo<{
       <button
         type="button"
         onClick={() => onInsert(gif)}
-        title={`Pegar "${gif.name}" en el cuaderno`}
+        title={`Pegar sticker "${gif.name}" en el cuaderno`}
         className="relative w-28 h-28 flex items-center justify-center rounded-xl bg-[#fbf2de]/75 border border-[#c79d63]/40 hover:scale-[1.04] transition-transform cursor-pointer"
       >
-        <GifPreviewCanvas gif={gif} size={112} className="w-24 h-24" />
+        <StillStickerCanvas gif={gif} size={112} className="w-24 h-24" />
       </button>
       <button
         type="button"
         onClick={() => onPreview(gif)}
-        title="Ver GIF en grande"
+        title="Ver sticker en grande"
         aria-label={`Ampliar ${gif.name}`}
         className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-[#381d0e]/85 hover:bg-[#5c3118] text-[#ffebc2] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer shadow"
       >
@@ -156,7 +166,7 @@ const GifGridCard = memo<{
         type="button"
         onClick={() => onInsert(gif)}
         className="inline-flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg bg-gradient-to-b from-[#d1974c] to-[#9b6126] hover:brightness-105 text-[11px] font-medium text-white cursor-pointer shadow-sm"
-        title="Pegar GIF animado en el cuaderno"
+        title="Pegar sticker HD en el cuaderno"
       >
         <ClipboardPaste className="w-3 h-3 shrink-0" />
         <span>Pegar</span>
@@ -165,7 +175,7 @@ const GifGridCard = memo<{
         type="button"
         onClick={() => onCopy(gif)}
         className="inline-flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg bg-[#efe0bf] hover:bg-[#e5cf9f] border border-[#b58449]/45 text-[11px] font-medium text-[#4a220d] cursor-pointer"
-        title="Copiar GIF animado"
+        title="Copiar sticker PNG sin fondo"
       >
         {isCopied ? (
           <>
@@ -183,15 +193,15 @@ const GifGridCard = memo<{
         type="button"
         onClick={() => onDownload(gif)}
         className="inline-flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg bg-[#efe0bf] hover:bg-[#e5cf9f] border border-[#b58449]/45 text-[11px] font-medium text-[#4a220d] cursor-pointer"
-        title="Descargar archivo .gif"
+        title="Descargar sticker PNG HD sin fondo"
       >
         <Download className="w-3 h-3 shrink-0" />
-        <span>.GIF</span>
+        <span>.PNG</span>
       </button>
     </div>
   </article>
 ));
-GifGridCard.displayName = 'GifGridCard';
+StickerGridCard.displayName = 'StickerGridCard';
 
 export const CrochetGifsView: React.FC<{
   onInsertGif: (dataUrl: string, title: string) => void;
@@ -200,10 +210,10 @@ export const CrochetGifsView: React.FC<{
 }> = ({ onInsertGif, onNotify, onReturnToNotebook }) => {
   const [activeCategory, setActiveCategory] = useState<'Todos' | CrochetGifCategory>('Todos');
   const [searchQuery, setSearchQuery] = useState('');
-  const [visibleLimit, setVisibleLimit] = useState(40);
+  const [visibleLimit, setVisibleLimit] = useState(48);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewGif, setPreviewGif] = useState<CrochetGifDef | null>(null);
-  const [previewEncodedUrl, setPreviewEncodedUrl] = useState<string | null>(null);
+  const [previewPngUrl, setPreviewPngUrl] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const categoryCounts = useMemo(() => {
@@ -231,7 +241,7 @@ export const CrochetGifsView: React.FC<{
   }, [activeCategory, searchQuery]);
 
   useEffect(() => {
-    setVisibleLimit(40);
+    setVisibleLimit(48);
   }, [activeCategory, searchQuery]);
 
   const displayedGifs = useMemo(
@@ -245,7 +255,7 @@ export const CrochetGifsView: React.FC<{
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          setVisibleLimit((prev) => Math.min(filteredGifs.length, prev + 40));
+          setVisibleLimit((prev) => Math.min(filteredGifs.length, prev + 48));
         }
       },
       { rootMargin: '320px' }
@@ -256,18 +266,17 @@ export const CrochetGifsView: React.FC<{
 
   useEffect(() => {
     if (!previewGif) {
-      setPreviewEncodedUrl(null);
+      setPreviewPngUrl(null);
       return;
     }
-    const encoded = encodeCrochetGif(previewGif, { size: 160, frames: 12, transparentBg: true });
-    setPreviewEncodedUrl(encoded.dataUrl);
+    setPreviewPngUrl(renderStillStickerDataUrl(previewGif, 512));
   }, [previewGif]);
 
   const handleInsert = useCallback(
     (gif: CrochetGifDef) => {
       audioEngine.playYarnPluck(4);
-      const encoded = encodeCrochetGif(gif, { size: 128, frames: 12, transparentBg: true });
-      onInsertGif(encoded.dataUrl, gif.name);
+      const dataUrl = renderStillStickerDataUrl(gif, 512);
+      onInsertGif(dataUrl, gif.name);
     },
     [onInsertGif]
   );
@@ -275,45 +284,14 @@ export const CrochetGifsView: React.FC<{
   const handleCopy = useCallback(
     async (gif: CrochetGifDef) => {
       audioEngine.playStitchClick();
-      const encoded = encodeCrochetGif(gif, { size: 128, frames: 12, transparentBg: true });
-      let copiedImage = false;
-      try {
-        if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-          // Render crisp PNG frame as fallback alongside/if image/gif isn't permitted by browser
-          const canvas = document.createElement('canvas');
-          canvas.width = 160;
-          canvas.height = 160;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            renderCrochetGifFrame(
-              {
-                scene: gif.scene,
-                colors: gif.colors,
-                variant: gif.variant ?? 0,
-                progress: 0.15,
-                size: 160,
-                transparentBg: true,
-              },
-              ctx
-            );
-            const pngBlob = await new Promise<Blob | null>((resolve) =>
-              canvas.toBlob((b) => resolve(b), 'image/png')
-            );
-            if (pngBlob) {
-              await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-              copiedImage = true;
-            }
-          }
-        }
-      } catch {
-        // Fallback to copying dataUrl text below
-      }
+      const dataUrl = renderStillStickerDataUrl(gif, 512);
+      const copied = await copyPngBlobToClipboard(renderStillStickerBlob(gif, 512), dataUrl);
 
-      if (!copiedImage) {
+      if (!copied) {
         try {
-          await navigator.clipboard?.writeText(encoded.dataUrl);
+          await navigator.clipboard?.writeText(dataUrl);
         } catch {
-          // Ignore iframe clipboard restrictions
+          // Ignore clipboard restrictions
         }
       }
 
@@ -321,16 +299,17 @@ export const CrochetGifsView: React.FC<{
       window.setTimeout(() => {
         setCopiedId((cur) => (cur === gif.id ? null : cur));
       }, 1600);
-      onNotify?.(`GIF copiado: ${gif.name}`);
+      onNotify?.(`Sticker copiado: ${gif.name}`);
     },
     [onNotify]
   );
 
   const handleDownload = useCallback(
-    (gif: CrochetGifDef) => {
+    async (gif: CrochetGifDef) => {
       audioEngine.playSaveChime();
-      const encoded = encodeCrochetGif(gif, { size: 160, frames: 12, transparentBg: true });
-      const url = URL.createObjectURL(encoded.blob);
+      const blob = await renderStillStickerBlob(gif, 512);
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       const slug = gif.name
@@ -339,12 +318,12 @@ export const CrochetGifsView: React.FC<{
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
-      a.download = `${slug || gif.id}.gif`;
+      a.download = `${slug || gif.id}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-      onNotify?.(`Descargando ${a.download}`);
+      onNotify?.(`Descargando sticker ${a.download}`);
     },
     [onNotify]
   );
@@ -355,10 +334,10 @@ export const CrochetGifsView: React.FC<{
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="font-display text-xl text-[#f7e2b9]">
-              GIFs Animados de Crochet ({filteredGifs.length})
+              Stickers Ilustrados HD de Crochet ({filteredGifs.length})
             </h2>
             <p className="text-xs text-[#d6b688]">
-              Haz clic en cualquier animación para pegarla moviéndose en tu cuaderno, copiarla o descargar el archivo .gif
+              Stickers fijos en alta definición sin movimiento y fondo transparente. Haz clic en cualquiera para pegarlo en tu cuaderno, copiarlo o descargarlo en .PNG
             </p>
           </div>
 
@@ -379,7 +358,7 @@ export const CrochetGifsView: React.FC<{
         {/* Category Tabs + Search */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 mb-5">
           <div className="flex flex-wrap items-center gap-1.5">
-            {GIF_CATEGORIES.map((cat) => {
+            {STICKER_CATEGORIES.map((cat) => {
               const count = categoryCounts[cat] ?? 0;
               const active = activeCategory === cat;
               return (
@@ -408,7 +387,7 @@ export const CrochetGifsView: React.FC<{
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar mandala, osito, flor..."
+              placeholder="Buscar suéter, macramé, mandala, flor..."
               className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-[#231208]/90 border border-[#b98241]/40 text-xs text-[#f7e7c8] placeholder:text-[#a8865b] focus:outline-none focus:border-[#ebbc6e]"
             />
             {searchQuery && (
@@ -426,19 +405,19 @@ export const CrochetGifsView: React.FC<{
 
         {filteredGifs.length === 0 ? (
           <div className="p-8 rounded-2xl border border-[#b98241]/30 bg-[#2a160b]/70 text-center text-sm text-[#dfc49b]">
-            No hay GIFs que coincidan con “{searchQuery}”.
+            No hay stickers que coincidan con “{searchQuery}”.
           </div>
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
               {displayedGifs.map((gif) => (
-                <GifGridCard
+                <StickerGridCard
                   key={gif.id}
                   gif={gif}
                   isCopied={copiedId === gif.id}
                   onInsert={handleInsert}
-                  onCopy={handleCopy}
-                  onDownload={handleDownload}
+                  onCopy={(g) => void handleCopy(g)}
+                  onDownload={(g) => void handleDownload(g)}
                   onPreview={(g) => {
                     audioEngine.playRetroPop(2);
                     setPreviewGif(g);
@@ -454,7 +433,7 @@ export const CrochetGifsView: React.FC<{
                   onClick={() => setVisibleLimit(filteredGifs.length)}
                   className="px-4 py-2 rounded-lg bg-[#381e0f] border border-[#b98241]/50 hover:bg-[#522d17] text-xs text-[#f4d8ab] cursor-pointer transition-colors shadow"
                 >
-                  Mostrar los {filteredGifs.length - displayedGifs.length} GIFs restantes
+                  Mostrar los {filteredGifs.length - displayedGifs.length} stickers restantes
                 </button>
               </div>
             )}
@@ -462,7 +441,7 @@ export const CrochetGifsView: React.FC<{
         )}
       </div>
 
-      {/* Large Encoded GIF Modal Preview */}
+      {/* Large Still HD Sticker Modal Preview */}
       {previewGif && (
         <div
           onClick={() => setPreviewGif(null)}
@@ -492,14 +471,14 @@ export const CrochetGifsView: React.FC<{
             </div>
 
             <div className="flex items-center justify-center rounded-xl parchment-page p-6 border border-[#a87842]/60">
-              {previewEncodedUrl ? (
+              {previewPngUrl ? (
                 <img
-                  src={previewEncodedUrl}
+                  src={previewPngUrl}
                   alt={previewGif.name}
-                  className="w-44 h-44 object-contain"
+                  className="w-48 h-48 object-contain"
                 />
               ) : (
-                <GifPreviewCanvas gif={previewGif} size={176} className="w-44 h-44" />
+                <StillStickerCanvas gif={previewGif} size={192} className="w-48 h-48" />
               )}
             </div>
 
@@ -525,7 +504,7 @@ export const CrochetGifsView: React.FC<{
               </button>
               <button
                 type="button"
-                onClick={() => handleDownload(previewGif)}
+                onClick={() => void handleDownload(previewGif)}
                 className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#3b2110] hover:bg-[#522e17] border border-[#b98241]/45 text-xs font-medium text-[#ffebc2] cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />

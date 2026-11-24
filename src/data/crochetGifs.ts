@@ -1,9 +1,11 @@
 export type CrochetGifCategory =
   | 'Puntos y Ganchillo'
-  | 'Mandalas Animados'
+  | 'Mandalas de Taller'
   | 'Granny y Tapetes'
   | 'Flores Tejidas'
   | 'Amigurumi'
+  | 'Prendas y Accesorios'
+  | 'Boho y Macramé'
   | 'Notas del Cuaderno';
 
 export type CrochetGifScene =
@@ -66,7 +68,27 @@ export type CrochetGifScene =
   | 'floating-hearts'
   | 'bunting-flags'
   | 'queen-crown'
-  | 'floral-seal';
+  | 'floral-seal'
+  | 'crochet-sweater'
+  | 'granny-cardigan'
+  | 'bucket-hat'
+  | 'crochet-tote'
+  | 'baby-booties'
+  | 'cozy-scarf'
+  | 'knit-beanie'
+  | 'crochet-mittens'
+  | 'crochet-dress'
+  | 'crochet-bikini-top'
+  | 'dreamcatcher'
+  | 'macrame-wall'
+  | 'wooden-buttons'
+  | 'yarn-skein'
+  | 'vintage-sewing'
+  | 'crescent-moon'
+  | 'lavender-bouquet'
+  | 'cherry-blossom'
+  | 'lotus-mandala'
+  | 'artisan-tag';
 
 export interface CrochetGifDef {
   id: string;
@@ -166,7 +188,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-spin',
     name: 'Mandala Arcoíris',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-spin',
     subtitle: 'Rosetón multicolor giratorio',
     colors: ['#E11D48', '#F59E0B', '#10B981', '#2563EB'],
@@ -174,7 +196,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-bloom',
     name: 'Mandala Loto Vivo',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-bloom',
     subtitle: 'Pétalos abriéndose por vueltas',
     colors: ['#9D174D', '#F472B6', '#FBBF24', '#0F766E'],
@@ -182,7 +204,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-kaleidoscope',
     name: 'Mandala Caleidoscopio',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-kaleidoscope',
     subtitle: 'Anillos contrarrotatorios',
     colors: ['#4338CA', '#EC4899', '#14B8A6', '#F59E0B'],
@@ -190,7 +212,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-sunburst',
     name: 'Mandala Sol Radiante',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-sunburst',
     subtitle: 'Rayos dorados latiendo',
     colors: ['#B45309', '#F59E0B', '#DC2626', '#FDE047'],
@@ -198,7 +220,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-boho',
     name: 'Mandala Boho Turquesa',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-boho',
     subtitle: 'Turquesa y coral en vaivén',
     colors: ['#0F766E', '#2DD4BF', '#FB7185', '#F59E0B'],
@@ -206,7 +228,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-lace-wheel',
     name: 'Rueda de Encaje Real',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-lace-wheel',
     subtitle: 'Filigrana violeta y oro',
     colors: ['#6D28D9', '#C084FC', '#D97706', '#FDE68A'],
@@ -214,7 +236,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-star',
     name: 'Mandala Estrella Nórdica',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-star',
     subtitle: 'Estrella de 8 puntas tejiéndose',
     colors: ['#1E3A8A', '#0284C7', '#F59E0B', '#E11D48'],
@@ -222,7 +244,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-daisy',
     name: 'Mandala Jardín Pastel',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-daisy',
     subtitle: 'Margaritas en ronda festiva',
     colors: ['#FF70A6', '#FF9770', '#10B981', '#FBBF24'],
@@ -230,7 +252,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-autumn',
     name: 'Mandala Otoño Cálido',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-autumn',
     subtitle: 'Terracota, ocre y oliva',
     colors: ['#9A3412', '#EA580C', '#CA8A04', '#4D7C0F'],
@@ -238,7 +260,7 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
   {
     id: 'gif-mandala-emerald',
     name: 'Mandala Esmeralda',
-    category: 'Mandalas Animados',
+    category: 'Mandalas de Taller',
     scene: 'mandala-emerald',
     subtitle: 'Verde bosque con aro dorado',
     colors: ['#065F46', '#10B981', '#D97706', '#BE123C'],
@@ -568,8 +590,170 @@ const BASE_CROCHET_GIFS: CrochetGifDef[] = [
     name: 'Sello Flor Dorada',
     category: 'Notas del Cuaderno',
     scene: 'floral-seal',
-    subtitle: 'Medallón giratorio de taller',
+    subtitle: 'Medallón floral de taller',
     colors: ['#7A202A', '#D97706', '#FBBF24', '#0F766E'],
+  },
+  // 7. Prendas y Accesorios (10 nuevos stickers)
+  {
+    id: 'gif-crochet-sweater',
+    name: 'Suéter de Trenzas',
+    category: 'Prendas y Accesorios',
+    scene: 'crochet-sweater',
+    subtitle: 'Jersey tejido con cuello acanalado',
+    colors: ['#B45309', '#F4D9A6', '#7A202A', '#FFF7E8'],
+  },
+  {
+    id: 'gif-granny-cardigan',
+    name: 'Cárdigan Granny',
+    category: 'Prendas y Accesorios',
+    scene: 'granny-cardigan',
+    subtitle: 'Chaqueta de cuadros multicolores',
+    colors: ['#0F766E', '#E6AE1E', '#C9184A', '#F7E7C4'],
+  },
+  {
+    id: 'gif-bucket-hat',
+    name: 'Sombrero Bucket',
+    category: 'Prendas y Accesorios',
+    scene: 'bucket-hat',
+    subtitle: 'Gorro pescador calado con franja',
+    colors: ['#2B6CB0', '#F6E05E', '#E53E3E', '#FFF8E7'],
+  },
+  {
+    id: 'gif-crochet-tote',
+    name: 'Bolso Tote Floral',
+    category: 'Prendas y Accesorios',
+    scene: 'crochet-tote',
+    subtitle: 'Bolso tejido con asas trenzadas',
+    colors: ['#C25F34', '#F0DEC1', '#225937', '#E6AE1E'],
+  },
+  {
+    id: 'gif-baby-booties',
+    name: 'Patucos de Bebé',
+    category: 'Prendas y Accesorios',
+    scene: 'baby-booties',
+    subtitle: 'Zapatitos tejidos con lazo y botón',
+    colors: ['#EC4899', '#FBCFE8', '#D4AF37', '#FFF5F7'],
+  },
+  {
+    id: 'gif-cozy-scarf',
+    name: 'Bufanda con Flecos',
+    category: 'Prendas y Accesorios',
+    scene: 'cozy-scarf',
+    subtitle: 'Bufanda larga a rayas en punto arroz',
+    colors: ['#861F3B', '#E9C46A', '#2A9D8F', '#FFF3DF'],
+  },
+  {
+    id: 'gif-knit-beanie',
+    name: 'Gorro con Pompón',
+    category: 'Prendas y Accesorios',
+    scene: 'knit-beanie',
+    subtitle: 'Beanie invernal acanalado',
+    colors: ['#1E3A8A', '#93C5FD', '#FBBF24', '#F8FAFC'],
+  },
+  {
+    id: 'gif-crochet-mittens',
+    name: 'Manoplas Corazón',
+    category: 'Prendas y Accesorios',
+    scene: 'crochet-mittens',
+    subtitle: 'Guantes tejidos con detalle bordado',
+    colors: ['#991B1B', '#FCA5A5', '#FEF3C7', '#D97706'],
+  },
+  {
+    id: 'gif-crochet-dress',
+    name: 'Vestido de Encaje',
+    category: 'Prendas y Accesorios',
+    scene: 'crochet-dress',
+    subtitle: 'Vestido bohemio con falda calada',
+    colors: ['#7C3AED', '#DDD6FE', '#F472B6', '#FDE68A'],
+  },
+  {
+    id: 'gif-crochet-bikini-top',
+    name: 'Top Calado Verano',
+    category: 'Prendas y Accesorios',
+    scene: 'crochet-bikini-top',
+    subtitle: 'Top artesanal con punto concha',
+    colors: ['#0D9488', '#99F6E4', '#F59E0B', '#FFFBEB'],
+  },
+  // 8. Boho y Macramé (10 nuevos stickers)
+  {
+    id: 'gif-dreamcatcher',
+    name: 'Atrapasueños Boho',
+    category: 'Boho y Macramé',
+    scene: 'dreamcatcher',
+    subtitle: 'Aro tejido con red radial y plumas',
+    colors: ['#9A3412', '#F4D9A6', '#0F766E', '#D97706'],
+  },
+  {
+    id: 'gif-macrame-wall',
+    name: 'Tapiz de Macramé',
+    category: 'Boho y Macramé',
+    scene: 'macrame-wall',
+    subtitle: 'Colgante artesanal sobre rama natural',
+    colors: ['#78350F', '#F3E5AB', '#D97706', '#5C3016'],
+  },
+  {
+    id: 'gif-wooden-buttons',
+    name: 'Trío de Botones',
+    category: 'Boho y Macramé',
+    scene: 'wooden-buttons',
+    subtitle: 'Botones de madera, nácar y latón',
+    colors: ['#7C2D12', '#D4A373', '#F4E4C1', '#B45309'],
+  },
+  {
+    id: 'gif-yarn-skein',
+    name: 'Madeja de Algodón',
+    category: 'Boho y Macramé',
+    scene: 'yarn-skein',
+    subtitle: 'Ovillo largo con faja dorada',
+    colors: ['#BE185D', '#F9A8D4', '#D4AF37', '#FFF1F2'],
+  },
+  {
+    id: 'gif-vintage-sewing',
+    name: 'Máquina Vintage',
+    category: 'Boho y Macramé',
+    scene: 'vintage-sewing',
+    subtitle: 'Máquina de costura clásica dorada',
+    colors: ['#1F2937', '#D4AF37', '#991B1B', '#FEF3C7'],
+  },
+  {
+    id: 'gif-crescent-moon',
+    name: 'Luna de Encaje',
+    category: 'Boho y Macramé',
+    scene: 'crescent-moon',
+    subtitle: 'Media luna tejida con estrellas',
+    colors: ['#312E81', '#FBBF24', '#C4B5FD', '#FEF9C3'],
+  },
+  {
+    id: 'gif-lavender-bouquet',
+    name: 'Ramo de Lavanda',
+    category: 'Boho y Macramé',
+    scene: 'lavender-bouquet',
+    subtitle: 'Espigas aromáticas con lazo',
+    colors: ['#6D28D9', '#C084FC', '#15803D', '#E9D5FF'],
+  },
+  {
+    id: 'gif-cherry-blossom',
+    name: 'Flor de Cerezo',
+    category: 'Boho y Macramé',
+    scene: 'cherry-blossom',
+    subtitle: 'Sakura tejida con estambres dorados',
+    colors: ['#F472B6', '#FCE7F3', '#D97706', '#9D174D'],
+  },
+  {
+    id: 'gif-lotus-mandala',
+    name: 'Mandala Flor de Loto',
+    category: 'Boho y Macramé',
+    scene: 'lotus-mandala',
+    subtitle: 'Loto simétrico en puntadas finas',
+    colors: ['#0F766E', '#5EEAD4', '#F59E0B', '#EC4899'],
+  },
+  {
+    id: 'gif-artisan-tag',
+    name: 'Etiqueta Hecho a Mano',
+    category: 'Boho y Macramé',
+    scene: 'artisan-tag',
+    subtitle: 'Sello kraft con cordel y corazón',
+    colors: ['#92400E', '#FDE68A', '#DC2626', '#FFFBEB'],
   },
 ];
 
@@ -596,8 +780,8 @@ const GIF_EDITION_THEMES: GifEditionTheme[] = [
 
 function buildAllCrochetGifs(): CrochetGifDef[] {
   const list: CrochetGifDef[] = [...BASE_CROCHET_GIFS];
-  // 4 curated editions per base scene (60 + 240 = 300 animated crochet GIFs)
-  for (let edition = 1; edition <= 4; edition++) {
+  // 5 curated editions per base scene (80 + 400 = 480 crisp still crochet stickers!)
+  for (let edition = 1; edition <= 5; edition++) {
     BASE_CROCHET_GIFS.forEach((base, idx) => {
       const theme = GIF_EDITION_THEMES[(idx + edition * 3) % GIF_EDITION_THEMES.length];
       list.push({

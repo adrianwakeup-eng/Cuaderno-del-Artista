@@ -1542,7 +1542,7 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
           />
           <StudioToolTile
             icon={<CrochetGifIcon className="w-3.5 h-3.5" />}
-            label="GIFs"
+            label="Stickers HD"
             active={activeSection === 'gifs'}
             onClick={() => {
               audioEngine.playRetroPop(2);
