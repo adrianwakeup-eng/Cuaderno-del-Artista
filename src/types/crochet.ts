@@ -10,6 +10,7 @@ export type StudioSection =
   | 'pinceles'
   | 'armario'
   | 'vestidor'
+  | 'comunidad'
   | 'configuracion';
 
 export type PaperStyle = 'grid' | 'dots' | 'plain';

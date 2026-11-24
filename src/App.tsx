@@ -7,6 +7,7 @@ import {
   PenTool,
   SlidersHorizontal,
   Undo2,
+  Video,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { User } from 'firebase/auth';
@@ -32,6 +33,7 @@ import {
   StickersAndImagesView,
 } from './components/StudioUtilityViews';
 import { FramesGalleryView } from './components/FramesGalleryView';
+import { CommunityHubView } from './components/CommunityHubView';
 import { GoldenDressingRoomView } from './components/GoldenDressingRoomView';
 import { ElectronTitleBar, OfflineIndicator } from './components/WindowsDesktopControls';
 import { DEFAULT_WORKSPACE, INITIAL_DESK_NOTES } from './data/seedData';
@@ -1252,6 +1254,31 @@ export default function App() {
               />
             )}
 
+            {activeSection === 'comunidad' && (
+              <CommunityHubView
+                onPinPhotoToNotebook={(dataUrl, title) => {
+                  const target = getActiveEditableSpread();
+                  const imgCount = target
+                    ? target.elements.filter((e) => e.type === 'image').length
+                    : 0;
+                  insertElementOnCurrentSpread({
+                    side: imgCount % 2 === 0 ? 'right' : 'left',
+                    type: 'image',
+                    x: 16,
+                    y: 16,
+                    width: 210,
+                    content: dataUrl,
+                    title,
+                    frameStyle: 'gold',
+                  });
+                  setActiveSection('cuaderno');
+                  showToast(`Foto de comunidad pegada: ${title}`);
+                }}
+                onNotify={showToast}
+                onReturnToNotebook={() => setActiveSection('cuaderno')}
+              />
+            )}
+
             {activeSection === 'armario' && (
               <RoyalWardrobeRoomView
                 onSelectSeason={(season) => {
@@ -1572,6 +1599,22 @@ export default function App() {
                   >
                     <Flower2 className="w-4 h-4" />
                     <span>Stickers</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playToggleChime(true);
+                      setActiveSection(activeSection === 'comunidad' ? 'cuaderno' : 'comunidad');
+                    }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-semibold active:scale-95 ${
+                      activeSection === 'comunidad'
+                        ? 'bg-gradient-to-b from-[#2b7a54] to-[#1a5237] text-white shadow'
+                        : 'text-[#b7f3d0]'
+                    }`}
+                  >
+                    <Video className="w-4 h-4" />
+                    <span>Llamar</span>
                   </button>
 
                   <button

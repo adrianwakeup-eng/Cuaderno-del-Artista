@@ -45,6 +45,7 @@ import {
   Type,
   Undo2,
   User,
+  Video,
   Volume2,
   VolumeX,
   X,
@@ -1304,6 +1305,28 @@ export const RightStudioDock: React.FC<RightStudioDockProps> = ({
             }}
           />
         </div>
+
+        {/* Dedicated Community, Publications & Live Audio/Video Calls Bar */}
+        <button
+          type="button"
+          onClick={() => {
+            audioEngine.playToggleChime(true);
+            onGoToSection('comunidad');
+            setOpenDrawer(null);
+            onCloseMobileDrawer?.();
+          }}
+          title="Comunidad del Taller: Llamadas de Audio y Video en vivo + Publicaciones con fotos, videos y archivos"
+          className={`mt-1.5 w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
+            activeSection === 'comunidad'
+              ? 'bg-gradient-to-b from-[#2b7a54] to-[#1a5237] border-[#96f0c0] text-white font-semibold shadow-[0_0_12px_rgba(74,222,128,0.4)]'
+              : 'bg-gradient-to-b from-[#2c190c] to-[#1b0e05] hover:from-[#3d2311] hover:to-[#271408] border-[#d6a25e]/55 text-[#fae5be]'
+          }`}
+        >
+          <Video className="w-3.5 h-3.5 text-[#86efac]" />
+          <span className="text-[11px] font-semibold tracking-wide truncate">
+            Comunidad · Llamadas Audio y Video
+          </span>
+        </button>
       </div>
 
       {/* Inline animated Toast inside the right panel so it never covers the book */}
