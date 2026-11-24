@@ -4,7 +4,238 @@ import type { WardrobeSeasonId } from '../types/crochet';
 import { audioEngine } from '../utils/audioEngine';
 import { WARDROBE_SEASONS, type WardrobeSeasonMeta } from '../utils/wardrobeSeasons';
 
-export const WARDROBE_SPRITE_SRC = '/vestidor/greek-wardrobe/door-primavera.jpg';
+export const WARDROBE_SPRITE_SRC = '/vestidor/greek-wardrobe/door-primavera.jpg?v=hd5';
+
+/**
+ * Living Super-HD Seasonal Hero Canvas:
+ * Renders each classical bodybuilder portrait at full Retina sharpness with:
+ * - Organic anatomical breathing & subtle welcoming posture sway
+ * - Biomechanical wrist-articulated waving greeting toward the camera (periodic + immediate on hover!)
+ * - Soft directional golden light glints & seasonal floating particles
+ */
+const LivingSeasonHeroPortrait: React.FC<{
+  season: WardrobeSeasonMeta;
+  hovered: boolean;
+  reducedMotion: boolean;
+}> = ({ season, hovered, reducedMotion }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const hoveredRef = useRef(hovered);
+  const hoverGreetStartRef = useRef<number>(-999);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (hovered && !hoveredRef.current) {
+      hoverGreetStartRef.current = performance.now() / 1000;
+    }
+    hoveredRef.current = hovered;
+  }, [hovered]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let alive = true;
+    let rafId = 0;
+
+    const bgImg = new Image();
+    const handImg = new Image();
+    let loadedCount = 0;
+
+    const particles = Array.from({ length: 12 }, (_, idx) => ({
+      x: ((idx * 37 + season.doorNumber * 19) % 100) / 100,
+      y: ((idx * 53 + season.doorNumber * 29) % 100) / 100,
+      r: 1.4 + (idx % 3) * 0.9,
+      speedY: 0.018 + (idx % 4) * 0.008,
+      drift: 0.012 + (idx % 3) * 0.006,
+      phase: idx * 1.15,
+    }));
+
+    const onLoaded = () => {
+      loadedCount += 1;
+      if (loadedCount === 2 && alive) {
+        setReady(true);
+        startLoop();
+      }
+    };
+
+    bgImg.onload = onLoaded;
+    handImg.onload = onLoaded;
+    bgImg.src = season.heroAnim.bgImage;
+    handImg.src = season.heroAnim.handImage;
+
+    const syncSize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cw = Math.max(1, Math.round(rect.width * dpr));
+      const ch = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw;
+        canvas.height = ch;
+      }
+    };
+
+    const drawFrame = (nowMs: number) => {
+      if (!alive) return;
+      syncSize();
+      const cw = canvas.width;
+      const ch = canvas.height;
+      if (cw < 4 || ch < 4 || !bgImg.naturalWidth || !handImg.naturalWidth) return;
+
+      const t = nowMs / 1000 + season.heroAnim.phaseOffsetSec;
+      const isHover = hoveredRef.current;
+
+      // Exact object-cover object-top mapping (with 1.5% overscan so breathing/sway never shows edges)
+      const imgW = bgImg.naturalWidth;
+      const imgH = bgImg.naturalHeight;
+      const coverScale = Math.max(cw / imgW, ch / imgH) * (isHover ? 1.045 : 1.022);
+      const drawW = imgW * coverScale;
+      const drawH = imgH * coverScale;
+      const baseDrawX = (cw - drawW) * 0.5;
+      const baseDrawY = Math.min(0, (ch - drawH) * 0.14);
+
+      // 1. Organic anatomical breathing & subtle living weight shift
+      const breath = reducedMotion ? 0 : Math.sin(t * 1.45);
+      const swayX = reducedMotion ? 0 : Math.sin(t * 0.68) * cw * 0.006;
+      const breathScaleX = 1 + breath * 0.0055;
+      const breathScaleY = 1 + breath * 0.011;
+      const liftY = -breath * ch * 0.0045;
+
+      // 2. Natural friendly waving cycle:
+      // Every 6.4s each hero performs a warm 2.6s 3-beat open-palm greeting wave,
+      // PLUS immediately performs an enthusiastic greeting wave whenever hovered!
+      let waveRad = 0;
+      if (!reducedMotion) {
+        const cyclePos = t % 6.4;
+        let autoEnv = 0;
+        if (cyclePos < 2.8) {
+          const u = cyclePos / 2.8;
+          autoEnv = Math.sin(u * Math.PI);
+        }
+        const hoverElapsed = nowMs / 1000 - hoverGreetStartRef.current;
+        let hoverEnv = 0;
+        if (isHover) {
+          hoverEnv = 0.85 + 0.15 * Math.sin(hoverElapsed * 2.2);
+        } else if (hoverElapsed >= 0 && hoverElapsed < 2.2) {
+          hoverEnv = Math.sin((hoverElapsed / 2.2) * Math.PI);
+        }
+        const env = Math.max(autoEnv, hoverEnv);
+        const waveOsc = Math.sin(t * (isHover ? 7.6 : 6.2));
+        const maxAngleDeg = isHover ? 13.5 : 10.5;
+        waveRad = ((waveOsc * env * maxAngleDeg * season.heroAnim.waveDir) * Math.PI) / 180;
+      }
+
+      // Subtle warm nod / torso lean synced with greeting wave
+      const nodY = Math.abs(waveRad) * ch * 0.014;
+
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // Draw breathing classical bodybuilder base portrait
+      ctx.save();
+      const bodyPivotX = cw * 0.5;
+      const bodyPivotY = ch * 0.72;
+      ctx.translate(bodyPivotX + swayX, bodyPivotY + liftY + nodY);
+      ctx.scale(breathScaleX, breathScaleY);
+      ctx.translate(-bodyPivotX, -bodyPivotY);
+
+      ctx.drawImage(bgImg, baseDrawX, baseDrawY, drawW, drawH);
+
+      // Draw articulated waving hand pivoting smoothly around the exact anatomical wrist joint!
+      const [rx0, ry0, rx1, ry1] = season.heroAnim.handRoi;
+      const [wxNorm, wyNorm] = season.heroAnim.wristPivot;
+      const wristX = baseDrawX + wxNorm * drawW;
+      const wristY = baseDrawY + wyNorm * drawH;
+      const handX = baseDrawX + rx0 * drawW;
+      const handY = baseDrawY + ry0 * drawH;
+      const handW = (rx1 - rx0) * drawW;
+      const handH = (ry1 - ry0) * drawH;
+
+      ctx.save();
+      ctx.translate(wristX, wristY);
+      ctx.rotate(waveRad);
+      ctx.drawImage(handImg, handX - wristX, handY - wristY, handW, handH);
+      ctx.restore();
+
+      ctx.restore();
+
+      // 3. Subtle living sunlight glint gliding across sculpted anatomy
+      if (!reducedMotion) {
+        const sheenPos = ((t * 0.14) % 1.8) - 0.4;
+        const grad = ctx.createLinearGradient(
+          cw * (sheenPos - 0.25),
+          0,
+          cw * (sheenPos + 0.35),
+          ch * 0.85
+        );
+        grad.addColorStop(0, 'rgba(255,248,220,0)');
+        grad.addColorStop(0.5, isHover ? 'rgba(255,246,210,0.12)' : 'rgba(255,246,210,0.06)');
+        grad.addColorStop(1, 'rgba(255,248,220,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, cw, ch);
+
+        // 4. Delicate seasonal floating ambiance (petals / Aegean sun-motes / amber leaves / snow glints)
+        ctx.save();
+        for (const p of particles) {
+          const py = ((p.y + t * p.speedY) % 1.08) - 0.04;
+          const px = p.x + Math.sin(t * 1.1 + p.phase) * p.drift;
+          const alpha = (isHover ? 0.55 : 0.32) * Math.sin(Math.max(0, Math.min(1, py)) * Math.PI);
+          if (alpha <= 0.02) continue;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = season.heroAnim.particleHex;
+          ctx.beginPath();
+          if (season.id === 'primavera' || season.id === 'otono') {
+            ctx.ellipse(px * cw, py * ch, p.r * 1.7, p.r * 0.9, t * 0.9 + p.phase, 0, Math.PI * 2);
+          } else {
+            ctx.arc(px * cw, py * ch, p.r * 1.1, 0, Math.PI * 2);
+          }
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    };
+
+    const startLoop = () => {
+      const tick = (now: number) => {
+        drawFrame(now);
+        if (!reducedMotion) {
+          rafId = window.requestAnimationFrame(tick);
+        }
+      };
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    return () => {
+      alive = false;
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [season, reducedMotion]);
+
+  return (
+    <>
+      {/* Instant Super-HD fallback underneath while canvas images decode */}
+      <img
+        src={season.doorImage}
+        alt={`Retrato anatómico clásico — ${season.label}`}
+        draggable={false}
+        className={`w-full h-full object-cover object-top select-none transition-opacity duration-300 ${
+          ready ? 'opacity-0' : 'opacity-100'
+        }`}
+        style={{ filter: 'contrast(1.04) saturate(1.05)' }}
+      />
+      <canvas
+        ref={canvasRef}
+        aria-label={`Retrato vivo saludando — ${season.label}`}
+        className={`absolute inset-0 w-full h-full pointer-events-none select-none transition-opacity duration-300 ${
+          ready ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{ filter: 'contrast(1.04) saturate(1.05)' }}
+      />
+    </>
+  );
+};
 
 export interface CrochetWardrobe3DProps {
   onEnterDressingRoom?: (season?: WardrobeSeasonId) => void;
@@ -245,14 +476,12 @@ const SeasonalGreekDoor: React.FC<SeasonalDoorProps> = ({
               </defs>
             </svg>
 
-            {/* Arched Museum Oil Painting Viewport with Double 24k Gold Bevel */}
+            {/* Arched Museum Super-HD Living Portrait Viewport with Double 24k Gold Bevel */}
             <div className="relative flex-1 w-full overflow-hidden rounded-t-[48%] rounded-b-[4px] border-[2.5px] border-[#f0c66c] ring-1 ring-[#5e3708] shadow-[inset_0_0_20px_rgba(14,6,1,0.65),0_0_10px_rgba(245,200,98,0.28)] bg-[#1f1208]">
-              <img
-                src={season.doorImage}
-                alt={`Pintura clásica griega — ${season.label}`}
-                draggable={false}
-                className="w-full h-full object-cover object-top select-none transition-transform duration-500 group-hover:scale-[1.04]"
-                style={{ filter: 'contrast(1.04) saturate(1.06)' }}
+              <LivingSeasonHeroPortrait
+                season={season}
+                hovered={hovered && !isOpening}
+                reducedMotion={reducedMotion}
               />
 
               {/* Museum oil-painting warm chiaroscuro varnish & gilded top arch highlight */}

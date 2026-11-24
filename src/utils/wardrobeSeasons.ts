@@ -1,5 +1,20 @@
 import type { DressingRoomGarment, WardrobeSeasonId } from '../types/crochet';
 
+export interface WardrobeHeroAnimMeta {
+  bgImage: string;
+  handImage: string;
+  /** Normalized ROI [x0, y0, x1, y1] of the waving hand sprite on the 1152x2064 canvas */
+  handRoi: [number, number, number, number];
+  /** Normalized wrist rotation pivot [wx, wy] on the 1152x2064 canvas */
+  wristPivot: [number, number];
+  /** Natural wave arc polarity (+1 or -1) */
+  waveDir: 1 | -1;
+  /** Distinct phase offset (seconds) so all 4 men breathe & wave organically */
+  phaseOffsetSec: number;
+  /** Seasonal ambient particle color */
+  particleHex: string;
+}
+
 export interface WardrobeSeasonMeta {
   id: WardrobeSeasonId;
   doorNumber: 1 | 2 | 3 | 4;
@@ -9,6 +24,7 @@ export interface WardrobeSeasonMeta {
   subtitle: string;
   fibersNote: string;
   doorImage: string;
+  heroAnim: WardrobeHeroAnimMeta;
   accentHex: string;
   borderHex: string;
   glowRgba: string;
@@ -25,7 +41,16 @@ export const WARDROBE_SEASONS: WardrobeSeasonMeta[] = [
     greekName: 'Eiar · Primavera',
     subtitle: 'Tejidos ligeros, flores de almendro, calados frescos y tonos botánicos',
     fibersNote: 'Algodón peinado · Lino suave · Puntos calados florales',
-    doorImage: '/vestidor/greek-wardrobe/door-primavera.jpg',
+    doorImage: '/vestidor/greek-wardrobe/door-primavera.jpg?v=hd5',
+    heroAnim: {
+      bgImage: '/vestidor/greek-wardrobe/door-primavera-bg.jpg?v=hd5',
+      handImage: '/vestidor/greek-wardrobe/door-primavera-hand.webp?v=hd5',
+      handRoi: [109 / 1152, 526 / 2064, 351 / 1152, 877 / 2064],
+      wristPivot: [0.172, 0.405],
+      waveDir: -1,
+      phaseOffsetSec: 0.0,
+      particleHex: '#fff0f5',
+    },
     accentHex: '#9fd4a4',
     borderHex: '#7eb886',
     glowRgba: 'rgba(159, 212, 164, 0.34)',
@@ -41,7 +66,16 @@ export const WARDROBE_SEASONS: WardrobeSeasonMeta[] = [
     greekName: 'Theros · Verano',
     subtitle: 'Prendas frescas mediterráneas, red crochet aireada y luz dorada del Egeo',
     fibersNote: 'Algodón mercerizado · Bambú fresco · Calados de verano',
-    doorImage: '/vestidor/greek-wardrobe/door-verano.jpg',
+    doorImage: '/vestidor/greek-wardrobe/door-verano.jpg?v=hd5',
+    heroAnim: {
+      bgImage: '/vestidor/greek-wardrobe/door-verano-bg.jpg?v=hd5',
+      handImage: '/vestidor/greek-wardrobe/door-verano-hand.webp?v=hd5',
+      handRoi: [824 / 1152, 578 / 2064, 1031 / 1152, 888 / 2064],
+      wristPivot: [0.835, 0.415],
+      waveDir: 1,
+      phaseOffsetSec: 1.8,
+      particleHex: '#ffe699',
+    },
     accentHex: '#f7cf73',
     borderHex: '#e3b14b',
     glowRgba: 'rgba(247, 207, 115, 0.4)',
@@ -57,7 +91,16 @@ export const WARDROBE_SEASONS: WardrobeSeasonMeta[] = [
     greekName: 'Phthinoporon · Otoño',
     subtitle: 'Cárdigans trenzados, textura en relieve, cosecha dorada y tonos terracota',
     fibersNote: 'Lana merino media · Alpaca fina · Trenzas y espiga',
-    doorImage: '/vestidor/greek-wardrobe/door-otono.jpg',
+    doorImage: '/vestidor/greek-wardrobe/door-otono.jpg?v=hd5',
+    heroAnim: {
+      bgImage: '/vestidor/greek-wardrobe/door-otono-bg.jpg?v=hd5',
+      handImage: '/vestidor/greek-wardrobe/door-otono-hand.webp?v=hd5',
+      handRoi: [86 / 1152, 196 / 2064, 340 / 1152, 588 / 2064],
+      wristPivot: [0.158, 0.268],
+      waveDir: -1,
+      phaseOffsetSec: 3.5,
+      particleHex: '#f4a261',
+    },
     accentHex: '#e28f62',
     borderHex: '#c86c3f',
     glowRgba: 'rgba(226, 143, 98, 0.38)',
@@ -73,7 +116,16 @@ export const WARDROBE_SEASONS: WardrobeSeasonMeta[] = [
     greekName: 'Cheimon · Invierno',
     subtitle: 'Abrigos estructurados, puntos gruesos nobles, zafiro nocturno y plata',
     fibersNote: 'Lana virgen gruesa · Mohair · Trenzas nórdicas y abrigos',
-    doorImage: '/vestidor/greek-wardrobe/door-invierno.jpg',
+    doorImage: '/vestidor/greek-wardrobe/door-invierno.jpg?v=hd5',
+    heroAnim: {
+      bgImage: '/vestidor/greek-wardrobe/door-invierno-bg.jpg?v=hd5',
+      handImage: '/vestidor/greek-wardrobe/door-invierno-hand.webp?v=hd5',
+      handRoi: [812 / 1152, 268 / 2064, 1025 / 1152, 568 / 2064],
+      wristPivot: [0.840, 0.258],
+      waveDir: 1,
+      phaseOffsetSec: 5.1,
+      particleHex: '#e2f1ff',
+    },
     accentHex: '#9dc2e6',
     borderHex: '#6c98c4',
     glowRgba: 'rgba(157, 194, 230, 0.36)',
